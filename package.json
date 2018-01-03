@@ -1,0 +1,40 @@
+{
+  "name": "ru-compromise",
+  "description": "",
+  "version": "0.0.1",
+  "author": "Spencer Kelly <spencermountain@gmail.com> (http://spencermounta.in)",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/spencermountain/ru-compromise.git"
+  },
+  "main": "./bulds/ru-compromise.js",
+  "scripts": {
+		"test": "tape \"./test/unit/**/*.test.js\" | tap-spec",
+    "testb": "TESTENV=prod tape \"./test/unit/**/*.test.js\" | tap-spec",
+    "watch": "amble ./scratch.js",
+		"build": "node ./scripts/build/index.js",
+		"pack": "node ./scripts/pack.js"
+	},
+  "dependencies": {
+		"compromise-core":"^0.0.1",
+	  "efrt-unpack": "2.0.3"
+	},
+  "devDependencies": {
+		"babel-preset-es2015": "^6.24.0",
+		"babelify": "7.3.0",
+		"browserify": "13.0.1",
+		"browserify-glob": "^0.2.0",
+		"chalk": "^1.1.3",
+		"codacy-coverage": "^2.0.3",
+		"compromise-plugin": "0.0.8",
+		"derequire": "^2.0.3",
+		"eslint": "^3.1.1",
+		"gaze": "^1.1.1",
+		"nyc": "^8.4.0",
+		"shelljs": "^0.7.2",
+		"tap-dot": "^1.0.5",
+		"tape": "4.6.0",
+		"uglify-js": "2.7.0"
+	},
+  "license": "MIT"
+}
