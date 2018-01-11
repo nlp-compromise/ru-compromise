@@ -1,32 +1,70 @@
-//this is our default data in the same form as a plugin
-// it is compressed, like a plugin, and written into ./src/world
+//this is our russian-language data in the same form as a compromise-plugin
+// to apply changes, run `npm run pack` and then `npm run watch`
 module.exports = {
-  words: {
-    'и': 'Conjunction', //and
-    'он': 'Pronoun', //he
-    'она': 'Pronoun', //she
-    'сказать': 'Verb', //speak
-    'мочь': 'Verb', //can
-    'знать': 'Verb', //know
-    'дело': 'Noun', //business
-    'голова': 'Noun' //brain
-  },
-  // conjugations: require('./conjugations'),
-  // plurals: require('./plurals'),
-  // patterns: require('./patterns'),
-  regex: {
-    ".тель$": 'MasculineNoun',
-    ".тельница$": 'FeminineNoun',
-  },
+
+  //the russian tagset
   tags: {
-    Noun: {},
-    Verb: {},
-    Pronoun: {},
-    MasculineNoun: {
-      isA: 'Noun'
+    Существительные: {}, //Noun
+    Прилагательные: {}, //Adjective
+    Наречие: {}, //Adverb
+    Местоимения: {}, //Pronoun
+    Числительные: {}, //Number
+    Глаголы: {}, //Verb
+    конъюнкция: {}, //Conjunction
+    Предлоги: {}, //Preposition
+    мужской: { //masculine
+      isA: 'Существительные'
     },
-    FeminineNoun: {
-      isA: 'Noun'
+    женский: { //Feminine
+      isA: 'Существительные'
     },
+    человек: { //Person
+      isA: 'Существительные'
+    }
+  },
+
+  //our given lexicon of known russian words
+  words: {
+    'и': 'конъюнкция', //'Conjunction', //and
+    'он': 'Местоимения', //'Pronoun', //he
+    'она': 'Местоимения', //'Pronoun', //she
+    'сказать': 'Глаголы', //'Verb', //speak
+    'мочь': 'Глаголы', //'Verb', //can
+    'знать': 'Глаголы', //'Verb', //know
+    'дело': 'Существительные', //'Noun', //business
+    'голова': 'Существительные', //'Noun' //brain
+  },
+
+  //regular-expressions on particular terms
+  regex: {
+    ".тель$": 'мужской', //male-word
+    ".тельница$": 'женский', //female-word
+  },
+
+  //run arbitrary code during tagging..
+  preProcess: function(ts) {
+    // console.log('running preProcess')
+    ts.terms.forEach((t, i) => {
+      //if it's titlecase, make it a noun
+      if (i > 0 && /[А-ЯЁ][а-яё]/.test(t.text) && Object.keys(t.tags).length === 0) {
+        t.tag('Существительные', 'title-case')
+      }
+    })
+    return ts
+  },
+  //and afterwards...
+  postProcess: function(ts) {
+    // console.log('running postProcess')
+    return ts
+  },
+
+  //word-sequence matches to tag...
+  patterns: {
+    'dr #Существительные': 'человек', //Person
+    'sir #Существительные': 'человек', //Person
   }
+
+// other plugin stuff (not implimented yet)
+// conjugations: {},
+// plurals: {},
 };

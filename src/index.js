@@ -1,7 +1,21 @@
 'use strict';
 const pkg = require('../package.json');
-const core = require('nlp-core');
+const core = require('compromise-core');
+var jsonFn = require('json-fn')
+// const core = require('/Users/spencer/nlp/core/src/index.js');
+const russian = require('./_data')
+const fns = require('./_fns')
 
+//apply our russian plugin..
+core.plugin(russian)
+
+//parse our pre/post code back into fns
+if (fns.preProcess) {
+  core.addPreProcess(jsonFn.parse(fns.preProcess))
+}
+if (fns.postProcess) {
+  core.addPostProcess(jsonFn.parse(fns.postProcess))
+}
 //the main function
 const nlp = function(str, lex) {
   return core(str, lex)
@@ -9,11 +23,6 @@ const nlp = function(str, lex) {
 
 //this is handy
 nlp.version = pkg.version;
-
-//same as main method, except with no POS-tagging.
-nlp.tokenize = function(str) {
-  return core.tokenize(str);
-};
 
 //and then all-the-exports...
 if (typeof self !== 'undefined') {
