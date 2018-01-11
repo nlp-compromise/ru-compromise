@@ -12,7 +12,7 @@
 				"test": "tape \"./test/unit/**/*.test.js\" | tap-spec",
 				"testb": "TESTENV=prod tape \"./test/unit/**/*.test.js\" | tap-spec",
 				"watch": "amble ./scratch.js",
-				"build": "node ./scripts/build/index.js",
+				"build": "node ./scripts/build.js",
 				"pack": "node ./scripts/pack.js"
 		},
 		"dependencies": {

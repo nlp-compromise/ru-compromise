@@ -3,7 +3,7 @@ var exec = require('shelljs').exec;
 var chalk = require('chalk');
 var UglifyJS = require('uglify-js');
 
-var pkg = require('../../package.json');
+var pkg = require('../package.json');
 
 var fileSize = function(src) {
   var stats = fs.statSync(src);
