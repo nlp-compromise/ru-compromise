@@ -1,5 +1,6 @@
 import nlp from './src/index.js'
-// nlp.verbose('tagger')
+nlp.verbose('tagger')
+
 let txt = ``
 txt = `Не слышны в саду даже шорохи,`//Even rustles are not heard in the garden,
 txt = `Всё здесь замерло до утра.`//Everything here was frozen until the morning.
@@ -20,6 +21,7 @@ txt = `он действительно крут`
 
 txt = 'я буду танцевать'//i will dance
 txt = `Не забудь и ты эти летние Подмосковные вечера`//Don't forget these summer Moscow Nights,
+txt = 'Вуячич, Саша'
 // txt = 'Люди будут танцевать!'//people will dance
 let doc = nlp(txt)
 doc.debug()

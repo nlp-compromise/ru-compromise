@@ -20,15 +20,15 @@ import ordinals from './numbers/ordinals.js'
 // import units from './numbers/units.js'
 
 // // people
-// import femaleNames from './people/femaleNames.js'
-// import maleNames from './people/maleNames.js'
+import femaleNames from './people/femaleNames.js'
+import maleNames from './people/maleNames.js'
 // import firstNames from './people/firstNames.js'
-// import lastNames from './people/lastNames.js'
+import lastNames from './people/lastNames.js'
 // import people from './people/people.js'
 
 // // places
-// import cities from './places/cities.js'
-// import countries from './places/countries.js'
+import cities from './places/cities.js'
+import countries from './places/countries.js'
 // import places from './places/places.js'
 // import regions from './places/regions.js'
 
@@ -48,8 +48,8 @@ const data = [
   [cardinals, 'Cardinal'],
   // [units, 'Unit'],
 
-  // [cities, 'City'],
-  // [countries, 'Country'],
+  [cities, 'City'],
+  [countries, 'Country'],
   // [places, 'Place'],
   // [regions, 'Region'],
 
@@ -61,10 +61,10 @@ const data = [
   [months, 'Month'],
   [weekdays, 'WeekDay'],
 
-  // [femaleNames, 'FemaleName'],
-  // [maleNames, 'MaleName'],
+  [femaleNames, 'FemaleName'],
+  [maleNames, 'MaleName'],
   // [firstNames, 'FirstName'],
-  // [lastNames, 'LastName'],
+  [lastNames, 'LastName'],
   // [people, 'Person'],
 
 ]

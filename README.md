@@ -277,5 +277,6 @@ npm watch
  ## Ver también
 - &nbsp; **[Spacy/ru](https://spacy.io/models/ru)** - Python tokenizer/tagger
 - &nbsp; **[MyStem](https://yandex.ru/dev/mystem/)** - Yandex tagger
+- &nbsp; **[rnnmorph](https://github.com/IlyaGusev/rnnmorph)** - python tagger
 
 MIT
