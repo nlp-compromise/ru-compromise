@@ -1,5 +1,26 @@
-var nlp = require('./src/index');
+import nlp from './src/index.js'
+// nlp.verbose('tagger')
+let txt = ``
+txt = `Не слышны в саду даже шорохи,`//Even rustles are not heard in the garden,
+txt = `Всё здесь замерло до утра.`//Everything here was frozen until the morning.
+txt = `Если б знали вы, как мне дороги`//If you knew how dear to me
+txt = `Подмосковные вечера,`//Moscow Nights,
+txt = `Речка движется и не движется,`//The river moves and does not move,
+txt = `Вся из лунного серебра.`//All moon silver.
+txt = `Песня слышится и не слышится`//The song is heard and not heard
+txt = `В эти тихие вечера,`//In these quiet evenings
+txt = `Что ж ты милая смотришь искоса,`//Why are you looking askance, dear,
+txt = `Низко голову наклоня?`//Tilt your head low?
+txt = `Трудно высказать и не высказать`//Difficult to say and not to say
+txt = `Всё, что на сердце у меня,`//All that is in my heart,
+txt = `А рассвет уже всё заметнее,`//And the dawn is getting stronger
+txt = `Так, пожалуйста, будь добра,`//So please be kind
+txt = `Не забудь и ты эти летние`//Don't forget these summer
+txt = `Подмосковные вечера,`//Moscow Nights,
 
-let str = `Торонто находится в зоне влажного континентального климата. На климат Торонто оказывает влияние географическое положение (город расположен на юге Канады) и близость озера Онтарио; на климат региона (провинции Онтарио) существенно влияет расположенный севернее Гудзонов залив. Климат Торонто характеризуется теплым влажным летом, продолжительной умеренно тёплой осенью и холодной зимой. Возможны частые колебания температуры день ото дня. Все сезоны года чётко выражены. За год выпадает около 800 мм осадков.`;
-let doc = nlp(str);
-doc.terms().debug();
+txt = `он действительно крут`
+
+txt = 'я буду танцевать'//i will dance
+// txt = 'Люди будут танцевать!'//people will dance
+let doc = nlp(txt)
+doc.debug()

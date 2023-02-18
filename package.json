@@ -1,41 +1,49 @@
 {
-		"name": "ru-compromise",
-		"description": "",
-		"version": "0.0.1",
-		"author": "Spencer Kelly <spencermountain@gmail.com> (http://spencermounta.in)",
-		"repository": {
-				"type": "git",
-				"url": "git://github.com/spencermountain/ru-compromise.git"
-		},
-		"main": "./bulds/ru-compromise.js",
-		"scripts": {
-				"test": "tape \"./test/unit/**/*.test.js\" | tap-spec",
-				"testb": "TESTENV=prod tape \"./test/unit/**/*.test.js\" | tap-spec",
-				"watch": "amble ./scratch.js",
-				"build": "node ./scripts/build.js",
-				"pack": "node ./scripts/pack.js"
-		},
-		"dependencies": {
-				"compromise-core": "^0.0.2",
-				"efrt-unpack": "2.0.3",
-				"json-fn": "^1.1.1"
-		},
-		"devDependencies": {
-				"babel-preset-es2015": "^6.24.0",
-				"babelify": "7.3.0",
-				"browserify": "13.0.1",
-				"browserify-glob": "^0.2.0",
-				"chalk": "^1.1.3",
-				"codacy-coverage": "^2.0.3",
-				"compromise-plugin": "0.0.8",
-				"derequire": "^2.0.3",
-				"eslint": "^3.1.1",
-				"gaze": "^1.1.1",
-				"nyc": "^8.4.0",
-				"shelljs": "^0.7.2",
-				"tap-dot": "^1.0.5",
-				"tape": "4.6.0",
-				"uglify-js": "2.7.0"
-		},
-		"license": "MIT"
+  "author": "Spencer Kelly <spencermountain@gmail.com> (http://spencermounta.in)",
+  "name": "ru-compromise",
+  "description": "скромная библиотека обработки естественного языка на русском языке",
+  "version": "0.0.2",
+  "main": "./src/index.js",
+  "browser": "./builds/ru-compromise.min.js",
+  "unpkg": "./builds/ru-compromise.min.js",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "import": "./builds/ru-compromise.mjs",
+      "require": "./builds/ru-compromise.cjs"
+    }
+  },
+  "types": "types/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/nlp-compromise/ru-compromise.git"
+  },
+  "scripts": {
+    "test": "tape \"./tests/**/*.test.js\" | tap-dancer",
+    "testb": "TESTENV=prod npm run test",
+    "build": "npm run version && rollup -c --silent",
+    "version": "node ./scripts/version.js",
+    "pack": "node ./scripts/pack.js",
+    "score": "node ./learn/wikicorpus/test.js",
+    "lint": "eslint ./src/**/*",
+    "watch": "amble ./scratch.js",
+    "stress": "node scripts/stress.js"
+  },
+  "dependencies": {
+    "compromise": "14.8.1",
+    "efrt": "2.7.0",
+    "suffix-thumb": "5.0.2"
+  },
+  "devDependencies": {
+    "@rollup/plugin-node-resolve": "14.1.0",
+    "amble": "1.3.0",
+    "eslint": "8.33.0",
+    "eslint-plugin-regexp": "1.12.0",
+    "rollup": "2.79.1",
+    "rollup-plugin-terser": "7.0.2",
+    "tap-dancer": "0.3.4",
+    "tape": "5.6.3"
+  },
+  "license": "MIT"
 }
