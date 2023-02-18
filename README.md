@@ -51,30 +51,30 @@
 ```js
 import nlp from 'ru-compromise'
 
-let doc = nlp('Tengo que bailar contigo hoy')
+let doc = nlp('Не забудь и ты эти летние Подмосковные вечера')
 doc.match('#Verb').out('array')
-// [ 'Tengo', 'bailar' ]
+// [ 'забудь' ]
 ```
 
 <!-- spacer -->
 <img height="15px" src="https://user-images.githubusercontent.com/399657/68221862-17ceb980-ffb8-11e9-87d4-7b30b6488f16.png"/>
 
-o en el navegador:
+или в браузере:
 ```html
 <script src="https://unpkg.com/ru-compromise"></script>
 <script>
-  let txt = 'Oh, tú, tú eres el imán y yo soy el metal'
-  let doc = esCompromise(txt) // window.esCompromise
+  let txt = 'В эти тихие вечера'
+  let doc = ruCompromise(txt) // window.ruCompromise
   console.log(doc.json())
-  // { text:'Oh, tú...', terms:[ ... ] }
+  // { text:'В эти ...', terms:[ ... ] }
 </script>
 ```
 
 ## API
-**ru-compromise** incluye todos los métodos de `compromise/one`:
+**ru-compromise** включает все методы из `compromise/one`:
 
 <details>
-  <summary><h3>haga clic aquí para ver la API</h3></summary>
+  <summary><h3>нажмите здесь, чтобы увидеть API</h3></summary>
 
 ##### Output
 
@@ -224,6 +224,8 @@ _(these methods are on the main `nlp` object)_
 <img height="30px" src="https://user-images.githubusercontent.com/399657/68221862-17ceb980-ffb8-11e9-87d4-7b30b6488f16.png"/>
 
 
+<!-- 
+
 ### Los Números
 puede analizar números escritos o numéricos
 ```js
@@ -239,7 +241,6 @@ doc.text()
 <div align="center">
   <img height="50px" src="https://user-images.githubusercontent.com/399657/68221814-05ed1680-ffb8-11e9-8b6b-c7528d163871.png"/>
 </div>
-<!-- spacer -->
 <img height="30px" src="https://user-images.githubusercontent.com/399657/68221862-17ceb980-ffb8-11e9-87d4-7b30b6488f16.png"/>
 
 ### Lematización
@@ -254,12 +255,11 @@ doc.has('{tirar} nuestros {zapato}')
 <div align="right">
   <a href="https://docs.compromise.cool/compromise-root">root docs</a>
 </div>
-<!-- spacer -->
 <img height="85px" src="https://user-images.githubusercontent.com/399657/68221862-17ceb980-ffb8-11e9-87d4-7b30b6488f16.png"/>
+ -->
 
-
-### Contribuyendo
-únete para ayudar! - please join to help!
+### вклад:
+пожалуйста, присоединяйтесь, чтобы помочь! - please join to help!
 
 *help with first PR[1](https://github.com/spencermountain/compromise/wiki/Contributing)*
 ```
@@ -274,8 +274,8 @@ npm watch
   <img src="https://user-images.githubusercontent.com/399657/68221731-e8b84800-ffb7-11e9-8453-6395e0e903fa.png"/>
 </div>
 
-## Ver también
+<!-- ## Ver también
 - &nbsp; **[opennlp-spanish](https://opennlp.apache.org/)** - Java tagger w/ spanish model
-- &nbsp; **[TreeTagger](https://www.cis.uni-muenchen.de/~schmid/tools/TreeTagger/)** - Perl tagger w/ spanish model
+- &nbsp; **[TreeTagger](https://www.cis.uni-muenchen.de/~schmid/tools/TreeTagger/)** - Perl tagger w/ spanish model -->
 
 MIT

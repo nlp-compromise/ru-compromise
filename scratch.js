@@ -15,12 +15,11 @@ txt = `Трудно высказать и не высказать`//Difficult to
 txt = `Всё, что на сердце у меня,`//All that is in my heart,
 txt = `А рассвет уже всё заметнее,`//And the dawn is getting stronger
 txt = `Так, пожалуйста, будь добра,`//So please be kind
-txt = `Не забудь и ты эти летние`//Don't forget these summer
-txt = `Подмосковные вечера,`//Moscow Nights,
 
 txt = `он действительно крут`
 
 txt = 'я буду танцевать'//i will dance
+txt = `Не забудь и ты эти летние Подмосковные вечера`//Don't forget these summer Moscow Nights,
 // txt = 'Люди будут танцевать!'//people will dance
 let doc = nlp(txt)
 doc.debug()

@@ -1,5 +1,5 @@
 /* eslint-disable no-console */
-import build from '../builds/es-compromise.mjs'
+import build from '../builds/ru-compromise.mjs'
 import src from '../src/index.js'
 let nlp = src
 if (process.env.TESTENV === 'prod') {
