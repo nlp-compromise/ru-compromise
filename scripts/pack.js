@@ -56,16 +56,16 @@ const steps = [
       // Object.keys(packed.adjectives).forEach(k => {
       //   packed.adjectives[k] = compress(learn(packed.adjectives[k]))
       // })
-      // console.log('verbs')
-      // Object.keys(models.verbs).forEach(k => {
-      //   packed[k] = {}
-      //   Object.keys(models.verbs[k]).forEach(form => {
-      //     let pairs = models.verbs[k][form]
-      //     console.log('-', k, form)
-      //     packed[k][form] = learn(pairs)
-      //     packed[k][form] = compress(packed[k][form])
-      //   })
-      // })
+      console.log('verbs')
+      Object.keys(models.verbs).forEach(k => {
+        packed[k] = {}
+        Object.keys(models.verbs[k]).forEach(form => {
+          let pairs = models.verbs[k][form]
+          console.log('-', k, form)
+          packed[k][form] = learn(pairs)
+          packed[k][form] = compress(packed[k][form])
+        })
+      })
       // console.log('gerunds')
       // let gerunds = learn(models.gerunds)
       // gerunds = compress(gerunds)

@@ -20,8 +20,9 @@ txt = `Так, пожалуйста, будь добра,`//So please be kind
 txt = `он действительно крут`
 
 txt = 'я буду танцевать'//i will dance
-txt = `Не забудь и ты эти летние Подмосковные вечера`//Don't forget these summer Moscow Nights,
-txt = 'Вуячич, Саша'
+txt = 'сидишь'
+// txt = `Не забудь и ты эти летние Подмосковные вечера`//Don't forget these summer Moscow Nights,
+// txt = 'Вуячич, Саша'
 // txt = 'Люди будут танцевать!'//people will dance
 let doc = nlp(txt)
 doc.debug()
