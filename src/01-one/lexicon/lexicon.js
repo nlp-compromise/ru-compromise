@@ -36,4 +36,5 @@ Object.keys(lexData).forEach(tag => {
   })
 })
 
+// console.log(lexicon['бежать'])
 export default lexicon

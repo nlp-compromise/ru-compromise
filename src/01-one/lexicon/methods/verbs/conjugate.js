@@ -30,3 +30,4 @@ export {
 }
 
 // console.log(toPresent('сидеть'))
+// console.log(toPresent('бежать'))
