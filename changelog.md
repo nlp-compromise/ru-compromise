@@ -1,4 +1,4 @@
-### 0.0.6 [July 2026]
+### 0.0.3 [July 2026]
 - **[new]** - animacy dictionary - `nouns().isAnimate()`, animate accusatives ('я вижу брата', 'вижу котёнка')
 - **[new]** - plural case-declension in `nouns().decline()` - книгам, книгами, книгах; genitive-plural rules (книг, девушек, зданий) with irregulars (лет, людей, детьми)
 - **[new]** - sentence-level agreement - pluralizing a noun re-agrees its adjectives, determiners and verb ('новая книга лежала' → 'новые книги лежали')

@@ -2,7 +2,7 @@
   "author": "Spencer Kelly <spencermountain@gmail.com> (http://spencermounta.in)",
   "name": "ru-compromise",
   "description": "скромная библиотека обработки естественного языка на русском языке",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "main": "./src/index.js",
   "browser": "./builds/ru-compromise.min.js",
   "unpkg": "./builds/ru-compromise.min.js",
