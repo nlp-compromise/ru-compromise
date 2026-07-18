@@ -197,8 +197,11 @@ const imperativeOverrides = {
   'написать': ['напиши', 'напишите'],
 }
 
+// verbs added by hand to present-tense.js, absent from the csv
+const perfectiveExtras = ['вернуть', 'вернуться']
+
 let imperative = {}
-let perfective = []
+let perfective = [...perfectiveExtras]
 let aspectPairs = {}
 let gerunds = {}
 let participles = {}

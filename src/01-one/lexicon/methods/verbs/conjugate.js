@@ -27,9 +27,21 @@ const doEach = function (str, m, keys) {
 const toPresent = (str) => doEach(str, presentTense, ['first', 'second', 'third', 'firstPlural', 'secondPlural', 'thirdPlural'])
 const toPast = (str) => doEach(str, pastTense, ['masc', 'fem', 'neut', 'plural'])
 const toImperative = (str) => doEach(str, imperative, ['second', 'secondPlural'])
-const toGerund = (str) => convert(str, gerund.gerund)
 
 const isPerfective = (str) => perfective[str] === true
+
+const toGerund = function (str) {
+  let out = convert(str, gerund.gerund)
+  if (!out) {
+    return null
+  }
+  // the model guesses for verbs it never saw - reject implausible shapes.
+  // perfective gerunds end in -в/-вшись (сделав), imperfective in -я/-ясь/-учи (читая)
+  if (isPerfective(str)) {
+    return /(в|вшись)$/.test(out) ? out : null
+  }
+  return /(я|ясь|учи)$/.test(out) ? out : null
+}
 
 // perfective verbs conjugate straight to future; imperfectives use буду + infinitive
 const toFuture = function (str) {

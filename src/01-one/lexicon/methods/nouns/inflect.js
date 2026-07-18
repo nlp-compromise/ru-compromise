@@ -71,7 +71,18 @@ const getIrregularSingulars = function () {
 
 const isHushOrVelar = (c) => /[кгхжчшщ]/.test(c)
 
+// borrowed words that never decline
+const indeclinable = new Set([
+  'кофе', 'метро', 'кино', 'такси', 'пальто', 'меню', 'интервью', 'радио',
+  'шоссе', 'кафе', 'желе', 'резюме', 'какао', 'пианино', 'фото', 'видео',
+  'бюро', 'депо', 'кашне', 'пюре', 'рагу', 'жюри', 'алоэ', 'кенгуру',
+  'шимпанзе', 'евро',
+])
+
 const toPlural = function (str = '') {
+  if (indeclinable.has(str)) {
+    return str
+  }
   if (irregularPlurals[str]) {
     return irregularPlurals[str]
   }
@@ -198,6 +209,9 @@ const guessAnimate = function (str = '') {
 
 // singular case-endings
 const declineBase = function (str, gender) {
+  if (indeclinable.has(str)) {
+    return { nominative: str, genitive: str, dative: str, accusative: str, instrumental: str, prepositional: str }
+  }
   if (irregularCases[str]) {
     return Object.assign({ nominative: str }, irregularCases[str])
   }
@@ -316,12 +330,13 @@ const toPluralGenitive = function (str, gender, plural) {
   }
   let plStem = plural.slice(0, -1)
   if (gender === 'masculine') {
-    // нож → ножей, месяц → месяцев, учитель → учителей, музей → музеев, стол → столов
+    // нож → ножей, месяц → месяцев, отец → отцов, учитель → учителей, стол → столов
     if (/[жчшщ]$/.test(str)) {
       return str + 'ей'
     }
     if (str.endsWith('ц')) {
-      return str + 'ев'
+      // vowel before ц is unstressed → -ев (месяцев); consonant → -ов (отцов)
+      return /[аеёиоуыэюя]ц$/.test(plStem) ? plStem + 'ев' : plStem + 'ов'
     }
     if (str.endsWith('ь')) {
       return plStem + 'ей'
@@ -375,6 +390,9 @@ const irregularPluralInstr = {
 // plural oblique cases, built on the nominative-plural stem
 // (handles suppletives like люди → людям for free)
 const declinePlural = function (str = '', gender, animate) {
+  if (indeclinable.has(str)) {
+    return { nominative: str, genitive: str, dative: str, accusative: str, instrumental: str, prepositional: str }
+  }
   gender = gender || guessGender(str)
   let plural = toPlural(str)
   let plStem = plural.slice(0, -1)
