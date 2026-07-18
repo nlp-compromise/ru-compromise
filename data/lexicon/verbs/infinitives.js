@@ -1,5 +1,9 @@
 // https://github.com/StorkST/CoreRussianVerbs/blob/master/RussianVerbsClassification.csv
 export default [
+  'нести',
+  'вернуть',
+  'вернуться',
+  'волноваться',
   'Инфинитив',//По-английски
   'быть',//be; happen
   'мочь',//be able; can

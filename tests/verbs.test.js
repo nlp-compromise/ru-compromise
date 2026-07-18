@@ -63,6 +63,50 @@ test('verb-roots:', function (t) {
   t.end()
 })
 
+test('to-infinitive:', function (t) {
+  let arr = [
+    ['я читаю книгу', 'я читать книгу'],
+    ['она прочитала книгу', 'она прочитать книгу'],
+    ['мы будем работать', 'мы работать'], // compound-future collapses
+  ]
+  arr.forEach(function (a) {
+    let [from, want] = a
+    let doc = nlp(from)
+    doc.verbs().toInfinitive()
+    t.equal(doc.text(), want, here + from + ' → ' + want)
+  })
+  t.end()
+})
+
+test('copula-transforms:', function (t) {
+  let d1 = nlp('завтра будет дождь')
+  d1.verbs().toPastTense()
+  t.equal(d1.text(), 'завтра был дождь', here + 'будет → был')
+  let d2 = nlp('он был дома')
+  d2.verbs().toFutureTense()
+  t.equal(d2.text(), 'он будет дома', here + 'был → будет')
+  let d3 = nlp('она была здесь')
+  d3.verbs().toFutureTense()
+  t.equal(d3.text(), 'она будет здесь', here + 'была → будет')
+  t.end()
+})
+
+test('е-spelling-roots:', function (t) {
+  let arr = [
+    ['вернется', 'вернуться'],
+    ['шел', 'идти'], // suppletive, е-spelled
+    ['поймет', 'понять'],
+    ['узнаем', 'узнать'],
+    ['будем', 'быть'], // copula
+  ]
+  arr.forEach(function (a) {
+    let [form, want] = a
+    let root = nlp(form).compute('root').json()[0].terms[0].root
+    t.equal(root, want, here + form + ' → ' + want)
+  })
+  t.end()
+})
+
 test('tense-transform-extras:', function (t) {
   let arr = [
     // [transform, from, to]

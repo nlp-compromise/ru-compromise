@@ -23,7 +23,9 @@ const root = function (view) {
 
       // get infinitive form of the verb
       if (term.tags.has('Verb')) {
-        if (term.tags.has('Infinitive')) {
+        if (term.tags.has('Copula')) {
+          term.root = 'быть'
+        } else if (term.tags.has('Infinitive')) {
           term.root = str
         } else if (term.tags.has('PastTense')) {
           term.root = verb.fromPast(str)

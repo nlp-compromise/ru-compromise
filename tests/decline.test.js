@@ -60,6 +60,41 @@ test('decline-plural-extras:', function (t) {
   t.end()
 })
 
+test('gender-classes:', function (t) {
+  // natural-gender masculines, despite -а
+  t.deepEqual(nlp('папа и дедушка').nouns().gender(), ['masculine', 'masculine'], here + 'папа, дедушка masculine')
+  // -мя words are neuter, despite -я
+  t.deepEqual(nlp('имя и время').nouns().gender(), ['neuter', 'neuter'], here + 'имя, время neuter')
+  // soft-sign nouns from the dictionary
+  t.deepEqual(nlp('словарь и любовь').nouns().gender(), ['masculine', 'feminine'], here + 'словарь masc, любовь fem')
+  t.end()
+})
+
+test('adjective-normalize:', function (t) {
+  // toMasculine normalizes any form, including -ой stems
+  let arr = [
+    ['большое', 'большой'],
+    ['хорошие', 'хороший'],
+    ['синее', 'синий'],
+    ['новыми', 'новыми'], // oblique form - left alone
+  ]
+  arr.forEach(function (a) {
+    let [from, want] = a
+    let doc = nlp(from)
+    doc.adjectives().toMasculine()
+    t.equal(doc.text(), want, here + from + ' → ' + want)
+  })
+  t.end()
+})
+
+test('preposition-guard:', function (t) {
+  // nouns after a preposition are oblique - toPlural leaves them alone
+  let doc = nlp('книги лежат на столе')
+  doc.nouns().toPlural()
+  t.equal(doc.text(), 'книги лежат на столе', here + 'на столе untouched')
+  t.end()
+})
+
 test('comparative-extras:', function (t) {
   let arr = [
     ['молодой', 'моложе'],

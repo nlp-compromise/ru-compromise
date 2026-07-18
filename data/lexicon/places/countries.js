@@ -106,7 +106,7 @@ export default [
   'Кирибати', //Kiribati
   'Северная Корея', //Korea, Democratic People's Rep. (North Korea)
   'КНДР',
-  'Ю́жная Коре́я', //Korea, Republic of (South Korea)
+  'Южная Корея', //Korea, Republic of (South Korea)
   'Республика Корея',
   'Косово', //Kosovo
   'Республика Косово',
@@ -145,7 +145,7 @@ export default [
   'Марокко', //Morocco
   'Мозамбик', //Mozambique
   'Мьянма', //Myanmar, Burma
-  'Би́рма',
+  'Бирма',
   'Намибия', //Namibia
   'Науру', //Nauru
   'Непал', //Nepal
@@ -172,7 +172,8 @@ export default [
   'Катар', //Qatar	'
   'Реюньон', //Réunion
   'Румыния', //Romania
-  'Россия, Росси́йская Федера́ция', //Russian Federation
+  'Россия', //Russia
+  'Российская Федерация', //Russian Federation
   'Руанда', //Rwanda	'
   'Сент-Китс и Невис', //Saint Kitts and Nevis
   'Сент-Люсия', //Saint Lucia
@@ -196,7 +197,8 @@ export default [
   'Шри-Ланка (ранее Цейлон)', //Sri Lanka
   'Судан', //Sudan
   'Суринам', //Suriname
-  'Сва́зиле́нд (Эсватини)', //Swaziland (Eswatini)
+  'Свазиленд', //Swaziland
+  'Эсватини', //Eswatini
   'Швеция', //Sweden
   'Швейцария', //Switzerland
   'Сирия', //Syria, Syrian Arab Republic	'
@@ -217,8 +219,11 @@ export default [
   'Уганда', //Uganda
   'Украина', //Ukraine
   'Объединённые Арабские Эмираты (ОАЭ)', //United Arab Emirates
-  'Великобритания (Соединённое Короле́вство)', //United Kingdom
-  'Соединённые Штаты Америки (Аме́рика, США)', //United States
+  'Великобритания', //United Kingdom
+  'Соединённое Королевство', //United Kingdom
+  'Соединённые Штаты Америки', //United States
+  'США', //USA
+  'Америка', //America
   'Уругвай', //Uruguay
   'Узбекистан', //Uzbekistan	'
   'Вануату', //Vanuatu

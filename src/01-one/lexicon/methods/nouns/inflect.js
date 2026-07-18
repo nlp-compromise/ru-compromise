@@ -184,10 +184,14 @@ const irregularCases = {
 // guess gender from the nominative ending - the ambiguous cases
 // (soft-sign nouns, natural-gender words) live in the lexicon
 const guessGender = function (str = '') {
+  // имя, время - neuter, despite the -я
+  if (str.endsWith('мя')) {
+    return 'neuter'
+  }
   if (/[ая]$/.test(str)) {
     return 'feminine'
   }
-  if (/[оеё]$/.test(str) || str.endsWith('мя')) {
+  if (/[оеё]$/.test(str)) {
     return 'neuter'
   }
   if (str.endsWith('ь')) {

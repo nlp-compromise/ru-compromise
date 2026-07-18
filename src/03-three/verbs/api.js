@@ -197,9 +197,13 @@ const api = function (View) {
 
     toInfinitive(n) {
       return getNth(this, n).map(m => {
-        let { head } = parseVerb(m)
+        let { head, inf } = parseVerb(m)
         if (!head.found) {
           return m
+        }
+        // 'будем работать' collapses to 'работать'
+        if (head.has('#Copula') && inf.found) {
+          return m.replaceWith(inf.text('normal'))
         }
         let root = getRoot(head)
         if (head.has('#Copula')) {
