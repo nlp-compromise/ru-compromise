@@ -30,6 +30,49 @@ const api = function (View) {
         return m
       })
     }
+    // gender of each noun - from the lexicon-tag, else the ending
+    gender(n) {
+      const { guessGender } = this.methods.two.transform.noun
+      return getNth(this, n).map(m => {
+        if (m.has('#FemaleNoun')) {
+          return 'feminine'
+        }
+        if (m.has('#MaleNoun')) {
+          return 'masculine'
+        }
+        if (m.has('#NeuterNoun')) {
+          return 'neuter'
+        }
+        return guessGender(m.text('normal'))
+      }, [])
+    }
+    isFeminine(n) {
+      let genders = this.gender()
+      let res = this.filter((m, i) => genders[i] === 'feminine')
+      return getNth(res, n)
+    }
+    isMasculine(n) {
+      let genders = this.gender()
+      let res = this.filter((m, i) => genders[i] === 'masculine')
+      return getNth(res, n)
+    }
+    isNeuter(n) {
+      let genders = this.gender()
+      let res = this.filter((m, i) => genders[i] === 'neuter')
+      return getNth(res, n)
+    }
+    // full singular case-table for each noun
+    decline(n) {
+      const { decline } = this.methods.two.transform.noun
+      const { toPlural } = this.methods.two.transform.noun
+      let genders = this.gender()
+      return getNth(this, n).map((m, i) => {
+        let str = m.text('normal')
+        let res = decline(str, genders[i])
+        res.plural = toPlural(str)
+        return res
+      }, [])
+    }
   }
 
   View.prototype.nouns = function (n) {

@@ -1,3 +1,9 @@
+### 0.0.5 [July 2026]
+- **[new]** - noun gender - `nouns().gender()` / `isFeminine()` / `isMasculine()` / `isNeuter()`, with soft-sign + indeclinable dictionaries
+- **[new]** - case declension - `nouns().decline()` returns the six-case table (книга → книги, книге, книгу, книгой..)
+- **[new]** - `adjectives().toComparative()` (громкий→громче, хороший→лучше) and `toSuperlative()` (самый X / лучший)
+- **[new]** - aspect-aware tense transforms - `verbs().toPastTense()` / `toPresentTense()` / `toFutureTense()` / `toInfinitive()`
+
 ### 0.0.4 [July 2026]
 - **[new]** - `nouns().toPlural()` / `toSingular()` - rule-based with common irregulars (человек→люди)
 - **[new]** - `adjectives().toFeminine()` / `toMasculine()` / `toNeuter()` / `toPlural()` gender-agreement

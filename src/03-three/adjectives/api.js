@@ -31,6 +31,12 @@ const api = function (View) {
     toPlural(n) {
       return swapWith(this, n, this.methods.two.transform.adjective.toPlural)
     }
+    toComparative(n) {
+      return swapWith(this, n, this.methods.two.transform.adjective.toComparative)
+    }
+    toSuperlative(n) {
+      return swapWith(this, n, this.methods.two.transform.adjective.toSuperlative)
+    }
   }
 
   View.prototype.adjectives = function (n) {

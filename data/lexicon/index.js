@@ -5,6 +5,7 @@ import adverbs from './adverbs.js'
 // import adjectives from './adjectives.js'
 
 import pronouns from './nouns/pronouns.js'
+import gender from './nouns/gender.js'
 // import nouns from './nouns/nouns.js'
 
 import infinitives from './verbs/infinitives.js'
@@ -43,6 +44,9 @@ const data = [
 
   // [nouns, 'Noun'],
   [pronouns, 'Pronoun'],
+  [gender.feminine, 'FemaleNoun'],
+  [gender.masculine, 'MaleNoun'],
+  [gender.neuter, 'NeuterNoun'],
 
   [ordinals, 'Ordinal'],
   [cardinals, 'Cardinal'],

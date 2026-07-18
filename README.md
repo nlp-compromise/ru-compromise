@@ -88,6 +88,38 @@ doc.text()
 // 'новые дома'
 ```
 
+### Склонение
+```js
+nlp('книга').nouns().decline()
+// [{ nominative: 'книга', genitive: 'книги', dative: 'книге',
+//    accusative: 'книгу', instrumental: 'книгой', prepositional: 'книге',
+//    plural: 'книги' }]
+
+nlp('стол и кровать').nouns().isFeminine().text()
+// 'кровать'
+```
+
+### Сравнительная степень
+```js
+let doc = nlp('хороший и громкий')
+doc.adjectives().toComparative()
+doc.text()
+// 'лучше и громче'
+```
+
+### Времена глагола
+```js
+let doc = nlp('он сказал правду')
+doc.verbs().toPresentTense()
+doc.text()
+// 'он говорит правду'    (perfective → its imperfective pair)
+
+doc = nlp('она читает книгу')
+doc.verbs().toFutureTense()
+doc.text()
+// 'она будет читать книгу'
+```
+
 <!-- spacer -->
 <img height="15px" src="https://user-images.githubusercontent.com/399657/68221862-17ceb980-ffb8-11e9-87d4-7b30b6488f16.png"/>
 

@@ -80,9 +80,96 @@ const toPlural = function (str = '') {
   return stem + 'ые'
 }
 
+// --- comparatives + superlatives ---
+
+const irregularComparatives = {
+  'хороший': 'лучше',
+  'плохой': 'хуже',
+  'большой': 'больше',
+  'маленький': 'меньше',
+  'старый': 'старше',
+  'молодой': 'моложе',
+  'высокий': 'выше',
+  'низкий': 'ниже',
+  'широкий': 'шире',
+  'узкий': 'уже',
+  'далёкий': 'дальше',
+  'далекий': 'дальше',
+  'долгий': 'дольше',
+  'короткий': 'короче',
+  'лёгкий': 'легче',
+  'легкий': 'легче',
+  'мягкий': 'мягче',
+  'строгий': 'строже',
+  'дорогой': 'дороже',
+  'дешёвый': 'дешевле',
+  'дешевый': 'дешевле',
+  'громкий': 'громче',
+  'тихий': 'тише',
+  'сладкий': 'слаще',
+  'редкий': 'реже',
+  'жаркий': 'жарче',
+  'крепкий': 'крепче',
+  'чистый': 'чище',
+  'толстый': 'толще',
+  'богатый': 'богаче',
+  'поздний': 'позже',
+  'ранний': 'раньше',
+  'глубокий': 'глубже',
+  'близкий': 'ближе',
+  'простой': 'проще',
+  'частый': 'чаще',
+  'густой': 'гуще',
+  'твёрдый': 'твёрже',
+  'твердый': 'твёрже',
+}
+
+const irregularSuperlatives = {
+  'хороший': 'лучший',
+  'плохой': 'худший',
+  'высокий': 'высший',
+  'низкий': 'низший',
+}
+
+// быстрый → быстрее, громкий → громче
+const toComparative = function (str = '') {
+  let masc = toMasculine(str)
+  if (irregularComparatives[masc]) {
+    return irregularComparatives[masc]
+  }
+  let res = stemOf(masc)
+  if (res === null) {
+    return 'более ' + str
+  }
+  let { stem } = res
+  let last = stem.slice(-1)
+  // velar-stems mutate: к→ч, г→ж, х→ш
+  if (last === 'к') {
+    return stem.slice(0, -1) + 'че'
+  }
+  if (last === 'г') {
+    return stem.slice(0, -1) + 'же'
+  }
+  if (last === 'х') {
+    return stem.slice(0, -1) + 'ше'
+  }
+  return stem + 'ее'
+}
+
+// быстрый → самый быстрый, хороший → лучший
+const toSuperlative = function (str = '') {
+  let masc = toMasculine(str)
+  if (irregularSuperlatives[masc]) {
+    return irregularSuperlatives[masc]
+  }
+  return 'самый ' + masc
+}
+
 export {
   toMasculine,
   toFeminine,
   toNeuter,
   toPlural,
+  toComparative,
+  toSuperlative,
 }
