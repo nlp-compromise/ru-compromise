@@ -113,5 +113,9 @@ export default {
     is: 'Noun',
     not: ['MaleNoun', 'FemaleNoun']
   },
+  // grammatically-animate (people + animals) - accusative takes genitive form
+  AnimateNoun: {
+    is: 'Noun',
+  },
 
 }

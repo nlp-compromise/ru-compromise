@@ -32,7 +32,13 @@ const addWords = function (obj, tag, lex, extraMap) {
 Object.keys(lexData).forEach(tag => {
   let wordsObj = unpack(lexData[tag])
   Object.keys(wordsObj).forEach(w => {
-    lexicon[w] = tag
+    // animacy stacks with a gender-tag (гусь is MaleNoun + AnimateNoun),
+    // in either processing-order
+    if (lexicon[w] && (tag === 'AnimateNoun' || [].concat(lexicon[w]).includes('AnimateNoun'))) {
+      lexicon[w] = Array.from(new Set([].concat(lexicon[w], tag)))
+    } else {
+      lexicon[w] = tag
+    }
     // add conjugations for our verbs
     if (tag === 'Infinitive') {
       // perfective verbs' non-past conjugation is semantically future - 'скажу' = 'i will say'

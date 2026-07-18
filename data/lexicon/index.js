@@ -6,6 +6,7 @@ import adverbs from './adverbs.js'
 
 import pronouns from './nouns/pronouns.js'
 import gender from './nouns/gender.js'
+import animate from './nouns/animate.js'
 // import nouns from './nouns/nouns.js'
 
 import infinitives from './verbs/infinitives.js'
@@ -47,6 +48,7 @@ const data = [
   [gender.feminine, 'FemaleNoun'],
   [gender.masculine, 'MaleNoun'],
   [gender.neuter, 'NeuterNoun'],
+  [animate, 'AnimateNoun'],
 
   [ordinals, 'Ordinal'],
   [cardinals, 'Cardinal'],
@@ -76,12 +78,18 @@ const data = [
 let lex = {}
 for (let i = 0; i < data.length; i++) {
   const list = data[i][0]
+  const tag = data[i][1]
   for (let o = 0; o < list.length; o++) {
-    // log duplicates
     if (lex[list[o]]) {
-      console.log(list[o] + '  ' + lex[list[o]] + ' ' + data[i][1])
+      // animacy stacks with a gender-tag (учитель is MaleNoun + AnimateNoun)
+      if (tag === 'AnimateNoun') {
+        lex[list[o]] = [].concat(lex[list[o]], tag)
+        continue
+      }
+      // log duplicates
+      console.log(list[o] + '  ' + lex[list[o]] + ' ' + tag)
     }
-    lex[list[o]] = data[i][1]
+    lex[list[o]] = tag
   }
 }
 // console.log(lex)

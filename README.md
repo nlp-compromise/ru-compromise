@@ -93,10 +93,21 @@ doc.text()
 nlp('книга').nouns().decline()
 // [{ nominative: 'книга', genitive: 'книги', dative: 'книге',
 //    accusative: 'книгу', instrumental: 'книгой', prepositional: 'книге',
-//    plural: 'книги' }]
+//    plural: { nominative: 'книги', genitive: 'книг', dative: 'книгам', .. } }]
 
 nlp('стол и кровать').nouns().isFeminine().text()
 // 'кровать'
+
+nlp('брат').nouns().decline()[0].accusative
+// 'брата'   (animate accusative)
+```
+
+### Согласование
+```js
+let doc = nlp('новая книга лежала на столе')
+doc.nouns().toPlural()
+doc.text()
+// 'новые книги лежали на столе'
 ```
 
 ### Сравнительная степень

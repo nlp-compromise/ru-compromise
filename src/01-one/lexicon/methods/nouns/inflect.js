@@ -185,13 +185,22 @@ const guessGender = function (str = '') {
   return 'masculine'
 }
 
-// singular case-endings. accusative of masc/neut is nominative-form
-// (animate-accusative needs an animacy dictionary - not handled)
-const decline = function (str = '', gender) {
+// -ёнок/-ист words are reliably animate; the rest come from the lexicon
+const guessAnimate = function (str = '') {
+  if (/[ёо]нок$/.test(str)) {
+    return true
+  }
+  if (str.length > 5 && str.endsWith('ист')) {
+    return true
+  }
+  return false
+}
+
+// singular case-endings
+const declineBase = function (str, gender) {
   if (irregularCases[str]) {
     return Object.assign({ nominative: str }, irregularCases[str])
   }
-  gender = gender || guessGender(str)
   let stem = str.slice(0, -1)
   let res = { nominative: str, accusative: str }
   const hush = (c) => /[жчшщц]/.test(c)
@@ -234,6 +243,11 @@ const decline = function (str = '', gender) {
     return Object.assign(res, { genitive: str, dative: str, instrumental: str, prepositional: str })
   }
   // masculine
+  // котёнок → котёнка (fleeting vowel in -ёнок/-онок diminutives)
+  if (/[ёо]нок$/.test(str)) {
+    let base = str.slice(0, -2) + 'к'
+    return Object.assign(res, { genitive: base + 'а', dative: base + 'у', instrumental: base + 'ом', prepositional: base + 'е' })
+  }
   if (str.endsWith('ий')) {
     // сценарий → сценария, сценарии
     return Object.assign(res, { genitive: stem + 'я', dative: stem + 'ю', instrumental: stem + 'ем', prepositional: stem + 'и' })
@@ -254,9 +268,140 @@ const decline = function (str = '', gender) {
   return Object.assign(res, { genitive: str + 'а', dative: str + 'у', instrumental: str + 'ом', prepositional: str + 'е' })
 }
 
+// accusative of animate masculines takes the genitive form ('я вижу брата')
+const decline = function (str = '', gender, animate) {
+  gender = gender || guessGender(str)
+  let res = declineBase(str, gender)
+  if (animate && gender === 'masculine') {
+    res.accusative = res.genitive
+  }
+  return res
+}
+
+// --- plural declension ---
+
+const irregularPluralGenitives = {
+  'человек': 'людей',
+  'ребёнок': 'детей',
+  'ребенок': 'детей',
+  'друг': 'друзей',
+  'брат': 'братьев',
+  'стул': 'стульев',
+  'лист': 'листьев',
+  'дерево': 'деревьев',
+  'перо': 'перьев',
+  'крыло': 'крыльев',
+  'сын': 'сыновей',
+  'муж': 'мужей',
+  'год': 'лет',
+  'раз': 'раз',
+  'глаз': 'глаз',
+  'солдат': 'солдат',
+  'волос': 'волос',
+  'окно': 'окон',
+  'письмо': 'писем',
+  'кресло': 'кресел',
+  'сестра': 'сестёр',
+  'мать': 'матерей',
+  'дочь': 'дочерей',
+  'время': 'времён',
+  'имя': 'имён',
+  'море': 'морей',
+}
+
+// genitive-plural - the trickiest ending in russian
+const toPluralGenitive = function (str, gender, plural) {
+  if (irregularPluralGenitives[str]) {
+    return irregularPluralGenitives[str]
+  }
+  let plStem = plural.slice(0, -1)
+  if (gender === 'masculine') {
+    // нож → ножей, месяц → месяцев, учитель → учителей, музей → музеев, стол → столов
+    if (/[жчшщ]$/.test(str)) {
+      return str + 'ей'
+    }
+    if (str.endsWith('ц')) {
+      return str + 'ев'
+    }
+    if (str.endsWith('ь')) {
+      return plStem + 'ей'
+    }
+    if (str.endsWith('й')) {
+      return plStem + 'ев'
+    }
+    return plStem + 'ов'
+  }
+  if (gender === 'feminine') {
+    // линия → линий, статья → статей, неделя → недель, ночь → ночей
+    if (str.endsWith('ия')) {
+      return plStem + 'й'
+    }
+    if (str.endsWith('ья')) {
+      return str.slice(0, -2) + 'ей'
+    }
+    if (str.endsWith('я')) {
+      return plStem + 'ь'
+    }
+    if (str.endsWith('ь')) {
+      return plStem + 'ей'
+    }
+    // книга → книг, девушка → девушек, сумка → сумок
+    if (/[жчшщь]ка$/.test(str)) {
+      return str.slice(0, -2) + 'ек'
+    }
+    if (/[бвгдзклмнпрстфх]ка$/.test(str)) {
+      return str.slice(0, -2) + 'ок'
+    }
+    return plStem
+  }
+  // здание → зданий, поле → полей, слово → слов
+  if (str.endsWith('ие')) {
+    return plStem + 'й'
+  }
+  if (str.endsWith('е') || str.endsWith('ё')) {
+    return plStem + 'й'
+  }
+  return plStem
+}
+
+// irregular plural instrumentals
+const irregularPluralInstr = {
+  'человек': 'людьми',
+  'ребёнок': 'детьми',
+  'ребенок': 'детьми',
+  'лошадь': 'лошадьми',
+}
+
+// plural oblique cases, built on the nominative-plural stem
+// (handles suppletives like люди → людям for free)
+const declinePlural = function (str = '', gender, animate) {
+  gender = gender || guessGender(str)
+  let plural = toPlural(str)
+  let plStem = plural.slice(0, -1)
+  // hard-stem takes -ам/-ами/-ах, soft-stem takes -ям/-ями/-ях
+  let soft = false
+  if (plural.endsWith('я')) {
+    soft = true
+  } else if (plural.endsWith('и') && /[кгхжчшщц]$/.test(plStem) === false) {
+    soft = true
+  }
+  let a = soft ? 'я' : 'а'
+  let genitive = toPluralGenitive(str, gender, plural)
+  return {
+    nominative: plural,
+    genitive,
+    dative: plStem + a + 'м',
+    accusative: animate ? genitive : plural,
+    instrumental: irregularPluralInstr[str] || plStem + a + 'ми',
+    prepositional: plStem + a + 'х',
+  }
+}
+
 export {
   toPlural,
   toSingular,
   decline,
+  declinePlural,
   guessGender,
+  guessAnimate,
 }
