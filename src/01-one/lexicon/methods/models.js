@@ -5,9 +5,9 @@ import model from './_data.js'
 // uncompress them
 const result = {}
 Object.keys(model).forEach(k => {
-  // efrt-packed word-list of perfective infinitives
-  if (k === 'perfective') {
-    result.perfective = unpack(model[k])
+  // efrt-packed word-lists, not suffix-models
+  if (k === 'perfective' || k === 'aspectPairs') {
+    result[k] = unpack(model[k])
     return
   }
   result[k] = {}

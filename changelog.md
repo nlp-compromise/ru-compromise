@@ -1,3 +1,9 @@
+### 0.0.4 [July 2026]
+- **[new]** - `nouns().toPlural()` / `toSingular()` - rule-based with common irregulars (человек→люди)
+- **[new]** - `adjectives().toFeminine()` / `toMasculine()` / `toNeuter()` / `toPlural()` gender-agreement
+- **[new]** - `verbs().conjugate()` returns aspect, aspect-pair (говорить↔сказать), futureTense (буду говорить / скажу), gerund
+- **[new]** - gerund (деепричастие) tagging - 'читая' → `#Gerund`
+
 ### 0.0.3 [July 2026]
 - **[fix]** - russian suffix-rules (were spanish), root/lemma compute, stress-mark handling, bad conjugation data
 - **[new]** - past-tense + imperative conjugation, perfective verbs tagged as future

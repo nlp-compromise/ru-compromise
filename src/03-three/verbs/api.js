@@ -15,15 +15,21 @@ const api = function (View) {
     }
     conjugate(n) {
       const methods = this.methods.two.transform.verb
-      const { toPresent, toPast, toImperative } = methods
+      const { toPresent, toPast, toFuture, toImperative, toGerund, isPerfective, getAspectPair } = methods
       return getNth(this, n).map(m => {
         let str = getRoot(m, methods)
+        let perfective = isPerfective(str)
         return {
           infinitive: str,
-          // for perfective verbs, these are semantically future-tense
+          aspect: perfective ? 'perfective' : 'imperfective',
+          // the matching verb of the opposite aspect, if known
+          aspectPair: getAspectPair(str),
+          // for perfective verbs, non-past morphology is semantically future-tense
           presentTense: toPresent(str),
+          futureTense: toFuture(str),
           pastTense: toPast(str),
           imperative: toImperative(str),
+          gerund: toGerund(str),
         }
       }, [])
     }

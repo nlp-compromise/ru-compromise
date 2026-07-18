@@ -56,6 +56,38 @@ doc.match('#Verb').out('array')
 // [ 'забудь' ]
 ```
 
+### Спряжение
+```js
+let doc = nlp('говорить')
+doc.verbs().conjugate()
+// [{
+//   infinitive: 'говорить',
+//   aspect: 'imperfective',
+//   aspectPair: 'сказать',
+//   presentTense: { first: 'говорю', second: 'говоришь', ... },
+//   futureTense: { first: 'буду говорить', ... },
+//   pastTense: { masc: 'говорил', fem: 'говорила', ... },
+//   imperative: { second: 'говори', secondPlural: 'говорите' },
+//   gerund: 'говоря',
+// }]
+```
+
+### Лемматизация
+```js
+let doc = nlp('она пошла домой').compute('root')
+doc.has('{пойти}')
+// true
+```
+
+### Существительные и прилагательные
+```js
+let doc = nlp('новый дом')
+doc.nouns().toPlural()
+doc.adjectives().toPlural()
+doc.text()
+// 'новые дома'
+```
+
 <!-- spacer -->
 <img height="15px" src="https://user-images.githubusercontent.com/399657/68221862-17ceb980-ffb8-11e9-87d4-7b30b6488f16.png"/>
 

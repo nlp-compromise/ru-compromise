@@ -4,7 +4,7 @@ import methods from './methods/index.js'
 import model from './methods/models.js'
 import misc from './misc.js'
 
-const { toPresent, toPast, toImperative } = methods.verb
+const { toPresent, toPast, toImperative, toGerund } = methods.verb
 const perfective = model.perfective || {}
 let lexicon = {}
 
@@ -40,6 +40,8 @@ Object.keys(lexData).forEach(tag => {
       addWords(toPresent(w), tense, lexicon, personMap)
       addWords(toPast(w), 'PastTense', lexicon)
       addWords(toImperative(w), 'Imperative', lexicon)
+      // читая, прочитав - else the 'ая' adjective-rule would catch them
+      addWords({ gerund: toGerund(w) }, 'Gerund', lexicon)
     }
   })
 })
