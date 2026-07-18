@@ -1,14 +1,17 @@
 
+// tag-name → conjugation-model key
+const tagToForm = {
+  FirstPerson: 'first',
+  SecondPerson: 'second',
+  ThirdPerson: 'third',
+  FirstPersonPlural: 'firstPlural',
+  SecondPersonPlural: 'secondPlural',
+  ThirdPersonPlural: 'thirdPlural',
+}
+
 const verbForm = function (term) {
-  let want = [
-    'FirstPerson',
-    'SecondPerson',
-    'ThirdPerson',
-    'FirstPersonPlural',
-    'SecondPersonPlural',
-    'ThirdPersonPlural',
-  ]
-  return want.find(tag => term.tags.has(tag))
+  let found = Object.keys(tagToForm).find(tag => term.tags.has(tag))
+  return found ? tagToForm[found] : null
 }
 
 
@@ -20,12 +23,17 @@ const root = function (view) {
 
       // get infinitive form of the verb
       if (term.tags.has('Verb')) {
-        let form = verbForm(term)
-        if (term.tags.has('PresentTense')) {
-          term.root = verb.fromPresent(str, form)
+        if (term.tags.has('Infinitive')) {
+          term.root = str
+        } else if (term.tags.has('PastTense')) {
+          term.root = verb.fromPast(str)
+        } else if (term.tags.has('Imperative')) {
+          term.root = verb.fromImperative(str)
+        } else if (term.tags.has('PresentTense')) {
+          term.root = verb.fromPresent(str, verbForm(term))
         } else {
           // guess!
-          term.root = verb.fromPresent(str, form)
+          term.root = verb.fromPresent(str, verbForm(term))
         }
       }
     })

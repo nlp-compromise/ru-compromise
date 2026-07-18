@@ -1,12 +1,14 @@
 import lexData from './_data.js'
 import { unpack } from 'efrt'
 import methods from './methods/index.js'
+import model from './methods/models.js'
 import misc from './misc.js'
 
-const { toPresent } = methods.verb
-let lexicon = misc
+const { toPresent, toPast, toImperative } = methods.verb
+const perfective = model.perfective || {}
+let lexicon = {}
 
-const tagMap = {
+const personMap = {
   first: 'FirstPerson',
   second: 'SecondPerson',
   third: 'ThirdPerson',
@@ -14,11 +16,15 @@ const tagMap = {
   secondPlural: 'SecondPersonPlural',
   thirdPlural: 'ThirdPersonPlural',
 }
-const addWords = function (obj, tag, lex) {
+const addWords = function (obj, tag, lex, extraMap) {
   Object.keys(obj).forEach(k => {
     let w = obj[k]
-    if (!lex[w]) {
-      lex[w] = [tag, tagMap[k]]
+    if (w && !lex[w]) {
+      let tags = [tag]
+      if (extraMap && extraMap[k]) {
+        tags.push(extraMap[k])
+      }
+      lex[w] = tags
     }
   })
 }
@@ -29,11 +35,28 @@ Object.keys(lexData).forEach(tag => {
     lexicon[w] = tag
     // add conjugations for our verbs
     if (tag === 'Infinitive') {
-      // add present tense
-      let obj = toPresent(w)
-      addWords(obj, 'PresentTense', lexicon)
+      // perfective verbs' non-past conjugation is semantically future - 'скажу' = 'i will say'
+      let tense = perfective[w] === true ? 'FutureTense' : 'PresentTense'
+      addWords(toPresent(w), tense, lexicon, personMap)
+      addWords(toPast(w), 'PastTense', lexicon)
+      addWords(toImperative(w), 'Imperative', lexicon)
     }
   })
+})
+
+// hand-curated entries win over generated ones
+Object.keys(misc).forEach(w => {
+  lexicon[w] = misc[w]
+})
+
+// russian text often spells 'ё' as 'е' - add spelling-variants (идёшь → идешь)
+Object.keys(lexicon).forEach(w => {
+  if (w.includes('ё')) {
+    let plain = w.replace(/ё/g, 'е')
+    if (!lexicon[plain]) {
+      lexicon[plain] = lexicon[w]
+    }
+  }
 })
 
 // console.log(lexicon['бежать'])

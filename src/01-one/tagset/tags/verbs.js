@@ -4,15 +4,17 @@ export default {
   },
   PresentTense: {
     is: 'Verb',
-    not: ['PastTense'],
+    not: ['PastTense', 'FutureTense'],
   },
+  // russian infinitives (читать) are their own form - not a present-tense
   Infinitive: {
-    is: 'PresentTense',
+    is: 'Verb',
     not: ['Gerund'],
   },
+  // деепричастие (читая, прочитав)
   Gerund: {
-    is: 'PresentTense',
-    not: ['Copula', 'FutureTense'],
+    is: 'Verb',
+    not: ['Copula'],
   },
   PastTense: {
     is: 'Verb',
@@ -25,9 +27,6 @@ export default {
   Copula: {
     is: 'Verb',
   },
-  Negative: {
-    is: 'Verb',
-  },
   Modal: {
     is: 'Verb',
     not: ['Infinitive'],
@@ -36,46 +35,30 @@ export default {
     is: 'Verb',
     not: ['Gerund'],
   },
-  Pluperfect: {
-    is: 'Verb',
-  },
+  // причастие (читающий, прочитанный) - declines like an adjective
   Participle: {
-    is: 'PastTense',
-  },
-  PhrasalVerb: {
-    is: 'Verb',
-  },
-  Particle: {
-    is: 'PhrasalVerb',
-    not: ['PastTense', 'PresentTense', 'Copula', 'Gerund'],
+    is: 'Adjective',
   },
   Auxiliary: {
     is: 'Verb',
     not: ['PastTense', 'PresentTense', 'Gerund', 'Conjunction'],
   },
+  // 'я бы хотел'
   Conditional: {
     is: 'Verb',
     not: ['Infinitive', 'Imperative'],
   },
+  // verbs ending in -ся/-сь
   Reflexive: {
-    is: 'Verb',
-  },
-  // sometimes 'pretérito'
-  Perfecto: {
     is: 'Verb',
   },
   // moods
   Imperative: {
     is: 'Verb',
-    Subjunctive: ['Subjunctive']
-  },
-  Subjunctive: {
-    is: 'Verb',
-    not: ['Imperative']
+    not: ['PresentTense', 'PastTense', 'FutureTense'],
   },
 
-
-  // 
+  //
   FirstPerson: {
     is: 'Verb',
     not: ['SecondPerson', 'ThirdPerson', 'FirstPersonPlural', 'SecondPersonPlural', 'ThirdPersonPlural']

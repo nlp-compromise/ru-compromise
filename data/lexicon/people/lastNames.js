@@ -1530,7 +1530,6 @@ export default [
   'Хлопонин', //Khloponin
   'Хмельнов', //Khmelnov
   'Хованский', //Khovansky
-  'Холодная', //Kholodnaya
   'Холодов', //Kholodov
   'Хомколов', //Khomkolov
   'Хорьков', //Khorkov

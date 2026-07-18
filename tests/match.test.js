@@ -40,6 +40,31 @@ test('match:', function (t) {
 
     ['суп и картошку', '#Noun #Conjunction #Noun'], //soup and potatoes
     ['Она красивая, но глупая', '#Pronoun #Adjective #Conjunction #Adjective '], //she is beautiful but stupid
+
+    // past-tense
+    ['Мама мыла раму', '#Noun #PastTense #Noun'], //mama washed the window-frame
+    ['Она сказала правду', '#Pronoun #PastTense #Noun'], //she told the truth
+    ['Мы жили в Москве', '#Pronoun #PastTense #Preposition #ProperNoun'], //we lived in moscow
+    ['Вчера я купил новый телефон', '#Adverb #Pronoun #PastTense #Adjective #Noun'], //yesterday i bought a new phone
+
+    // imperative
+    ['Не забудь купить хлеб', '#Negative #Imperative #Infinitive #Noun'], //don't forget to buy bread
+    ['Помогите мне', '#Imperative #Pronoun'], //help me
+
+    // future
+    ['Завтра будет дождь', '#Adverb #Copula #Noun'], //tomorrow will be rain
+    ['Я буду читать', '#Pronoun #FutureTense #FutureTense'], //i will read
+    ['Он скажет правду', '#Pronoun #FutureTense #Noun'], //perfective non-past is future
+
+    // conditional
+    ['Я хотел бы поехать', '#Pronoun #Conditional #Particle #Infinitive'], //i would like to go
+
+    // adjectives + adverbs + determiners
+    ['Этот дом очень старый', '#Determiner #Noun #Adverb #Adjective'], //this house is very old
+    ['Собака громко лает', '#Noun #Adverb #PresentTense'], //the dog barks loudly
+
+    // ё-normalization
+    ['он идет домой', '#Pronoun #PresentTense #Adverb'], //е-spelling of идёт
   ]
   arr.forEach(function (a) {
     let [str, match] = a

@@ -21,6 +21,10 @@ const checkRegex = function (terms, i, world) {
     text += term.post.trim()
   }
   let arr = doRegs(text, regexText) || doRegs(normal, regexNormal)
+  // machine-form strips hyphens (по-русски → порусски) - try the raw normal, too
+  if (!arr && term.normal !== normal) {
+    arr = doRegs(term.normal, regexNormal)
+  }
   // hide a bunch of number regexes behind this one
   if (!arr && /[0-9]/.test(normal)) {
     arr = doRegs(normal, regexNumbers)
