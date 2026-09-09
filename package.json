@@ -3,7 +3,12 @@
   "name": "ru-compromise",
   "description": "скромная библиотека обработки естественного языка на русском языке",
   "version": "0.0.3",
-  "main": "./src/index.js",
+  "packageManager": "pnpm@11.5.0",
+  "engines": {
+    "node": "^22.13.0 || ^24.0.0 || ^26.0.0",
+    "pnpm": "^11.5.0"
+  },
+  "main": "./builds/ru-compromise.mjs",
   "browser": "./builds/ru-compromise.min.js",
   "unpkg": "./builds/ru-compromise.min.js",
   "type": "module",
@@ -21,10 +26,11 @@
     "url": "git://github.com/nlp-compromise/ru-compromise.git"
   },
   "scripts": {
-    "test": "npm run check-types && tape \"./tests/**/*.test.js\" | tap-dancer",
-    "testb": "TESTENV=prod npm run test",
+    "test": "pnpm run check-types && tape \"./tests/**/*.test.js\" | tap-dancer",
+    "testb": "TESTENV=prod pnpm run test",
     "check-types": "tsc",
-    "build": "npm run version && rollup -c --silent",
+    "build": "pnpm run version && rollup -c --silent",
+    "prepack": "pnpm run build && pnpm run testb && pnpm run lint",
     "version": "node ./scripts/version.js",
     "pack": "node ./scripts/pack.js",
     "score": "node ./learn/wikicorpus/test.js",

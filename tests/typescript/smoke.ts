@@ -49,6 +49,9 @@ nlp.addTags({ Checked: { is: 'Noun' } })
 nlp.buildTrie(['один', 'два'])
 nlp.parseMatch('#Noun')
 
+// @ts-expect-error input text must be a string
+nlp(25)
+
 export {
   aspect,
   conjugations,
