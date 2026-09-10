@@ -4,6 +4,8 @@ import { pack } from 'efrt'
 import { learn, compress } from 'suffix-thumb'
 import lexicon from '../data/lexicon/index.js'
 import models from '../data/models/index.js'
+import aspect from '../data/models/verbs/aspect.js'
+import aspectPairs from '../data/models/verbs/aspect-pairs.js'
 // import switches from '../lib/switches/index.js'
 // import senses from '../lib/senses/index.js'
 
@@ -66,6 +68,10 @@ const steps = [
           packed[k][form] = compress(packed[k][form])
         })
       })
+      // efrt-packed list of perfective-aspect infinitives
+      packed.perfective = pack(aspect)
+      // efrt-packed map of imperfective → perfective pairs
+      packed.aspectPairs = pack(aspectPairs)
       // console.log('gerunds')
       // let gerunds = learn(models.gerunds)
       // gerunds = compress(gerunds)

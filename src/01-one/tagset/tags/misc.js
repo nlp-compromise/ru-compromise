@@ -38,6 +38,14 @@ export default {
   Determiner: {
     not: ['Noun', 'Verb', 'Adjective', 'Adverb', 'QuestionWord', 'Conjunction'], //allow 'a' to be a Determiner/Value
   },
+  // же, ли, бы, ведь..
+  Particle: {
+    not: ['Noun', 'Verb', 'Adjective', 'Adverb'],
+  },
+  // не, ни, нет
+  Negative: {
+    not: ['Noun', 'Adjective', 'Value'],
+  },
   Conjunction: {
     not: anything,
   },

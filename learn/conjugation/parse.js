@@ -18,6 +18,9 @@ let imperative2 = 'Повелительное накл. 2'
 
 let all = {}
 data.forEach(o => {
+  // NOTE: the 'Мы' and 'Вы' columns in verbs.csv contain each-other's data
+  // (мочь row has Мы=можете, Вы=можем) - so we read them swapped, on purpose.
+  // if the csv is ever re-exported, re-check this.
   all[o[inf]] = [
     o[first],
     o[second],

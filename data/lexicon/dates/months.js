@@ -1,14 +1,21 @@
 export default [
-  'январь', //january yanvár' 
-  'февраль', //february fevrál' 
-  'март', //march mart 
-  'апрель', //april aprél' 
-  'май', //may mei 
-  'июнь', //june iyún' 
-  'июль', //july iyúl' 
-  'август', //august avgust 
-  'сентябрь', //september sentyábr' 
-  'октябрь', //october oktyábr' 
-  'ноябрь', //november noyábr' 
-  'декабрь', //december dekábr'
+  // nominative
+  'январь', //january
+  'февраль', //february
+  'март', //march
+  'апрель', //april
+  'май', //may
+  'июнь', //june
+  'июль', //july
+  'август', //august
+  'сентябрь', //september
+  'октябрь', //october
+  'ноябрь', //november
+  'декабрь', //december
+  // genitive - '5 января'
+  'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+  'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря',
+  // prepositional - 'в январе'
+  'январе', 'феврале', 'марте', 'апреле', 'мае', 'июне',
+  'июле', 'августе', 'сентябре', 'октябре', 'ноябре', 'декабре',
 ]

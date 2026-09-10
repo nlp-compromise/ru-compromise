@@ -18,19 +18,19 @@ import suffixCheck from './2nd-pass/suffix-lookup.js'
 const firstPass = function (terms, world) {
   for (let i = 0; i < terms.length; i += 1) {
     //  is it titlecased?
-    let found = titleCase(terms, i, world)
-    // try look-like rules
-    found = found || checkRegex(terms, i, world)
+    titleCase(terms, i, world) ||
+      // try look-like rules
+      checkRegex(terms, i, world)
     // turn '1993' into a year
     checkYear(terms, i, world)
   }
 }
 const secondPass = function (terms, world) {
   for (let i = 0; i < terms.length; i += 1) {
-    let found = acronym(terms, i, world)
-    found = found || suffixCheck(terms, i, world)
-    // found = found || neighbours(terms, i, world)
-    found = found || fallback(terms, i, world)
+    acronym(terms, i, world) ||
+      suffixCheck(terms, i, world) ||
+      // neighbours(terms, i, world) ||
+      fallback(terms, i, world)
   }
 }
 

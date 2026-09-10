@@ -1,61 +1,73 @@
 export default [
-  // Nominative
-  // '(что) за', //(what a)
-  'в', //into, as a (plural denoting new state)
-  // Accusative
-  // 'в(о)', //to
-  'на', //to
-  // 'с(о)', //approx
-  'за', //for
-  'о', //against (physical contact)
+  'в', //in, into
+  'во', //in (before consonant-clusters)
+  'на', //on, to
+  'за', //for, behind
+  'о', //about
+  'об', //about (before vowels)
+  'обо', //about (обо мне)
   'под', //under
-  'по', //up to, as far as
+  'подо', //under (подо мной)
+  'по', //along, according to
   'про', //on the topic of
-  'сквозь', //through, across
-  'через', //in, after, by
-  // Genitive
+  'сквозь', //through
+  'через', //across, in (time)
   'без', //without
-  'близ', //near, close
+  'безо', //without (безо всего)
+  'близ', //near
+  'вблизи', //near, close to
   'вдоль', //along
   'вместо', //instead of
   'вне', //outside of
   'внутри', //inside, within
+  'внутрь', //into
   'возле', //by, near
   'вокруг', //about, around
   'впереди', //ahead of
+  'вроде', //like, sort of
+  'вслед', //after, following
   'для', //for
-  'до', //until
-  // 'из(о)', //of, outside of, from
-  'из-за', //from behind
-  'из-под', //from below
-  'кроме', //except (for)
+  'до', //until, up to
+  'из', //from, out of
+  'изо', //from (изо всех сил)
+  'из-за', //because of, from behind
+  'из-под', //from under
+  'к', //to, towards
+  'ко', //to (ко мне)
+  'кроме', //except for
+  'меж', //between (poetic)
+  'между', //between
   'мимо', //past (movement)
-  'накануне', //on the eve
-  'около', //around
-  // 'от(о)', //off, (away) from
+  'навстречу', //towards
+  'накануне', //on the eve of
+  'наподобие', //similar to
+  'напротив', //opposite, across from
+  'насчёт', //concerning
+  'насчет', //concerning (е-spelling)
+  'около', //around, near
+  'от', //from, away from
+  'ото', //from (ото всех)
+  'перед', //in front of, before
+  'передо', //in front of (передо мной)
+  'позади', //behind
+  'помимо', //besides
   'после', //after
-  // '(на)против', //against, across from
+  'посреди', //in the middle of
+  'посредством', //by means of
+  'при', //at, in the presence of
+  'против', //against
   'ради', //for the sake of
-  // 'с(о)', //(down) from
-  '(по)среди', //among
-  'у', //at, close to. Equivalent to the French "chez"
-  //genitive plural:
-  'мало', //few, little
-  'много', //a lot, many, much
-  'несколько', //a few, not many
-  'ско́лько', //how much? how many?
-  // Dative
-  // 'к(о)', //to, towards
-  // 'по', //many meanings in English; no direct translation
+  'с', //with, from
+  'со', //with (со мной)
+  'сверх', //over and above
+  'свыше', //over, more than
+  'спустя', //after (time)
+  'среди', //among
+  'у', //at, by, close to
   'благодаря', //thanks to
   'вопреки', //contrary to, despite
-  'наперекор', //in defiance of (more intense than вопреки)
-  'согласно', //according to, in accordance with
-  // Instrumental
-  'над', //above, on top of
-  // 'под', //under, beneath
-  // 'за', //behind, before
-  'перед', //in front of
-  'между', //in between
-  // 'с(о)', //with
+  'наперекор', //in defiance of
+  'согласно', //according to
+  'над', //above, over
+  'надо', //above (надо мной)
 ]

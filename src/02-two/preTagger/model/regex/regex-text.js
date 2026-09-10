@@ -1,14 +1,10 @@
 export default [
-  // #coolguy
-  [/^#[a-z0-9_\u00C0-\u00FF]{2,}$/i, 'HashTag'],
+  // #хэштег
+  [/^#[a-zа-яё0-9_]{2,}$/i, 'HashTag'],
 
   // @spencermountain
-  [/^@\w{2,}$/, 'AtMention'],
+  [/^@[a-zа-яё0-9_]{2,}$/i, 'AtMention'],
 
-  // period-ones acronyms - f.b.i.
-  [/^([A-ZÄÖÜ]\.){2}[A-ZÄÖÜ]?/i, ['Acronym', 'Noun'], 'F.B.I'], //ascii-only
-
-  // ending-apostrophes
-  [/.{3}[lkmnp]in['‘’‛‵′`´]$/, 'Gerund', "chillin'"],
-  [/.{4}s['‘’‛‵′`´]$/, 'Possessive', "flanders'"],
+  // period-ones acronyms - Ф.С.Б.
+  [/^([А-ЯЁA-Z]\.){2}[А-ЯЁA-Z]?/, ['Acronym', 'Noun'], 'Ф.С.Б.'],
 ]

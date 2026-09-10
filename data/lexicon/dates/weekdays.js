@@ -1,9 +1,14 @@
 export default [
-  'понедельник', // (ponedel’nik) – monday
-  'вторник', // (vtornik) – tuesday
-  'среда', // (sreda) – wednesday
-  'четверг', // (chetverg) – thursday
-  'пятница', // (pyatnitsa) – friday
-  'суббота', // (subbota) – saturday
-  'воскресенье', // (voskresen’e) – sunday
+  // nominative
+  'понедельник', //monday
+  'вторник', //tuesday
+  'среда', //wednesday
+  'четверг', //thursday
+  'пятница', //friday
+  'суббота', //saturday
+  'воскресенье', //sunday
+  // accusative - 'в среду'
+  'среду', 'пятницу', 'субботу',
+  // prepositional - 'в понедельнике'? no - 'о понедельнике', plurals 'по понедельникам'
+  'понедельникам', 'вторникам', 'средам', 'четвергам', 'пятницам', 'субботам', 'воскресеньям',
 ]

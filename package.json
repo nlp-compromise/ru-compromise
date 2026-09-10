@@ -2,14 +2,20 @@
   "author": "Spencer Kelly <spencermountain@gmail.com> (http://spencermounta.in)",
   "name": "ru-compromise",
   "description": "скромная библиотека обработки естественного языка на русском языке",
-  "version": "0.0.2",
-  "main": "./src/index.js",
+  "version": "0.0.4",
+  "packageManager": "pnpm@11.5.0",
+  "engines": {
+    "node": "^22.13.0 || ^24.0.0 || ^26.0.0",
+    "pnpm": "^11.5.0"
+  },
+  "main": "./builds/ru-compromise.mjs",
   "browser": "./builds/ru-compromise.min.js",
   "unpkg": "./builds/ru-compromise.min.js",
   "type": "module",
   "sideEffects": false,
   "exports": {
     ".": {
+      "types": "./types/index.d.ts",
       "import": "./builds/ru-compromise.mjs",
       "require": "./builds/ru-compromise.cjs"
     }
@@ -20,9 +26,11 @@
     "url": "git://github.com/nlp-compromise/ru-compromise.git"
   },
   "scripts": {
-    "test": "tape \"./tests/**/*.test.js\" | tap-dancer",
-    "testb": "TESTENV=prod npm run test",
-    "build": "npm run version && rollup -c --silent",
+    "test": "pnpm run check-types && tape \"./tests/**/*.test.js\" | tap-dancer",
+    "testb": "TESTENV=prod pnpm run test",
+    "check-types": "tsc",
+    "build": "pnpm run version && rollup -c --silent",
+    "prepack": "pnpm run build && pnpm run testb && pnpm run lint",
     "version": "node ./scripts/version.js",
     "pack": "node ./scripts/pack.js",
     "score": "node ./learn/wikicorpus/test.js",
@@ -31,20 +39,28 @@
     "stress": "node scripts/stress.js"
   },
   "dependencies": {
-    "compromise": "14.9.0",
+    "compromise": "^14.17.0",
     "efrt": "2.7.0",
-    "suffix-thumb": "5.0.2"
+    "suffix-thumb": "5.0.3"
   },
   "devDependencies": {
-    "@rollup/plugin-node-resolve": "15.0.2",
-    "@rollup/plugin-terser": "^0.4.1",
+    "@eslint/js": "^10.0.1",
+    "@rollup/plugin-node-resolve": "16.0.3",
+    "@rollup/plugin-terser": "1.0.0",
     "amble": "1.3.0",
-    "cross-env": "^7.0.3",
-    "eslint": "8.40.0",
-    "eslint-plugin-regexp": "1.15.0",
-    "rollup": "3.21.5",
+    "cross-env": "10.1.0",
+    "eslint": "10.10.0",
+    "eslint-plugin-regexp": "3.3.0",
+    "globals": "17.12.0",
+    "rollup": "4.63.1",
     "tap-dancer": "0.3.4",
-    "tape": "5.6.3"
+    "tape": "5.10.2",
+    "typescript": "7.0.2"
   },
+  "files": [
+    "builds/",
+    "types/",
+    "src/"
+  ],
   "license": "MIT"
 }

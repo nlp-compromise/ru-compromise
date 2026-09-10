@@ -103,11 +103,19 @@ export default {
 
   FemaleNoun: {
     is: 'Noun',
-    not: ['MaleNoun']
+    not: ['MaleNoun', 'NeuterNoun']
   },
   MaleNoun: {
     is: 'Noun',
-    not: ['FemaleNoun']
+    not: ['FemaleNoun', 'NeuterNoun']
+  },
+  NeuterNoun: {
+    is: 'Noun',
+    not: ['MaleNoun', 'FemaleNoun']
+  },
+  // grammatically-animate (people + animals) - accusative takes genitive form
+  AnimateNoun: {
+    is: 'Noun',
   },
 
 }

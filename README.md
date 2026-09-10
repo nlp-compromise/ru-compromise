@@ -56,6 +56,81 @@ doc.match('#Verb').out('array')
 // [ 'забудь' ]
 ```
 
+### Спряжение
+```js
+let doc = nlp('говорить')
+doc.verbs().conjugate()
+// [{
+//   infinitive: 'говорить',
+//   aspect: 'imperfective',
+//   aspectPair: 'сказать',
+//   presentTense: { first: 'говорю', second: 'говоришь', ... },
+//   futureTense: { first: 'буду говорить', ... },
+//   pastTense: { masc: 'говорил', fem: 'говорила', ... },
+//   imperative: { second: 'говори', secondPlural: 'говорите' },
+//   gerund: 'говоря',
+// }]
+```
+
+### Лемматизация
+```js
+let doc = nlp('она пошла домой').compute('root')
+doc.has('{пойти}')
+// true
+```
+
+### Существительные и прилагательные
+```js
+let doc = nlp('новый дом')
+doc.nouns().toPlural()
+doc.adjectives().toPlural()
+doc.text()
+// 'новые дома'
+```
+
+### Склонение
+```js
+nlp('книга').nouns().decline()
+// [{ nominative: 'книга', genitive: 'книги', dative: 'книге',
+//    accusative: 'книгу', instrumental: 'книгой', prepositional: 'книге',
+//    plural: { nominative: 'книги', genitive: 'книг', dative: 'книгам', .. } }]
+
+nlp('стол и кровать').nouns().isFeminine().text()
+// 'кровать'
+
+nlp('брат').nouns().decline()[0].accusative
+// 'брата'   (animate accusative)
+```
+
+### Согласование
+```js
+let doc = nlp('новая книга лежала на столе')
+doc.nouns().toPlural()
+doc.text()
+// 'новые книги лежали на столе'
+```
+
+### Сравнительная степень
+```js
+let doc = nlp('хороший и громкий')
+doc.adjectives().toComparative()
+doc.text()
+// 'лучше и громче'
+```
+
+### Времена глагола
+```js
+let doc = nlp('он сказал правду')
+doc.verbs().toPresentTense()
+doc.text()
+// 'он говорит правду'    (perfective → its imperfective pair)
+
+doc = nlp('она читает книгу')
+doc.verbs().toFutureTense()
+doc.text()
+// 'она будет читать книгу'
+```
+
 <!-- spacer -->
 <img height="15px" src="https://user-images.githubusercontent.com/399657/68221862-17ceb980-ffb8-11e9-87d4-7b30b6488f16.png"/>
 
