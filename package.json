@@ -1,12 +1,11 @@
 {
-  "author": "Spencer Kelly <spencermountain@gmail.com> (http://spencermounta.in)",
+  "author": "Spencer Kelly <spencermountain@gmail.com> (https://spencermountain.dev)",
   "name": "ru-compromise",
   "description": "скромная библиотека обработки естественного языка на русском языке",
   "version": "0.0.4",
   "packageManager": "pnpm@11.5.0",
   "engines": {
-    "node": "^22.13.0 || ^24.0.0 || ^26.0.0",
-    "pnpm": "^11.5.0"
+    "node": ">=12"
   },
   "main": "./builds/ru-compromise.mjs",
   "browser": "./builds/ru-compromise.min.js",
@@ -21,10 +20,7 @@
     }
   },
   "types": "types/index.d.ts",
-  "repository": {
-    "type": "git",
-    "url": "git://github.com/nlp-compromise/ru-compromise.git"
-  },
+  "repository": "github:nlp-compromise/ru-compromise",
   "scripts": {
     "test": "pnpm run check-types && tape \"./tests/**/*.test.js\" | tap-dancer",
     "testb": "TESTENV=prod pnpm run test",
@@ -35,7 +31,7 @@
     "pack": "node ./scripts/pack.js",
     "score": "node ./learn/wikicorpus/test.js",
     "lint": "eslint ./src/**/*",
-    "watch": "amble ./scratch.js",
+    "watch": "node --watch ./scratch.js",
     "stress": "node scripts/stress.js"
   },
   "dependencies": {
@@ -47,13 +43,12 @@
     "@eslint/js": "^10.0.1",
     "@rollup/plugin-node-resolve": "16.0.3",
     "@rollup/plugin-terser": "1.0.0",
-    "amble": "1.3.0",
     "cross-env": "10.1.0",
     "eslint": "10.10.0",
     "eslint-plugin-regexp": "3.3.0",
     "globals": "17.12.0",
     "rollup": "4.63.1",
-    "tap-dancer": "0.3.4",
+    "tap-dancer": "0.4.0",
     "tape": "5.10.2",
     "typescript": "7.0.2"
   },

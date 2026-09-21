@@ -1,16 +1,17 @@
-learn/wikicorpus/results
-
-# Logs
-npm-debug.log*
-
-# Coverage directory used by tools like istanbul
-coverage
-*.lcov
-
-# nyc test coverage
+.DS_Store
+.clinic
+.env
+.eslintcache
+.gitignore
+.npm
 .nyc_output
-
-
-# Dependency directories
+.pnpm-store
+.tsbuildinfo
+.vscode
+Thumbs.db
+coverage.lcov
+coverage/
 node_modules/
-
+npm-debug.log
+npm-debug.log*
+pnpm-debug.log*
