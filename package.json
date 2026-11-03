@@ -1,6 +1,6 @@
 {
   "name": "ru-compromise",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "скромная библиотека обработки естественного языка на русском языке",
   "license": "MIT",
   "repository": "github:nlp-compromise/ru-compromise",
