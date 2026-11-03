@@ -11307,81 +11307,102 @@
 
   var nouns$1 = {
     Noun: {
+      aliases: [null, 'Существительное'],
       not: ['Verb', 'Adjective', 'Adverb', 'Value', 'Determiner'],
     },
     Singular: {
+      aliases: [null, 'ЕдинственноеЧисло'],
       is: 'Noun',
       not: ['Plural'],
     },
     ProperNoun: {
+      aliases: [null, 'ИмяСобственное'],
       is: 'Noun',
     },
     Person: {
+      aliases: [null, 'Персона'],
       is: 'Singular',
       also: ['ProperNoun'],
       not: ['Place', 'Organization', 'Date'],
     },
     FirstName: {
+      aliases: [null, 'Имя'],
       is: 'Person',
     },
     MaleName: {
+      aliases: [null, 'МужскоеИмя'],
       is: 'FirstName',
       not: ['FemaleName', 'LastName'],
     },
     FemaleName: {
+      aliases: [null, 'ЖенскоеИмя'],
       is: 'FirstName',
       not: ['MaleName', 'LastName'],
     },
     LastName: {
+      aliases: [null, 'Фамилия'],
       is: 'Person',
       not: ['FirstName'],
     },
     Honorific: {
+      aliases: [null, 'Титул'],
       is: 'Noun',
       not: ['FirstName', 'LastName', 'Value'],
     },
     Place: {
+      aliases: [null, 'Место'],
       is: 'Singular',
       not: ['Person', 'Organization'],
     },
     Country: {
+      aliases: [null, 'Страна'],
       is: 'Place',
       also: ['ProperNoun'],
       not: ['City'],
     },
     City: {
+      aliases: [null, 'Город'],
       is: 'Place',
       also: ['ProperNoun'],
       not: ['Country'],
     },
     Region: {
+      aliases: [null, 'Регион'],
       is: 'Place',
       also: ['ProperNoun'],
     },
     Address: {
+      aliases: [null, 'Адрес'],
       // is: 'Place',
     },
     Organization: {
+      aliases: [null, 'Организация'],
       is: 'ProperNoun',
       not: ['Person', 'Place'],
     },
     SportsTeam: {
+      aliases: [null, 'Команда'],
       is: 'Organization',
     },
     School: {
+      aliases: [null, 'Школа'],
       is: 'Organization',
     },
     Company: {
+      aliases: [null, 'Компания'],
       is: 'Organization',
     },
     Plural: {
+      aliases: [null, 'МножественноеЧисло'],
       is: 'Noun',
       not: ['Singular'],
     },
     Uncountable: {
+      aliases: [null, 'Неисчисляемое'],
       is: 'Noun',
     },
     Pronoun: {
+      aliases: [null, 'Местоимение'],
       is: 'Noun',
       not: entity,
     },
@@ -11390,10 +11411,12 @@
       not: entity,
     },
     Activity: {
+      aliases: [null, 'Деятельность'],
       is: 'Noun',
       not: ['Person', 'Place'],
     },
     Unit: {
+      aliases: [null, 'Единица'],
       is: 'Noun',
       not: entity,
     },
@@ -11403,23 +11426,28 @@
       not: entity,
     },
     Possessive: {
+      aliases: [null, 'Притяжательное'],
       is: 'Noun',
     },
 
     FemaleNoun: {
+      aliases: [null, 'ЖенскийРод'],
       is: 'Noun',
       not: ['MaleNoun', 'NeuterNoun']
     },
     MaleNoun: {
+      aliases: [null, 'МужскойРод'],
       is: 'Noun',
       not: ['FemaleNoun', 'NeuterNoun']
     },
     NeuterNoun: {
+      aliases: [null, 'СреднийРод'],
       is: 'Noun',
       not: ['MaleNoun', 'FemaleNoun']
     },
     // grammatically-animate (people + animals) - accusative takes genitive form
     AnimateNoun: {
+      aliases: [null, 'Одушевлённое', 'Одушевленное'],
       is: 'Noun',
     },
 
@@ -11427,34 +11455,42 @@
 
   var verbs$1 = {
     Verb: {
+      aliases: [null, 'Глагол'],
       not: ['Noun', 'Adjective', 'Adverb', 'Value', 'Expression'],
     },
     PresentTense: {
+      aliases: [null, 'НастоящееВремя'],
       is: 'Verb',
       not: ['PastTense', 'FutureTense'],
     },
     // russian infinitives (читать) are their own form - not a present-tense
     Infinitive: {
+      aliases: [null, 'Инфинитив'],
       is: 'Verb',
       not: ['Gerund'],
     },
     // деепричастие (читая, прочитав)
     Gerund: {
+      aliases: [null, 'Деепричастие'],
       is: 'Verb',
       not: ['Copula'],
     },
     PastTense: {
+      aliases: [null, 'ПрошедшееВремя'],
       is: 'Verb',
       not: ['PresentTense', 'Gerund', 'FutureTense'],
     },
     FutureTense: {
+      aliases: [null, 'БудущееВремя'],
       is: 'Verb',
       not: ['PresentTense', 'Gerund', 'PastTense'],
     },
     Copula: {
+      aliases: [null, 'Связка'],
       is: 'Verb',
     },
     Modal: {
+      aliases: [null, 'Модальный'],
       is: 'Verb',
       not: ['Infinitive'],
     },
@@ -11464,49 +11500,60 @@
     },
     // причастие (читающий, прочитанный) - declines like an adjective
     Participle: {
+      aliases: [null, 'Причастие'],
       is: 'Adjective',
     },
     Auxiliary: {
+      aliases: [null, 'Вспомогательный'],
       is: 'Verb',
       not: ['PastTense', 'PresentTense', 'Gerund', 'Conjunction'],
     },
     // 'я бы хотел'
     Conditional: {
+      aliases: [null, 'СослагательноеНаклонение'],
       is: 'Verb',
       not: ['Infinitive', 'Imperative'],
     },
     // verbs ending in -ся/-сь
     Reflexive: {
+      aliases: [null, 'Возвратный'],
       is: 'Verb',
     },
     // moods
     Imperative: {
+      aliases: [null, 'ПовелительноеНаклонение'],
       is: 'Verb',
       not: ['PresentTense', 'PastTense', 'FutureTense'],
     },
 
     //
     FirstPerson: {
+      aliases: [null, 'ПервоеЛицо'],
       is: 'Verb',
       not: ['SecondPerson', 'ThirdPerson', 'FirstPersonPlural', 'SecondPersonPlural', 'ThirdPersonPlural']
     },
     SecondPerson: {
+      aliases: [null, 'ВтороеЛицо'],
       is: 'Verb',
       not: ['FirstPerson', 'ThirdPerson', 'FirstPersonPlural', 'SecondPersonPlural', 'ThirdPersonPlural']
     },
     ThirdPerson: {
+      aliases: [null, 'ТретьеЛицо'],
       is: 'Verb',
       not: ['FirstPerson', 'SecondPerson', 'FirstPersonPlural', 'SecondPersonPlural', 'ThirdPersonPlural']
     },
     FirstPersonPlural: {
+      aliases: [null, 'ПервоеЛицоМножественное'],
       is: 'Verb',
       not: ['FirstPerson', 'SecondPerson', 'ThirdPerson', 'SecondPersonPlural', 'ThirdPersonPlural']
     },
     SecondPersonPlural: {
+      aliases: [null, 'ВтороеЛицоМножественное'],
       is: 'Verb',
       not: ['FirstPerson', 'SecondPerson', 'ThirdPerson', 'FirstPersonPlural', 'ThirdPersonPlural']
     },
     ThirdPersonPlural: {
+      aliases: [null, 'ТретьеЛицоМножественное'],
       is: 'Verb',
       not: ['FirstPerson', 'SecondPerson', 'ThirdPerson', 'FirstPersonPlural', 'SecondPersonPlural']
     },
@@ -11514,84 +11561,104 @@
 
   var values = {
     Value: {
+      aliases: [null, 'Число'],
       not: ['Verb', 'Adjective', 'Adverb'],
     },
     Ordinal: {
+      aliases: [null, 'Порядковое'],
       is: 'Value',
       not: ['Cardinal'],
     },
     Cardinal: {
+      aliases: [null, 'Количественное'],
       is: 'Value',
       not: ['Ordinal'],
     },
     Fraction: {
+      aliases: [null, 'Дробь'],
       is: 'Value',
       not: ['Noun'],
     },
     Multiple: {
+      aliases: [null, 'Кратное'],
       is: 'Value',
     },
     RomanNumeral: {
+      aliases: [null, 'РимскоеЧисло'],
       is: 'Cardinal',
       not: ['TextValue'],
     },
     TextValue: {
+      aliases: [null, 'Числительное'],
       is: 'Value',
       not: ['NumericValue'],
     },
     NumericValue: {
+      aliases: [null, 'Числовое'],
       is: 'Value',
       not: ['TextValue'],
     },
     Money: {
+      aliases: [null, 'Деньги'],
       is: 'Cardinal',
     },
     Percent: {
+      aliases: [null, 'Процент'],
       is: 'Value',
     },
   };
 
   var dates = {
     Date: {
+      aliases: [null, 'Дата'],
       not: ['Verb', 'Adverb', 'Adjective'],
     },
     Month: {
+      aliases: [null, 'Месяц'],
       is: 'Singular',
       also: ['Date'],
       not: ['Year', 'WeekDay', 'Time'],
     },
     WeekDay: {
+      aliases: [null, 'ДеньНедели'],
       is: 'Noun',
       also: ['Date'],
     },
     Year: {
+      aliases: [null, 'Год'],
       is: 'Date',
       not: ['RomanNumeral'],
     },
     FinancialQuarter: {
+      aliases: [null, 'Квартал'],
       is: 'Date',
       not: 'Fraction',
     },
     // 'easter'
     Holiday: {
+      aliases: [null, 'Праздник'],
       is: 'Date',
       also: ['Noun'],
     },
     // 'summer'
     Season: {
+      aliases: [null, 'ВремяГода'],
       is: 'Date',
     },
     Timezone: {
+      aliases: [null, 'ЧасовойПояс'],
       is: 'Noun',
       also: ['Date'],
       not: ['ProperNoun'],
     },
     Time: {
+      aliases: [null, 'Время'],
       is: 'Date',
       not: ['AtMention'],
     },
     // 'months'
     Duration: {
+      aliases: [null, 'Длительность'],
       is: 'Noun',
       also: ['Date'],
     },
@@ -11601,21 +11668,26 @@
 
   var misc = {
     Adjective: {
+      aliases: [null, 'Прилагательное'],
       not: ['Noun', 'Verb', 'Adverb', 'Value'],
     },
     FemaleAdjective: {
+      aliases: [null, 'ПрилагательноеЖенскогоРода'],
       is: 'Adjective',
       not: ['MaleAdjective'],
     },
     MaleAdjective: {
+      aliases: [null, 'ПрилагательноеМужскогоРода'],
       is: 'Adjective',
       not: ['FemaleAdjective'],
     },
     PluralAdjective: {
+      aliases: [null, 'ПрилагательноеМножественногоЧисла'],
       is: 'Adjective',
       not: ['SingularAdjective'],
     },
     SingularAdjective: {
+      aliases: [null, 'ПрилагательноеЕдинственногоЧисла'],
       is: 'Adjective',
       not: ['PluralAdjective'],
     },
@@ -11623,68 +11695,93 @@
       is: 'Adjective',
     },
     Comparative: {
+      aliases: [null, 'СравнительнаяСтепень'],
       is: 'Adjective',
     },
     Superlative: {
+      aliases: [null, 'ПревосходнаяСтепень'],
       is: 'Adjective',
       not: ['Comparative'],
     },
-    NumberRange: {},
+    NumberRange: {
+      aliases: [null, 'ЧисловойДиапазон'],
+    },
     Adverb: {
+      aliases: [null, 'Наречие'],
       not: ['Noun', 'Verb', 'Adjective', 'Value'],
     },
 
     Determiner: {
+      aliases: [null, 'Определитель'],
       not: ['Noun', 'Verb', 'Adjective', 'Adverb', 'QuestionWord', 'Conjunction'], //allow 'a' to be a Determiner/Value
     },
     // же, ли, бы, ведь..
     Particle: {
+      aliases: [null, 'Частица'],
       not: ['Noun', 'Verb', 'Adjective', 'Adverb'],
     },
     // не, ни, нет
     Negative: {
+      aliases: [null, 'Отрицание'],
       not: ['Noun', 'Adjective', 'Value'],
     },
     Conjunction: {
+      aliases: [null, 'Союз'],
       not: anything,
     },
     Preposition: {
+      aliases: [null, 'Предлог'],
       not: ['Noun', 'Verb', 'Adjective', 'Adverb', 'QuestionWord'],
     },
     QuestionWord: {
+      aliases: [null, 'ВопросительноеСлово'],
       not: ['Determiner'],
     },
     Currency: {
+      aliases: [null, 'Валюта'],
       is: 'Noun',
     },
     Expression: {
+      aliases: [null, 'Междометие'],
       not: ['Noun', 'Adjective', 'Verb', 'Adverb'],
     },
-    Abbreviation: {},
+    Abbreviation: {
+      aliases: [null, 'Сокращение'],
+    },
     Url: {
+      aliases: [null, 'Ссылка'],
       not: ['HashTag', 'PhoneNumber', 'Verb', 'Adjective', 'Value', 'AtMention', 'Email'],
     },
     PhoneNumber: {
+      aliases: [null, 'Телефон'],
       not: ['HashTag', 'Verb', 'Adjective', 'Value', 'AtMention', 'Email'],
     },
-    HashTag: {},
+    HashTag: {
+      aliases: [null, 'Хэштег'],
+    },
     AtMention: {
+      aliases: [null, 'Упоминание'],
       is: 'Noun',
       not: ['HashTag', 'Email'],
     },
     Emoji: {
+      aliases: [null, 'Эмодзи'],
       not: ['HashTag', 'Verb', 'Adjective', 'Value', 'AtMention'],
     },
     Emoticon: {
+      aliases: [null, 'Смайлик'],
       not: ['HashTag', 'Verb', 'Adjective', 'Value', 'AtMention'],
     },
     Email: {
+      aliases: [null, 'Почта'],
       not: ['HashTag', 'Verb', 'Adjective', 'Value', 'AtMention'],
     },
     Acronym: {
+      aliases: [null, 'Акроним'],
       not: ['Plural', 'RomanNumeral'],
     },
     Condition: {
+      aliases: [null, 'Условие'],
       not: ['Verb', 'Adjective', 'Noun', 'Value'],
     },
   };
@@ -12151,7 +12248,7 @@
     api: api$2,
   };
 
-  var version = '0.0.4';
+  var version = '0.0.5';
 
   nlp.plugin(tokenizer);
   nlp.plugin(tagset);
