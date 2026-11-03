@@ -34,7 +34,7 @@ const toMasculine = function (str = '') {
 }
 
 const stemOf = function (str) {
-  let masc = toMasculine(str)
+  const masc = toMasculine(str)
   if (/(ый|ий|ой)$/.test(masc)) {
     return { stem: masc.slice(0, -2), soft: masc.endsWith('ий') }
   }
@@ -42,11 +42,11 @@ const stemOf = function (str) {
 }
 
 const toFeminine = function (str = '') {
-  let res = stemOf(str)
+  const res = stemOf(str)
   if (res === null) {
     return str
   }
-  let { stem, soft } = res
+  const { stem, soft } = res
   // синий → синяя, but маленький → маленькая, хороший → хорошая
   if (soft && !isVelar(stem.slice(-1)) && !isHusher(stem.slice(-1))) {
     return stem + 'яя'
@@ -55,11 +55,11 @@ const toFeminine = function (str = '') {
 }
 
 const toNeuter = function (str = '') {
-  let res = stemOf(str)
+  const res = stemOf(str)
   if (res === null) {
     return str
   }
-  let { stem, soft } = res
+  const { stem, soft } = res
   // синий → синее, хороший → хорошее, but маленький → маленькое
   if (soft && !isVelar(stem.slice(-1))) {
     return stem + 'ее'
@@ -68,11 +68,11 @@ const toNeuter = function (str = '') {
 }
 
 const toPlural = function (str = '') {
-  let res = stemOf(str)
+  const res = stemOf(str)
   if (res === null) {
     return str
   }
-  let { stem, soft } = res
+  const { stem, soft } = res
   // новый → новые, but синий/маленький/большой → -ие
   if (soft || isVelar(stem.slice(-1)) || isHusher(stem.slice(-1))) {
     return stem + 'ие'
@@ -133,16 +133,16 @@ const irregularSuperlatives = {
 
 // быстрый → быстрее, громкий → громче
 const toComparative = function (str = '') {
-  let masc = toMasculine(str)
+  const masc = toMasculine(str)
   if (irregularComparatives[masc]) {
     return irregularComparatives[masc]
   }
-  let res = stemOf(masc)
+  const res = stemOf(masc)
   if (res === null) {
     return 'более ' + str
   }
-  let { stem } = res
-  let last = stem.slice(-1)
+  const { stem } = res
+  const last = stem.slice(-1)
   // velar-stems mutate: к→ч, г→ж, х→ш
   if (last === 'к') {
     return stem.slice(0, -1) + 'че'
@@ -158,7 +158,7 @@ const toComparative = function (str = '') {
 
 // быстрый → самый быстрый, хороший → лучший
 const toSuperlative = function (str = '') {
-  let masc = toMasculine(str)
+  const masc = toMasculine(str)
   if (irregularSuperlatives[masc]) {
     return irregularSuperlatives[masc]
   }

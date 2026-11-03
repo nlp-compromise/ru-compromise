@@ -4,7 +4,7 @@
 //   data/models/verbs/imperative.js  - [second, secondPlural] from verbs.csv
 //   data/models/verbs/aspect.js      - list of perfective infinitives, from verbs.csv
 // run:  node ./learn/conjugation/generate.js
-import fs from 'fs'
+import fs from 'node:fs'
 import presentTense from '../../data/models/verbs/present-tense.js'
 
 // ---------- past tense ----------
@@ -70,17 +70,17 @@ const toPast = function (inf) {
   }
   // reflexive - conjugate the base, re-attach ся/сь
   if (/(ться|тись|чься)$/.test(inf)) {
-    let base = inf.replace(/(ся|сь)$/, '')
-    let forms = toPast(base)
+    const base = inf.replace(/(ся|сь)$/, '')
+    const forms = toPast(base)
     if (!forms) {
       return null
     }
     return forms.map(f => (/[аеёиоуыэюя]$/.test(f) ? f + 'сь' : f + 'ся'))
   }
   // consonant-stem endings with known past forms
-  for (let [suff, forms] of stemMap) {
+  for (const [suff, forms] of stemMap) {
     if (inf.endsWith(suff)) {
-      let prefix = inf.slice(0, inf.length - suff.length)
+      const prefix = inf.slice(0, inf.length - suff.length)
       let out = forms.map(f => prefix + f)
       if (prefix.startsWith('вы')) {
         out = out.map(deStress)
@@ -90,47 +90,47 @@ const toPast = function (inf) {
   }
   // сесть → сел, класть → клал, упасть → упал
   if (inf.endsWith('сть')) {
-    let base = inf.slice(0, -3)
+    const base = inf.slice(0, -3)
     return [base + 'л', base + 'ла', base + 'ло', base + 'ли']
   }
   // лезть → лез, грызть → грыз
   if (inf.endsWith('зть')) {
-    let base = inf.slice(0, -3)
+    const base = inf.slice(0, -3)
     return [base + 'з', base + 'зла', base + 'зло', base + 'зли']
   }
   // спасти → спас, трясти → тряс
   if (inf.endsWith('сти')) {
-    let base = inf.slice(0, -3)
+    const base = inf.slice(0, -3)
     return [base + 'с', base + 'сла', base + 'сло', base + 'сли']
   }
   // ползти → полз
   if (inf.endsWith('зти')) {
-    let base = inf.slice(0, -3)
+    const base = inf.slice(0, -3)
     return [base + 'з', base + 'зла', base + 'зло', base + 'зли']
   }
   // умереть → умер, запереть → запер
   if (inf.endsWith('ереть')) {
-    let base = inf.slice(0, -3)
+    const base = inf.slice(0, -3)
     return [base, base + 'ла', base + 'ло', base + 'ли']
   }
   // исчезнуть → исчез
   if (inf.endsWith('нуть') && nuDrop.has(inf)) {
-    let base = inf.slice(0, -4)
+    const base = inf.slice(0, -4)
     return [base, base + 'ла', base + 'ло', base + 'ли']
   }
   // regular:  читать → читал, читала, читало, читали
   if (inf.endsWith('ть')) {
-    let base = inf.slice(0, -2)
+    const base = inf.slice(0, -2)
     return [base + 'л', base + 'ла', base + 'ло', base + 'ли']
   }
   // unknown consonant-stem (-ти, -чь) - safer to skip than to guess wrong
   return null
 }
 
-let past = {}
-let skipped = []
+const past = {}
+const skipped = []
 Object.keys(presentTense).forEach(inf => {
-  let forms = toPast(inf)
+  const forms = toPast(inf)
   if (forms) {
     past[inf] = forms
   } else {
@@ -142,12 +142,12 @@ Object.keys(presentTense).forEach(inf => {
 
 // minimal csv parser (semicolon-delimited, double-quoted fields)
 const parseCsv = function (str) {
-  let rows = []
+  const rows = []
   let row = []
   let cell = ''
   let inQuote = false
   for (let i = 0; i < str.length; i += 1) {
-    let c = str[i]
+    const c = str[i]
     if (inQuote) {
       if (c === '"') {
         inQuote = false
@@ -175,9 +175,9 @@ const parseCsv = function (str) {
   return rows
 }
 
-let csv = fs.readFileSync(new URL('./verbs.csv', import.meta.url)).toString()
-let rows = parseCsv(csv)
-let header = rows[0]
+const csv = fs.readFileSync(new URL('./verbs.csv', import.meta.url)).toString()
+const rows = parseCsv(csv)
+const header = rows[0]
 const col = (name) => header.findIndex(h => h.trim() === name)
 const iInf = col('Инфинитив')
 const iImp1 = col('Повелительное накл. 1')
@@ -200,45 +200,45 @@ const imperativeOverrides = {
 // verbs added by hand to present-tense.js, absent from the csv
 const perfectiveExtras = ['вернуть', 'вернуться']
 
-let imperative = {}
-let perfective = [...perfectiveExtras]
-let aspectPairs = {}
-let gerunds = {}
-let participles = {}
+const imperative = {}
+const perfective = [...perfectiveExtras]
+const aspectPairs = {}
+const gerunds = {}
+const participles = {}
 rows.slice(1).forEach(r => {
-  let inf = (r[iInf] || '').trim()
+  const inf = (r[iInf] || '').trim()
   if (!inf || !presentTense[inf]) {
     return
   }
-  let imp1 = (r[iImp1] || '').trim()
-  let imp2 = (r[iImp2] || '').trim()
+  const imp1 = (r[iImp1] || '').trim()
+  const imp2 = (r[iImp2] || '').trim()
   if (imperativeOverrides[inf]) {
     imperative[inf] = imperativeOverrides[inf]
   } else if (isWord(imp1) && isWord(imp2)) {
     imperative[inf] = [imp1, imp2]
   }
-  let aspect = (r[iAspect] || '').trim()
-  let isPerfective = /^совер/.test(aspect)
+  const aspect = (r[iAspect] || '').trim()
+  const isPerfective = /^совер/.test(aspect)
   if (isPerfective) {
     perfective.push(inf)
   }
   // 'писать/написать' - keyed by the imperfective side
-  let pair = (r[iPair] || '').trim()
-  let m = pair.match(/^([а-яё]+)\/([а-яё]+)$/)
+  const pair = (r[iPair] || '').trim()
+  const m = pair.match(/^([а-яё]+)\/([а-яё]+)$/)
   if (m && !aspectPairs[m[1]]) {
     aspectPairs[m[1]] = m[2]
   }
   // деепричастия - present-gerund for imperfectives (читая), past-gerund for perfectives (прочитав)
-  let gerPres = (r[iGerPres] || '').trim()
-  let gerPast = (r[iGerPast] || '').trim()
-  let ger = isPerfective ? gerPast : gerPres
+  const gerPres = (r[iGerPres] || '').trim()
+  const gerPast = (r[iGerPast] || '').trim()
+  const ger = isPerfective ? gerPast : gerPres
   if (isWord(ger)) {
     gerunds[inf] = [ger]
   }
   // причастия - [active-present, active-past, passive-past]
-  let actPres = (r[iPartActPres] || '').trim()
-  let actPast = (r[iPartActPast] || '').trim()
-  let passPast = (r[iPartPassPast] || '').trim()
+  const actPres = (r[iPartActPres] || '').trim()
+  const actPast = (r[iPartActPast] || '').trim()
+  const passPast = (r[iPartPassPast] || '').trim()
   if (isWord(actPres) || isWord(actPast) || isWord(passPast)) {
     participles[inf] = [
       isWord(actPres) ? actPres : '',
@@ -251,7 +251,7 @@ rows.slice(1).forEach(r => {
 // ---------- write files ----------
 
 const stringify = function (obj) {
-  let lines = Object.keys(obj).map(k => `  "${k}": ${JSON.stringify(obj[k])}`)
+  const lines = Object.keys(obj).map(k => `  "${k}": ${JSON.stringify(obj[k])}`)
   return `export default {\n${lines.join(',\n')}\n}\n`
 }
 

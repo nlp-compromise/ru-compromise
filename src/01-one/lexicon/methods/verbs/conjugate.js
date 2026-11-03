@@ -1,6 +1,6 @@
 import { convert } from 'suffix-thumb'
 import model from '../models.js'
-let { presentTense, pastTense, imperative, gerund } = model
+const { presentTense, pastTense, imperative, gerund } = model
 const perfective = model.perfective || {}
 const aspectPairs = model.aspectPairs || {}
 
@@ -17,7 +17,7 @@ const getPairsRev = function () {
 }
 
 const doEach = function (str, m, keys) {
-  let res = {}
+  const res = {}
   keys.forEach(k => {
     res[k] = convert(str, m[k])
   })
@@ -31,7 +31,7 @@ const toImperative = (str) => doEach(str, imperative, ['second', 'secondPlural']
 const isPerfective = (str) => perfective[str] === true
 
 const toGerund = function (str) {
-  let out = convert(str, gerund.gerund)
+  const out = convert(str, gerund.gerund)
   if (!out) {
     return null
   }

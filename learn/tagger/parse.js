@@ -2,7 +2,7 @@ import { Document } from 'conllu-core'
 import nlp from '../../src/index.js'
 // https://github.com/dialogue-evaluation/GramEval2020/tree/master/dataTrain
 
-let mapping = {
+const mapping = {
   ADJ: 'Adjective',//	прилагательное,порядковое числительное	adjective	новый, первый, должен, самый, сам, нужный
   ADP: 'Preposition',//	предлог	preposition	в, на, с, из-за, а-ля, типа
   ADV: 'Adverb',//	наречие, местоимение-наречие	adverb	так, уже, где, более, внимательно
@@ -23,13 +23,13 @@ let mapping = {
 }
 
 
-let file = '/Users/spencer/mountain/ru-compromise/learn/tagger/data.txt'
-let o = await Document.load(file)
+const file = '/Users/spencer/mountain/ru-compromise/learn/tagger/data.txt'
+const o = await Document.load(file)
 o.sentences.forEach(s => {
   let txt = ''
-  let want = {}
+  const want = {}
   s.tokens.forEach(t => {
-    let tag = mapping[t.upos]
+    const tag = mapping[t.upos]
     want[t.form] = tag
     if (t.upos !== 'PUNCT') {
       txt += ' '

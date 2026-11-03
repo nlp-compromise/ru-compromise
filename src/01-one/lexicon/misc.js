@@ -1,6 +1,6 @@
 // hand-curated words with multiple tags, plus ambiguity-pins.
 // these win over the packed lexicon and generated conjugations.
-let misc = {}
+const misc = {}
 
 // --- быть (to be) ---
 const bytForms = {

@@ -1,6 +1,6 @@
 import test from 'tape'
 import nlp from './_lib.js'
-let here = '[context] '
+const here = '[context] '
 nlp.verbose(false)
 
 test('context-rules:', function (t) {
@@ -15,7 +15,7 @@ test('context-rules:', function (t) {
 })
 
 test('entities:', function (t) {
-  let doc = nlp('Россия и Германия')
+  const doc = nlp('Россия и Германия')
   t.equal(doc.match('#Place').length, 2, here + 'Россия + Германия are places')
   t.equal(nlp('мы поедем в США').match('#Place').text(), 'США', here + 'США is a place')
   t.equal(nlp('мы жили в Москве и Париже').match('#ProperNoun').length, 2, here + 'cities are proper-nouns')
@@ -23,14 +23,14 @@ test('entities:', function (t) {
 })
 
 test('oblique-pronouns:', function (t) {
-  let arr = [
+  const arr = [
     ['у него есть дом', '#Preposition #Pronoun #Copula #Noun'],
     ['она говорила с ней обо мне', '#Pronoun #PastTense #Preposition #Pronoun #Preposition #Pronoun'],
     ['мы видели их вчера', '#Pronoun #PastTense #Pronoun #Adverb'],
   ]
   arr.forEach(function (a) {
-    let [str, match] = a
-    let doc = nlp(str)
+    const [str, match] = a
+    const doc = nlp(str)
     t.equal(doc.match(match).text(), doc.text(), here + str)
   })
   t.end()
@@ -57,7 +57,7 @@ test('participles-gerunds:', function (t) {
 
 test('е-spelling:', function (t) {
   // 'вернется' = 'вернётся' - tags + root survive the е-spelling
-  let doc = nlp('он вернется завтра')
+  const doc = nlp('он вернется завтра')
   t.equal(doc.has('#Pronoun #FutureTense #Adverb'), true, here + 'вернется is future')
   t.equal(doc.compute('root').json()[0].terms[1].root, 'вернуться', here + 'вернется → вернуться')
   t.end()

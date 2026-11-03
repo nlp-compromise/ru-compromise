@@ -10,7 +10,7 @@ const tagToForm = {
 }
 
 const verbForm = function (term) {
-  let found = Object.keys(tagToForm).find(tag => term.tags.has(tag))
+  const found = Object.keys(tagToForm).find(tag => term.tags.has(tag))
   return found ? tagToForm[found] : null
 }
 
@@ -19,7 +19,7 @@ const root = function (view) {
   const { verb } = view.world.methods.two.transform
   view.docs.forEach(terms => {
     terms.forEach(term => {
-      let str = term.implicit || term.normal || term.text
+      const str = term.implicit || term.normal || term.text
 
       // get infinitive form of the verb
       if (term.tags.has('Verb')) {

@@ -21,22 +21,20 @@
 
   var tmpWrld = { methods: methods$o, model: model$6, compute: compute$7, hooks };
 
-  const isArray$a = input => Object.prototype.toString.call(input) === '[object Array]';
-
   const fns$4 = {
     /** add metadata to term objects */
-    compute: function (input) {
+    compute: function (input, options) {
       const { world } = this;
       const compute = world.compute;
       // do one method
-      if (typeof input === 'string' && compute.hasOwnProperty(input)) {
-        compute[input](this);
+      if (typeof input === 'string' && Object.hasOwn(compute, input)) {
+        compute[input](this, options);
       }
       // allow a list of methods
-      else if (isArray$a(input)) {
+      else if (Array.isArray(input)) {
         input.forEach(name => {
-          if (world.compute.hasOwnProperty(name)) {
-            compute[name](this);
+          if (Object.hasOwn(world.compute, name)) {
+            compute[name](this, options);
           } else {
             console.warn('no compute:', input); // eslint-disable-line
           }
@@ -44,7 +42,7 @@
       }
       // allow a custom compute function
       else if (typeof input === 'function') {
-        input(this);
+        input(this, options);
       } else {
         console.warn('no compute:', input); // eslint-disable-line
       }
@@ -296,7 +294,7 @@
   utils.lastTerm = utils.lastTerms;
   utils.firstTerm = utils.firstTerms;
 
-  const methods$n = Object.assign({}, utils, fns$4, loops);
+  const methods$n = { ...utils, ...fns$4, ...loops };
 
   // aliases
   methods$n.get = methods$n.eq;
@@ -359,13 +357,13 @@
       return pointers.map(a => {
         // eslint-disable-next-line prefer-const
         let [n, start, end, id, endId] = a;
-        start = start || 0;
-        end = end || (document[n] || []).length;
+        start ||= 0;
+        end ||= (document[n] || []).length;
         //add frozen id, for good-measure
-        if (document[n] && document[n][start]) {
-          id = id || document[n][start].id;
+        if (document[n]?.[start]) {
+          id ||= document[n][start].id;
           if (document[n][end - 1]) {
-            endId = endId || document[n][end - 1].id;
+            endId ||= document[n][end - 1].id;
           }
         }
         return [n, start, end, id, endId]
@@ -375,7 +373,7 @@
     update(pointer) {
       const m = new View(this.document, pointer);
       // send the cache down, too?
-      if (this._cache && pointer && pointer.length > 0) {
+      if (this._cache && pointer?.length > 0) {
         // only keep cache if it's a full-sentence
         const cache = [];
         pointer.forEach((ptr, i) => {
@@ -415,7 +413,7 @@
       let document = this.document.slice(0); //node 17: structuredClone(document);
       document = document.map(terms => {
         return terms.map(term => {
-          term = Object.assign({}, term);
+          term = { ...term };
           term.tags = new Set(term.tags);
           return term
         })
@@ -429,14 +427,10 @@
   }
   Object.assign(View.prototype, methods$n);
 
-  var version$1 = '14.17.0';
+  var version$1 = '14.19.0';
 
   const isObject$6 = function (item) {
     return item && typeof item === 'object' && !Array.isArray(item)
-  };
-
-  const isArray$9 = function (arr) {
-    return Object.prototype.toString.call(arr) === '[object Array]'
   };
 
   const isUnsafeKey = key => key === '__proto__' || key === 'constructor' || key === 'prototype';
@@ -466,7 +460,7 @@
   function mergeQuick(model, plugin) {
     for (const key in plugin) {
       if (isUnsafeKey(key)) continue
-      model[key] = model[key] || {};
+      model[key] ||= {};
       Object.assign(model[key], plugin[key]);
     }
     return model
@@ -522,7 +516,7 @@
 
   const extend = function (plugin, world, View, nlp) {
     // support array of plugins
-    if (isArray$9(plugin)) {
+    if (Array.isArray(plugin)) {
       plugin.forEach(p => extend(p, world, View, nlp));
       return
     }
@@ -565,12 +559,205 @@
     }
   };
 
+  // Shared CLI colors and styles.
+  const color = code => s => '\x1b[' + code + 'm' + s + '\x1b[0m';
+
+  const green = color(32);
+  const red = color(31);
+  const blue = color(34);
+  const magenta = color(35);
+  const cyan = color(36);
+  const yellow = color(33);
+  const black = color(30);
+  const white = color(37);
+  const dim = color(2);
+  const i$1 = color(3);
+  const b = color(1);
+  const ul = color(4);
+  const grey = color(90);
+
+  var cli$1 = /*#__PURE__*/Object.freeze({
+    __proto__: null,
+    b: b,
+    black: black,
+    blue: blue,
+    cyan: cyan,
+    dim: dim,
+    green: green,
+    grey: grey,
+    i: i$1,
+    magenta: magenta,
+    red: red,
+    ul: ul,
+    white: white,
+    yellow: yellow
+  });
+
+  const env = globalThis.process?.env ?? globalThis.env ?? {};
+  const debug$3 = { tags: Boolean(env.DEBUG_TAGS) };
+
+  // Capture only the requested terms, and only while tracing.
+  const before$1 = term => {
+    if (debug$3.tags && (!debug$3.word || debug$3.word === (term.normal || term.text || term.implicit || '').toLowerCase())) {
+      return [...term.tags]
+    }
+    return null
+  };
+
+  // Show actual changes, including conflict removals.
+  const log = (term, previous, reason = '') => {
+    if (!previous) {
+      return
+    }
+    const added = [...term.tags].filter(tag => !previous.includes(tag));
+    const removed = previous.filter(tag => !term.tags.has(tag));
+    if (!added.length && !removed.length) {
+      return
+    }
+    const text = term.text || term.implicit || '';
+    const index = term.index?.join(':') || '?';
+    const prefix = debug$3.prefix || '   ';
+    if (debug$3.rule !== reason) {
+      const headingPrefix = debug$3.prefix ? prefix.replace('│  ', '│ ') : '  ';
+      console.log(`${headingPrefix}${dim(white((reason || 'tag change') + ':'))}`); // eslint-disable-line no-console
+      debug$3.rule = reason;
+    }
+    const print = (tags, sign, color) => {
+      if (!tags.length) {
+        return
+      }
+      const word = color(`'${text}'`);
+      const changes = tags.map(tag => color(`#${tag}`)).join(' ');
+      console.log(`${prefix}${color(sign)} ${word} ${dim(index.padEnd(9))} ${changes}`); // eslint-disable-line no-console
+    };
+    print(removed, '−', red);
+    print(added, '+', green);
+  };
+
+  debug$3.before = before$1;
+  debug$3.log = log;
+
+  // Install only while verbose matching is enabled; restore the original hot path.
+  const matchDebug = (world, options) => {
+    const one = world.methods.one;
+    const match = one.match;
+    const parse = one.parseMatch;
+    const sources = new WeakMap();
+    const word = options.word?.toLowerCase();
+    const includesWord = terms =>
+      !word || terms.some(term => (term.normal || term.text || term.implicit || '').toLowerCase() === word);
+
+    const parseLogged = function (...args) {
+      const regs = parse.apply(this, args);
+      sources.set(regs, String(args[0]));
+      return regs
+    };
+    const matchLogged = function (docs, todo, cache) {
+      const result = match.call(this, docs, todo, cache);
+      const pattern = todo.match || sources.get(todo.regs) || '[parsed pattern]';
+      if (options.pattern !== undefined && pattern !== options.pattern) {
+        return result
+      }
+      if (word && !docs.some(includesWord)) {
+        return result
+      }
+      const matches = result.ptrs
+        .map(([n, start, end]) => docs[n].slice(start, end))
+        .filter(includesWord);
+      if (word && result.ptrs.length && !matches.length) {
+        return result
+      }
+      debug$3.rule = undefined;
+      const status = result.ptrs.length ? green('✓') : red('✗');
+      const spans = matches.map(terms => {
+        const text = terms.map(term => term.text || term.implicit).join(' ');
+        return `${green("'" + text + "'")} ${dim(terms[0]?.index?.join(':') || '?')}`
+      }).join(', ');
+      const rule = pattern.length > 80 ? pattern.slice(0, 79) + '…' : pattern;
+      const words = spans ? spans + '  ' : ' ---         ';
+      console.log(`${debug$3.prefix || '   '}${status} ${words}${dim(i$1(rule))}`); // eslint-disable-line no-console
+      return result
+    };
+    one.parseMatch = parseLogged;
+    one.match = matchLogged;
+    return () => {
+      // Do not overwrite a plugin's replacement installed during tracing.
+      if (one.parseMatch === parseLogged) {
+        one.parseMatch = parse;
+      }
+      if (one.match === matchLogged) {
+        one.match = match;
+      }
+    }
+  };
+
+  const colorSpec = doc => {
+    return doc.docs
+      .map((terms, index) => {
+        const plain = terms
+          .map(t => t.pre + t.text + t.post)
+          .join('')
+          .trim();
+        const text = dim("'" + plain + "'");
+        const spec = doc.update([[index]]).out('spec');
+        return text + grey(i$1(spec.slice(plain.length)))
+      })
+      .join('\n')
+  };
+
+  // Trace the actual pipeline once, including the initial tokenized document.
+  const hooksDebug = headings => (doc, hooks) => {
+    const width = Math.max('tokenize'.length, ...hooks.map(hook => hook.length));
+    const snapshot = (hook, nested = false) => {
+      const output = colorSpec(doc);
+      output.split('\n').forEach((line, index, lines) => {
+        if (nested) {
+          const branch = index === lines.length - 1 ? ' ╰─' : '│ ';
+          console.log(`  ${dim(branch)} ${line}`); // eslint-disable-line no-console
+          return
+        }
+        const label = (index === 0 ? hook : '').padEnd(width);
+        console.log(`  ${dim(label)}  ${line}`); // eslint-disable-line no-console
+      });
+    };
+    snapshot('tokenize');
+    hooks.forEach(hook => {
+      const nested = headings;
+      const prefix = debug$3.prefix;
+      const rule = debug$3.rule;
+      debug$3.rule = undefined;
+      if (nested) {
+        console.log(`  ${blue(b(ul(hook + ':')))}`); // eslint-disable-line no-console
+        debug$3.prefix = dim('   │  ');
+      }
+      // Restore the log prefix even when a plugin hook throws.
+      try {
+        doc.compute(hook);
+        snapshot(hook, nested);
+      } finally {
+        debug$3.prefix = prefix;
+        debug$3.rule = rule;
+      }
+    });
+  };
+
+  let restoreMatch;
+
   /** log the decision-making to console */
-  const verbose = function (set) {
-    const env = typeof process === 'undefined' || !process.env ? self.env || {} : process.env; //use window, in browser
-    env.DEBUG_TAGS = set === 'tagger' || set === true ? true : '';
+  const verbose = function (set = true, options = {}) {
+    restoreMatch?.();
+    restoreMatch = undefined;
+    if (set === 'match' || set === true) {
+      restoreMatch = matchDebug(this._world, options);
+    }
+    const env = globalThis.process?.env ?? globalThis.env ?? {}; //use window, in browser
+    debug$3.hooks = set === 'hooks' || set === true ? hooksDebug(set === true) : undefined;
+    debug$3.word = options.word?.toLowerCase();
+    debug$3.contractions = set === 'contractions' || set === true;
+    debug$3.rule = undefined;
+    debug$3.tags = set === 'tagger' || set === true;
+    env.DEBUG_TAGS = debug$3.tags ? true : '';
     env.DEBUG_MATCH = set === 'match' || set === true ? true : '';
-    env.DEBUG_CHUNKS = set === 'chunker' || set === true ? true : '';
     return this
   };
 
@@ -578,15 +765,11 @@
     return Object.prototype.toString.call(val) === '[object Object]'
   };
 
-  const isArray$8 = function (arr) {
-    return Object.prototype.toString.call(arr) === '[object Array]'
-  };
-
   // internal Term objects are slightly different
   const fromJson = function (json) {
     return json.map(o => {
       return o.terms.map(term => {
-        if (isArray$8(term.tags)) {
+        if (Array.isArray(term.tags)) {
           term.tags = new Set(term.tags);
         }
         return term
@@ -631,9 +814,9 @@
       return new View(input.document, input.ptrs)
     }
     // handle json input
-    if (isArray$8(input)) {
+    if (Array.isArray(input)) {
       // pre-tokenized array-of-arrays 
-      if (isArray$8(input[0])) {
+      if (Array.isArray(input[0])) {
         const document = preTokenized(input);
         return new View(document)
       }
@@ -644,15 +827,19 @@
     return doc
   };
 
-  const world = Object.assign({}, tmpWrld);
+  const world = { ...tmpWrld };
 
-  const nlp = function (input, lex) {
+  const nlp = function nlp(input, lex) {
     if (lex) {
       nlp.addWords(lex);
     }
     const doc = inputs(input, View, world);
     if (input) {
-      doc.compute(world.hooks);
+      if (debug$3.hooks) {
+        debug$3.hooks(doc, world.hooks);
+      } else {
+        doc.compute(world.hooks);
+      }
     }
     return doc
   };
@@ -671,7 +858,9 @@
     // run the tokenizer
     const doc = inputs(input, View, world);
     // give contractions a shot, at least
-    if (compute.contractions) {
+    if (debug$3.hooks) {
+      debug$3.hooks(doc, compute.contractions ? ['alias', 'normal', 'machine', 'contractions'] : []);
+    } else if (compute.contractions) {
       doc.compute(['alias', 'normal', 'machine', 'contractions']); //run it if we've got it
     }
     return doc
@@ -683,7 +872,6 @@
     return this
   };
   nlp.extend = nlp.plugin;
-
 
   /** reach-into compromise internals */
   nlp.world = function () {
@@ -699,9 +887,9 @@
     return this._world.hooks
   };
 
-  /** log the decision-making to console */
+  // log the decision-making to console
   nlp.verbose = verbose;
-  /** current library release version */
+  // current library release version
   nlp.version = version$1;
 
   const createCache = function (document) {
@@ -730,10 +918,9 @@
         if (term.alias) {
           term.alias.forEach(str => items.add(str));
         }
-        const tags = Array.from(term.tags);
-        for (let t = 0; t < tags.length; t += 1) {
-          items.add('#' + tags[t]);
-        }
+        term.tags.forEach(tag => {
+          items.add('#' + tag);
+        });
       });
       return items
     });
@@ -822,8 +1009,7 @@
     // tag them as dirty
     child.forEach(term => term.dirty = true);
     if (parent) {
-      const args = [index, 0].concat(child);
-      Array.prototype.splice.apply(parent, args);
+      parent.splice(index, 0, ...child);
     }
     return parent
   };
@@ -832,7 +1018,7 @@
   const endSpace = function (terms) {
     const hasSpace = / $/;
     const hasDash = /[-–—]/;
-    const lastTerm = terms[terms.length - 1];
+    const lastTerm = terms.at(-1);
     if (lastTerm && !hasSpace.test(lastTerm.post) && !hasDash.test(lastTerm.post)) {
       lastTerm.post += ' ';
     }
@@ -848,7 +1034,7 @@
     const post = wasLast.post;
     if (juicy.test(post)) {
       const punct = post.match(juicy).join(''); //not perfect
-      const last = needle[needle.length - 1];
+      const last = needle.at(-1);
       last.post = punct + last.post;
       // remove it, from source
       wasLast.post = wasLast.post.replace(juicy, '');
@@ -910,12 +1096,12 @@
       movePunct(home, end, needle);
       // is there another sentence after?
       if (document[n + 1]) {
-        needle[needle.length - 1].post += ' ';
+        needle.at(-1).post += ' ';
       }
     }
     spliceArr(home, ptr[2], needle);
     // set new endId
-    ptr[4] = needle[needle.length - 1].id;
+    ptr[4] = needle.at(-1).id;
   };
 
   /*
@@ -995,8 +1181,6 @@
     }
   };
 
-  const isArray$7 = arr => Object.prototype.toString.call(arr) === '[object Array]';
-
   // set new ids for each terms
   const addIds$2 = function (terms) {
     terms = terms.map(term => {
@@ -1017,8 +1201,8 @@
       return input.clone().docs[0] || [] //assume one sentence
     }
     //allow an array of terms, too
-    if (isArray$7(input)) {
-      return isArray$7(input[0]) ? input[0] : input
+    if (Array.isArray(input)) {
+      return Array.isArray(input[0]) ? input[0] : input
     }
     return []
   };
@@ -1048,7 +1232,7 @@
         cleanAppend(home, ptr, terms, document);
       }
       // harden the pointer
-      if (document[n] && document[n][ptr[1]]) {
+      if (document[n]?.[ptr[1]]) {
         ptr[3] = document[n][ptr[1]].id;
       }
       // change self backwards by len
@@ -1106,7 +1290,7 @@
     const groups = main.groups();
     input = input.replace(dollarStub, a => {
       const num = a.replace(/\$/, '');
-      if (groups.hasOwnProperty(num)) {
+      if (Object.hasOwn(groups, num)) {
         return groups[num].text()
       }
       return a
@@ -1131,7 +1315,7 @@
     }
     const terms = main.docs[0];
     if (!terms) return main
-    const isOriginalPossessive = keep.possessives && terms[terms.length - 1].tags.has('Possessive');
+    const isOriginalPossessive = keep.possessives && terms.at(-1).tags.has('Possessive');
     const isOriginalTitleCase = keep.case && isTitleCase$1(terms[0].text);
     // support 'foo $0' replacements
     input = subDollarSign(input, main);
@@ -1142,7 +1326,7 @@
     // original.freeze()
     let oldTags = (original.docs[0] || []).map(term => Array.from(term.tags));
     const originalPre = original.docs[0][0].pre;
-    const originalPost = original.docs[0][original.docs[0].length - 1].post;
+    const originalPost = original.docs[0].at(-1).post;
     // slide this in
     if (typeof input === 'string') {
       input = this.fromText(input).compute('id');
@@ -1159,7 +1343,7 @@
     // keep "John's"
     if (isOriginalPossessive) {
       const tmp = main.docs[0];
-      const term = tmp[tmp.length - 1];
+      const term = tmp.at(-1);
       if (!term.tags.has('Possessive')) {
         term.text += "'s";
         term.normal += "'s";
@@ -1173,7 +1357,7 @@
     }
     // try to keep any post-punctuation
     if (originalPost && main.docs[0]) {
-      const lastOne = main.docs[0][main.docs[0].length - 1];
+      const lastOne = main.docs[0].at(-1);
       if (!lastOne.post.trim()) {
         lastOne.post = originalPost;
       }
@@ -1215,6 +1399,23 @@
     return m.replaceWith(input, keep)
   };
 
+  // Remove only the first qualifying run, matching String.replace without /g.
+  const removeRunBefore = (str, run, following) => {
+    let i = 0;
+    while (i < str.length) {
+      if (!run.includes(str[i])) {
+        i++;
+        continue
+      }
+      const start = i;
+      while (i < str.length && run.includes(str[i])) i++;
+      if (i < str.length && following.includes(str[i])) {
+        return str.slice(0, start) + str.slice(i)
+      }
+    }
+    return str
+  };
+
   // transfer sentence-ending punctuation
   const repairPunct = function (terms, len) {
     const last = terms.length - 1;
@@ -1222,9 +1423,9 @@
     const to = terms[last - len];
     if (to && from) {
       to.post += from.post; //this isn't perfect.
-      to.post = to.post.replace(/ +([.?!,;:])/, '$1');
+      to.post = removeRunBefore(to.post, ' ', '.?!,;:');
       // don't allow any silly punctuation outcomes like ',!'
-      to.post = to.post.replace(/[,;:]+([.?!])/, '$1');
+      to.post = removeRunBefore(to.post, ',;:', '.?!');
     }
   };
 
@@ -1249,7 +1450,7 @@
         // remove any trailing whitespace before our removed sentence
         if (i === document.length && document[i - 1]) {
           const terms = document[i - 1];
-          const lastTerm = terms[terms.length - 1];
+          const lastTerm = terms.at(-1);
           if (lastTerm) {
             lastTerm.post = lastTerm.post.trimEnd();
           }
@@ -1372,11 +1573,11 @@
     /** add this punctuation or whitespace after each match: */
     post: function (str, concat) {
       if (str === undefined) {
-        const last = this.docs[this.docs.length - 1];
-        return last[last.length - 1].post
+        const last = this.docs.at(-1);
+        return last.at(-1).post
       }
       this.docs.forEach(terms => {
-        const term = terms[terms.length - 1];
+        const term = terms.at(-1);
         if (concat === true) {
           term.post += str;
         } else {
@@ -1394,8 +1595,8 @@
       const docs = this.docs;
       const start = docs[0][0];
       start.pre = start.pre.trimStart();
-      const last = docs[docs.length - 1];
-      const end = last[last.length - 1];
+      const last = docs.at(-1);
+      const end = last.at(-1);
       end.post = end.post.trimEnd();
       return this
     },
@@ -1432,11 +1633,11 @@
 
     /** add quotations around these matches */
     toQuotations: function (start, end) {
-      start = start || `"`;
-      end = end || `"`;
+      start ||= `"`;
+      end ||= `"`;
       this.docs.forEach(terms => {
         terms[0].pre = start + terms[0].pre;
-        const last = terms[terms.length - 1];
+        const last = terms.at(-1);
         last.post = end + last.post;
       });
       return this
@@ -1444,11 +1645,11 @@
 
     /** add brackets around these matches */
     toParentheses: function (start, end) {
-      start = start || `(`;
-      end = end || `)`;
+      start ||= `(`;
+      end ||= `)`;
       this.docs.forEach(terms => {
         terms[0].pre = start + terms[0].pre;
-        const last = terms[terms.length - 1];
+        const last = terms.at(-1);
         last.post = end + last.post;
       });
       return this
@@ -1507,9 +1708,9 @@
 
   /** sort by # of duplicates in the document*/
   const byFreq = function (arr) {
-    const counts = {};
+    const counts = Object.create(null);
     arr.forEach(o => {
-      counts[o.normal] = counts[o.normal] || 0;
+      counts[o.normal] ??= 0;
       counts[o.normal] += 1;
     });
     // sort by freq
@@ -1553,7 +1754,7 @@
     if (typeof input === 'function') {
       return customSort(this, input)
     }
-    input = input || 'alpha';
+    input ||= 'alpha';
     const ptrs = pointer || docs.map((_d, n) => [n]);
     let arr = docs.map((terms, n) => {
       return {
@@ -1612,14 +1813,12 @@
 
   var sort$1 = { unique, reverse: reverse$1, sort };
 
-  const isArray$6 = (arr) => Object.prototype.toString.call(arr) === '[object Array]';
-
   // append a new document, somehow
   const combineDocs = function (homeDocs, inputDocs) {
     if (homeDocs.length > 0) {
       // add a space
-      const end = homeDocs[homeDocs.length - 1];
-      const last = end[end.length - 1];
+      const end = homeDocs.at(-1);
+      const last = end.at(-1);
       if (/ /.test(last.post) === false) {
         last.post += ' ';
       }
@@ -1655,7 +1854,7 @@
         } else {
           // if we are in the middle, this is actually a splice operation
           const ptrs = this.fullPointer;
-          const at = ptrs[ptrs.length - 1][0];
+          const at = ptrs.at(-1)[0];
           this.document.splice(at, 0, ...more.document);
         }
         // put the docs
@@ -1666,7 +1865,7 @@
         return combineViews(this, input)
       }
       // assume it's an array of terms
-      if (isArray$6(input)) {
+      if (Array.isArray(input)) {
         const docs = combineDocs(this.document, input);
         this.document = docs;
         return this.all()
@@ -1683,7 +1882,7 @@
   // remove indexes from pointers
   const soften = function () {
     let ptr = this.ptrs;
-    if (!ptr || ptr.length < 1) {
+    if (!ptr || ptr.length === 0) {
       return this
     }
     ptr = ptr.map(a => a.slice(0, 3));
@@ -1692,7 +1891,7 @@
   };
   var harden$1 = { harden, soften };
 
-  const methods$h = Object.assign({}, caseFns, fns$3, fns$2, methods$k, methods$j, sort$1, concat, harden$1);
+  const methods$h = { ...caseFns, ...fns$3, ...fns$2, ...methods$k, ...methods$j, ...sort$1, ...concat, ...harden$1 };
 
   const addAPI$2 = function (View) {
     Object.assign(View.prototype, methods$h);
@@ -1704,7 +1903,7 @@
       for (let n = 0; n < docs.length; n += 1) {
         for (let i = 0; i < docs[n].length; i += 1) {
           const term = docs[n][i];
-          term.id = term.id || toId(term);
+          term.id ||= toId(term);
         }
       }
     }
@@ -1789,21 +1988,21 @@
   ];
 
   // number suffixes that are not units
-  const t$1 = true;
+  const t = true;
   var numberSuffixes = {
-    'st': t$1,
-    'nd': t$1,
-    'rd': t$1,
-    'th': t$1,
-    'am': t$1,
-    'pm': t$1,
-    'max': t$1,
-    '°': t$1,
-    's': t$1, // 1990s
-    'e': t$1, // 18e - french/spanish ordinal
-    'er': t$1, //french 1er
-    'ère': t$1, //''
-    'ème': t$1, //french 2ème
+    'st': t,
+    'nd': t,
+    'rd': t,
+    'th': t,
+    'am': t,
+    'pm': t,
+    'max': t,
+    '°': t,
+    's': t, // 1990s
+    'e': t, // 18e - french/spanish ordinal
+    'er': t, //french 1er
+    'ère': t, //''
+    'ème': t, //french 2ème
   };
 
   var model$5 = {
@@ -1811,6 +2010,16 @@
       contractions: contractions$2,
       numberSuffixes
     }
+  };
+
+  // Log decisions before splicing replaces the original term.
+  const contractionDebug = (term, expansion) => {
+    if (!debug$3.contractions || (debug$3.word && debug$3.word !== (term.normal || term.text).toLowerCase())) {
+      return
+    }
+    debug$3.rule = undefined;
+    const result = expansion ? '[' + expansion.map(word => yellow(`'${word}'`)).join(', ') + ']' : 'possessive (kept)';
+    console.log(`${debug$3.prefix || '   '}${yellow(JSON.stringify(term.text))} →  ${result}`); // eslint-disable-line no-console
   };
 
   // put n new words where 1 word was
@@ -1984,7 +2193,7 @@
       // is it a recognized unit, like 'km'?
       const unit = parts[2].toLowerCase().trim();
       // don't split '3rd'
-      if (notUnit.hasOwnProperty(unit)) {
+      if (Object.hasOwn(notUnit, unit)) {
         return null
       }
       return [parts[1], unit] //split it
@@ -2047,7 +2256,8 @@
     return null
   };
 
-  const toDocs = function (words, view) {
+  const toDocs = function (words, view, term) {
+    contractionDebug(term, words);
     const doc = view.fromText(words.join(' '));
     doc.compute(['id', 'alias']);
     return doc.docs[0]
@@ -2087,11 +2297,11 @@
         // any known-ones, like 'dunno'?
         let words = knownOnes(list, terms[i], before, after);
         // ['foo', 's']
-        if (!words && byEnd.hasOwnProperty(after)) {
+        if (!words && Object.hasOwn(byEnd, after)) {
           words = byEnd[after](terms, i, world);
         }
         // ['j', 'aime']
-        if (!words && byStart.hasOwnProperty(before)) {
+        if (!words && Object.hasOwn(byStart, before)) {
           words = byStart[before](terms, i);
         }
         // 'there is' vs 'there has'
@@ -2100,7 +2310,7 @@
         }
         // actually insert the new terms
         if (words) {
-          words = toDocs(words, view);
+          words = toDocs(words, view, terms[i]);
           insertContraction(document, [n, i], words);
           reTag(document[n], view, i, words.length);
           continue
@@ -2109,7 +2319,7 @@
         if (numDash.test(terms[i].normal)) {
           words = numberRange(terms, i);
           if (words) {
-            words = toDocs(words, view);
+            words = toDocs(words, view, terms[i]);
             insertContraction(document, [n, i], words);
             methods.one.setTag(words, 'NumberRange', world); //add custom tag
             // is it a time-range, like '5-9pm'
@@ -2123,7 +2333,7 @@
         // split-apart '4km'
         words = numberUnit(terms, i, world);
         if (words) {
-          words = toDocs(words, view);
+          words = toDocs(words, view, terms[i]);
           insertContraction(document, [n, i], words);
           methods.one.setTag([words[1]], 'Unit', world, null, 'contraction-unit');
         }
@@ -2159,7 +2369,7 @@
             const words = terms.slice(i, k + 1);
             const str = words.map(term => term.machine || term.normal).join(' ');
             // lookup frozen lexicon
-            if (frozenLex.hasOwnProperty(str) === true) {
+            if (Object.hasOwn(frozenLex, str) === true) {
               setTag(words, frozenLex[str], world, false, '1-frozen-multi-lexicon');
               words.forEach(term => (term.frozen = true));
               continue
@@ -2167,7 +2377,7 @@
           }
         }
         // test single word
-        if (frozenLex[word] !== undefined && frozenLex.hasOwnProperty(word)) {
+        if (frozenLex[word] !== undefined && Object.hasOwn(frozenLex, word)) {
           setTag([t], frozenLex[word], world, false, '1-freeze-lexicon');
           t.frozen = true;
           continue
@@ -2187,19 +2397,17 @@
   var compute$3 = { frozen: freeze$1, freeze: freeze$1, unfreeze };
 
   /* eslint-disable no-console */
-  const blue = str => '\x1b[34m' + str + '\x1b[0m';
-  const dim = str => '\x1b[3m\x1b[2m' + str + '\x1b[0m';
 
   const debug$2 = function (view) {
     view.docs.forEach(terms => {
-      console.log(blue('\n  ┌─────────'));
+      console.log(blue('\n  ╭─────────'));
       terms.forEach(t => {
-        let str = `  ${dim('│')}  `;
+        let str = `  ${i$1(dim('│'))}  `;
         const txt = t.implicit || t.text || '-';
         if (t.frozen === true) {
           str += `${blue(txt)} ❄️`;
         } else {
-          str += dim(txt);
+          str += i$1(dim(txt));
         }
         console.log(str);
       });
@@ -2261,8 +2469,12 @@
         }
         const str = words.map(term => term.machine || term.normal).join(' ');
         // lookup regular lexicon
-        if (lexicon.hasOwnProperty(str) === true) {
+        if (Object.hasOwn(lexicon, str) === true) {
           const tag = lexicon[str];
+          // 'is off-white' is not the phrasal verb 'is off'.
+          if (tag && tag.includes('PhrasalVerb') && words[words.length - 1].post === '-') {
+            continue
+          }
           setTag(words, tag, world, false, '1-multi-lexicon');
           // special case for phrasal-verbs - 2nd word is a #Particle
           if (tag && tag.length === 2 && (tag[0] === 'PhrasalVerb' || tag[1] === 'PhrasalVerb')) {
@@ -2291,13 +2503,18 @@
     const t = terms[i];
     const word = t.machine || t.normal;
     // normal lexicon lookup
-    if (lexicon[word] !== undefined && lexicon.hasOwnProperty(word)) {
+    if (lexicon[word] !== undefined && Object.hasOwn(lexicon, word)) {
       setTag([t], lexicon[word], world, false, '1-lexicon');
+      return true
+    }
+    // '#gojetsgo' can be in the lexicon with its hash
+    if (t.machine && Object.hasOwn(lexicon, t.normal)) {
+      setTag([t], lexicon[t.normal], world, false, '1-lexicon-normal');
       return true
     }
     // lookup aliases in the lexicon
     if (t.alias) {
-      const found = t.alias.find(str => lexicon.hasOwnProperty(str));
+      const found = t.alias.find(str => Object.hasOwn(lexicon, str));
       if (found) {
         setTag([t], lexicon[found], world, false, '1-lexicon-alias');
         return true
@@ -2306,7 +2523,7 @@
     // prefixing for verbs/adjectives
     if (prefix$1.test(word) === true) {
       const stem = word.replace(prefix$1, '');
-      if (lexicon.hasOwnProperty(stem) && stem.length > 3) {
+      if (Object.hasOwn(lexicon, stem) && stem.length > 3) {
         // only allow prefixes for verbs/adjectives
         if (allowPrefix.has(lexicon[stem])) {
           // console.log('->', word, stem, lexicon[stem])
@@ -2327,9 +2544,9 @@
       for (let i = 0; i < terms.length; i += 1) {
         if (terms[i].tags.size === 0) {
           let found = null;
-          found = found || multiWord(terms, i, world);
+          found ||= multiWord(terms, i, world);
           // lookup known words
-          found = found || checkLexicon(terms, i, world);
+          found ||= checkLexicon(terms, i, world);
         }
       }
     });
@@ -2359,7 +2576,7 @@
           _multi[split[0]] = split.length;
         }
       }
-      lex[word] = lex[word] || tag;
+      lex[word] ||= tag;
     });
     // cleanup
     delete lex[''];
@@ -2450,7 +2667,7 @@
       const words = tokenize$1(phrase, world);
       for (let i = 0; i < words.length; i++) {
         const word = words[i];
-        if (goNext[curr] && goNext[curr].hasOwnProperty(word)) {
+        if (goNext[curr] && Object.hasOwn(goNext[curr], word)) {
           curr = goNext[curr][word];
         } else {
           n++;
@@ -2469,7 +2686,7 @@
       xs.push(n);
     }
 
-    while (xs.length) {
+    while (xs.length > 0) {
       const r = xs.shift();
       // for each symbol a such that g(r, a) = s
       const keys = Object.keys(goNext[r]);
@@ -2479,14 +2696,14 @@
         xs.push(s);
         // set state = f(r)
         n = failTo[r];
-        while (n > 0 && !goNext[n].hasOwnProperty(word)) {
+        while (n > 0 && !Object.hasOwn(goNext[n], word)) {
           n = failTo[n];
         }
-        if (goNext.hasOwnProperty(n)) {
+        if (Object.hasOwn(goNext, n)) {
           const fs = goNext[n][word];
           failTo[s] = fs;
           if (endAs[fs]) {
-            endAs[s] = endAs[s] || [];
+            endAs[s] ||= [];
             endAs[s] = endAs[s].concat(endAs[fs]);
           }
         } else {
@@ -2506,11 +2723,11 @@
     for (let i = 0; i < terms.length; i++) {
       const word = terms[i][opts.form] || terms[i].normal;
       // main match-logic loop:
-      while (n > 0 && (trie.goNext[n] === undefined || !trie.goNext[n].hasOwnProperty(word))) {
+      while (n > 0 && (trie.goNext[n] === undefined || !Object.hasOwn(trie.goNext[n], word))) {
         n = trie.failTo[n] || 0; // (usually back to 0)
       }
       // did we fail?
-      if (!trie.goNext[n].hasOwnProperty(word)) {
+      if (!Object.hasOwn(trie.goNext[n], word)) {
         continue
       }
       n = trie.goNext[n][word];
@@ -2538,7 +2755,7 @@
 
   const scan = function (view, trie, opts) {
     let results = [];
-    opts.form = opts.form || 'normal';
+    opts.form ||= 'normal';
     const docs = view.docs;
     if (!trie.goNext || !trie.goNext[0]) {
       console.error('Compromise invalid lookup trie');//eslint-disable-line
@@ -2869,12 +3086,8 @@
     return [left[0], left[1], right[2]]
   };
 
-  const isArray$5 = function (arr) {
-    return Object.prototype.toString.call(arr) === '[object Array]'
-  };
-
   const getDoc$2 = (reg, view, group) => {
-    if (typeof reg === 'string' || isArray$5(reg)) {
+    if (typeof reg === 'string' || Array.isArray(reg)) {
       return view.match(reg, group)
     }
     if (!reg) {
@@ -2885,10 +3098,10 @@
 
   const addIds$1 = function (ptr, view) {
     const [n, start, end] = ptr;
-    if (view.document[n] && view.document[n][start]) {
-      ptr[3] = ptr[3] || view.document[n][start].id;
+    if (view.document[n]?.[start]) {
+      ptr[3] ||= view.document[n][start].id;
       if (view.document[n][end - 1]) {
-        ptr[4] = ptr[4] || view.document[n][end - 1].id;
+        ptr[4] ||= view.document[n][end - 1].id;
       }
     }
     return ptr
@@ -2921,7 +3134,7 @@
     // - instead of [before, match]
     for (let i = 0; i < all.length; i += 1) {
       // move a before to a preceding after
-      if (!all[i].after && all[i + 1] && all[i + 1].before) {
+      if (!all[i].after && all[i + 1]?.before) {
         // ensure it's from the same original sentence
         if (all[i].match && all[i].match[0] === all[i + 1].before[0]) {
           all[i].after = all[i + 1].before;
@@ -2987,8 +3200,8 @@
   const mergeIf = function (doc, lMatch, rMatch) {
     const world = doc.world;
     const parseMatch = world.methods.one.parseMatch;
-    lMatch = lMatch || '.$'; //defaults
-    rMatch = rMatch || '^.';
+    lMatch ||= '.$'; //defaults
+    rMatch ||= '^.';
     const leftMatch = parseMatch(lMatch, {}, world);
     const rightMatch = parseMatch(rMatch, {}, world);
     // ensure end-requirement to left-match, start-requiremnts to right match
@@ -3025,7 +3238,7 @@
     },
   };
 
-  const methods$d = Object.assign({}, match$2, lookaround, methods$f, methods$e);
+  const methods$d = { ...match$2, ...lookaround, ...methods$f, ...methods$e };
   // aliases
   methods$d.lookBehind = methods$d.before;
   methods$d.lookBefore = methods$d.before;
@@ -3038,10 +3251,59 @@
     Object.assign(View.prototype, methods$d);
   };
 
+  // Split parenthesized match blocks without retrying long rejected prefixes or
+  // bodies. Preserve the original grammar, including its greedy capture header.
+  const prefix = new Set('!~[^');
+  const suffix = new Set('?]+*$~');
+  const whitespace$1 = /\s/;
+
+  const splitGroups = str => {
+    if (!str.includes('(') || !str.includes(')')) return [str]
+    const length = str.length;
+    const afterSuffix = new Uint32Array(length + 1);
+    const bodyEnd = new Uint32Array(length);
+    const captureEnd = new Uint32Array(length);
+    afterSuffix[length] = length;
+    let close = -1;
+    let capture = 0;
+    for (let i = length - 1; i >= 0; i--) {
+      afterSuffix[i] = suffix.has(str[i]) ? afterSuffix[i + 1] : i;
+      if (str[i] === ')') close = i;
+      if (str[i] === '(' && close >= i + 3 && str[close - 1] !== '\\') {
+        const end = afterSuffix[close + 1];
+        if (end === length || whitespace$1.test(str[end])) bodyEnd[i] = end;
+      }
+      // The optional <...> header cannot cross another '<', and prefers the
+      // rightmost '>' which is followed by a valid parenthesized block.
+      if (str[i] === '<') {
+        captureEnd[i] = capture;
+        capture = 0;
+      } else if (str[i] === '>' && !capture && bodyEnd[i + 1]) {
+        capture = bodyEnd[i + 1];
+      }
+    }
+    const parts = [];
+    let previous = 0;
+    let i = 0;
+    while (i < length) {
+      const start = i;
+      while (i < length && prefix.has(str[i])) i++;
+      const end = str[i] === '<' ? captureEnd[i] : bodyEnd[i];
+      if (end) {
+        parts.push(str.slice(previous, start), str.slice(start, end));
+        // The old delimiter consumes one following whitespace character.
+        i = end < length ? end + 1 : end;
+        previous = i;
+      } else if (i === start) {
+        i++;
+      }
+    }
+    parts.push(str.slice(previous));
+    return parts
+  };
+
   // match  'foo /yes/' and not 'foo/no/bar'
   const bySlashes = /(?:^|\s)([![^]*(?:<[^<]*>)?\/.*?[^\\/]\/[?\]+*$~]*)(?:\s|$)/;
-  // match '(yes) but not foo(no)bar'
-  const byParentheses = /([!~[^]*(?:<[^<]*>)?\([^)]+[^\\)]\)[?\]+*$~]*)(?:\s|$)/;
   // okay
   const byWord = / /g;
 
@@ -3068,7 +3330,7 @@
         res.push(str);
         return
       }
-      res = res.concat(str.split(byParentheses));
+      res = res.concat(splitGroups(str));
     });
     res = cleanUp(res);
     // split by spaces, now
@@ -3089,7 +3351,7 @@
   const hasMinMax = /\{([0-9]+)?(, *[0-9]*)?\}/;
   const andSign = /&&/;
   // const hasDash = /\p{Letter}[-–—]\p{Letter}/u
-  const captureName = new RegExp(/^<\s*(\S+)\s*>/);
+  const captureName = /^<\s*([^\s>]+)\s*>/;
   /* break-down a match expression into this:
   {
     word:'',
@@ -3119,7 +3381,7 @@
     return str
   };
   //
-  const parseToken = function (w, opts) {
+  const parseToken = function (w, opts, aliases) {
     const obj = {};
     //collect any flags (do it twice)
     for (let i = 0; i < 2; i += 1) {
@@ -3151,6 +3413,9 @@
         // Use capture group name
         if (start(w) === '<') {
           const res = captureName.exec(w);
+          if (!res) {
+            throw new SyntaxError('Invalid named capture: expected [<name> ...]')
+          }
           if (res.length >= 2) {
             obj.group = res[1];
             w = w.replace(res[0], '');
@@ -3175,7 +3440,7 @@
       if (start(w) === '~' && end(w) === '~' && w.length > 2) {
         w = stripBoth(w);
         obj.fuzzy = true;
-        obj.min = opts.fuzzy || 0.85;
+        obj.min = opts.fuzzy ?? 0.85;
         if (/\(/.test(w) === false) {
           obj.word = w;
           return obj
@@ -3241,7 +3506,7 @@
         obj.choices = obj.choices.filter(s => s);
         //recursion alert!
         obj.choices = obj.choices.map(str => {
-          return str.split(/ /g).map(s => parseToken(s, opts))
+          return str.split(/ /g).map(s => parseToken(s, opts, aliases))
         });
         w = '';
       }
@@ -3282,8 +3547,12 @@
     }
     //do the actual token content
     if (start(w) === '#') {
-      obj.tag = stripStart(w);
-      obj.tag = titleCase(obj.tag);
+      const name = stripStart(w);
+      obj.tag = aliases?.[name];
+      if (!obj.tag) {
+        obj.tag = titleCase(name);
+        obj.tag = aliases?.[obj.tag] || obj.tag;
+      }
       return obj
     }
     //dynamic function on a term object
@@ -3316,23 +3585,90 @@
     return obj
   };
 
-  const hasDash$2 = /[a-z0-9][-–—][a-z]/i;
+  // Text recognition, rather than full email/URL validation. Share these rules with
+  // the tagger so hyphens in recognized addresses survive tokenization.
+  const email = /^[\w.!#$%&'*+/=?^`{|}~-]+@(?:[\w-]+\.)+[a-z]{2,}$/i;
+  const explicitUrl = /^(?:https?:(?:\/\/)?|www\.)(?:[a-z0-9-]+\.)+[a-z]{2,}(?::[0-9]+)?(?:[/?#]\S*)?$/i;
+  const bareUrl = /^(?:[a-z0-9-]+\.)+(?:com|net|gov|org|ly|edu|info|biz|dev|ru|jp|de|in|uk|br|io|ai)(?::[0-9]+)?(?:[/?#]\S*)?$/i;
+
+  const isWebToken = function (str) {
+    if (!str.includes('.')) {
+      return false
+    }
+    let start = 0;
+    let end = str.length;
+    while (start < end && /[\s("'“‘<]/.test(str[start])) start++;
+    while (end > start && /[\s).,!?:;"'”’>]/.test(str[end - 1])) end--;
+    const text = str.slice(start, end);
+    return email.test(text) || explicitUrl.test(text) || bareUrl.test(text)
+  };
+
+  const hasHyphen$1 = function (str, model) {
+    const parts = str.split(/[-–—]/);
+    if (parts.length <= 1) {
+      return false
+    }
+    if (isWebToken(str)) {
+      return false
+    }
+    const { prefixes, suffixes } = model.one;
+
+    // l-theanine, x-ray
+    if (parts[0].length === 1 && /[a-z]/i.test(parts[0])) {
+      return false
+    }
+    //dont split 're-do'
+    if (Object.hasOwn(prefixes, parts[0])) {
+      return false
+    }
+    //dont split 'flower-like'
+    parts[1] = parts[1].trim().replace(/[.?!]$/, '');
+    if (Object.hasOwn(suffixes, parts[1])) {
+      return false
+    }
+    //letter-number 'aug-20'
+    const reg = /^([a-z\u00C0-\u00FF`"'/]+)[-–—]([a-z0-9\u00C0-\u00FF].*)/i;
+    if (reg.test(str) === true) {
+      return true
+    }
+    //number-letter '20-aug'
+    const reg2 = /^[('"]?([0-9]{1,4})[-–—]([a-z\u00C0-\u00FF`"'/-]+[)'"]?$)/i;
+    if (reg2.test(str) === true) {
+      return true
+    }
+    return false
+  };
+
+  const splitHyphens$1 = function (word) {
+    const arr = [];
+    //support multiple-hyphenated-terms
+    const hyphens = word.split(/[-–—]/);
+    let whichDash = '-';
+    const found = word.match(/[-–—]/);
+    if (found && found[0]) {
+      whichDash = found;
+    }
+    for (let o = 0; o < hyphens.length; o++) {
+      if (o === hyphens.length - 1) {
+        arr.push(hyphens[o]);
+      } else {
+        arr.push(hyphens[o] + whichDash);
+      }
+    }
+    return arr
+  };
 
   // match 're-do' -> ['re','do']
-  const splitHyphens$1 = function (regs, world) {
-    const prefixes = world.model.one.prefixes;
+  // split them the same way the tokenizer does - 'x-ray' stays one word
+  const splitHyphens = function (regs, world) {
     for (let i = regs.length - 1; i >= 0; i -= 1) {
       const reg = regs[i];
-      if (reg.word && hasDash$2.test(reg.word)) {
+      if (reg.word && hasHyphen$1(reg.word, world.model)) {
         let words = reg.word.split(/[-–—]/g);
-        // don't split 're-cycle', etc
-        if (prefixes.hasOwnProperty(words[0])) {
-          continue
-        }
         words = words.filter(w => w).reverse();
         regs.splice(i, 1);
         words.forEach(w => {
-          const obj = Object.assign({}, reg);
+          const obj = { ...reg };
           obj.word = w;
           regs.splice(i, 0, obj);
         });
@@ -3509,15 +3845,15 @@
     if (input === null || input === undefined || input === '') {
       return []
     }
-    opts = opts || {};
+    opts ||= {};
     if (typeof input === 'number') {
       input = String(input); //go for it?
     }
     let tokens = parseBlocks(input);
     //turn them into objects
-    tokens = tokens.map(str => parseToken(str, opts));
+    tokens = tokens.map(str => parseToken(str, opts, world.model.one.tagAliases));
     // '~re-do~'
-    tokens = splitHyphens$1(tokens, world);
+    tokens = splitHyphens(tokens, world);
     // '{walk}'
     tokens = inflectRoot(tokens, world);
     //clean up anything weird
@@ -3636,7 +3972,7 @@
 
   const endQuote = /([\u0022\uFF02\u0027\u201D\u2019\u00BB\u203A\u2032\u2033\u2034\u301E\u00B4])/;
 
-  const hasHyphen$1 = /^[-–—]$/;
+  const hasHyphen = /^[-–—]$/;
   const hasDash$1 = / [-–—]{1,3} /;
 
   /** search the term's 'post' punctuation  */
@@ -3664,7 +4000,7 @@
     /** is there a slash '/' in term word? */
     hasSlash: term => /\//.test(term.text),
     /** a hyphen connects two words like-term */
-    hasHyphen: term => hasHyphen$1.test(term.post) || hasHyphen$1.test(term.pre),
+    hasHyphen: term => hasHyphen.test(term.post) || hasHyphen.test(term.pre),
     /** a dash separates words - like that */
     hasDash: term => hasDash$1.test(term.post) || hasDash$1.test(term.pre),
     /** is it multiple words combinded */
@@ -3752,6 +4088,15 @@
       if (reg.use) {
         str = term[reg.use];
       }
+      if (reg.regex.global || reg.regex.sticky) {
+        const lastIndex = reg.regex.lastIndex;
+        try {
+          reg.regex.lastIndex = 0;
+          return reg.regex.test(str)
+        } finally {
+          reg.regex.lastIndex = lastIndex;
+        }
+      }
       return reg.regex.test(str)
     }
     //support <chunk>
@@ -3805,7 +4150,7 @@
   // matches.  ditto for end-greedy matches: we need an earlier non-
   // ending match to succceed until we get to the actual end.
   const getGreedy = function (state, endReg) {
-    const reg = Object.assign({}, state.regs[state.r], { start: false, end: false });
+    const reg = { ...state.regs[state.r], start: false, end: false };
     const start = state.t;
     for (; state.t < state.terms.length; state.t += 1) {
       // the number of terms we've matched, if we stop here
@@ -3856,7 +4201,7 @@
   const isEndGreedy = function (reg, state) {
     if (reg.end === true && reg.greedy === true) {
       if (state.start_i + state.t < state.phrase_length - 1) {
-        const tmpReg = Object.assign({}, reg, { end: false });
+        const tmpReg = { ...reg, end: false };
         if (wrapMatch(state.terms[state.t], tmpReg, state.start_i + state.t, state.phrase_length) === true) {
           // console.log(`endGreedy ${state.terms[state.t].normal}`)
           return true
@@ -3867,6 +4212,10 @@
   };
 
   const getGroup$1 = function (state, term_index) {
+    // Most attempts fail without capturing anything.
+    if (!state.groups) {
+      state.groups = {};
+    }
     if (state.groups[state.inGroup]) {
       return state.groups[state.inGroup]
     }
@@ -3886,7 +4235,7 @@
 
     const skipto = greedyTo(state, regs[state.r + 1]);
     //maybe we couldn't find it
-    if (skipto === null || skipto === 0) {
+    if (skipto === null || skipto === state.offset) {
       return null
     }
     // ensure it's long enough
@@ -3910,10 +4259,6 @@
     return true
   };
 
-  const isArray$4 = function (arr) {
-    return Object.prototype.toString.call(arr) === '[object Array]'
-  };
-
   // try to match a list of tokens, starting at state.t + skipN
   // returns the number of terms it consumed, or 0 for no-match
   const tryChoice = function (state, regs, skipN) {
@@ -3931,7 +4276,7 @@
       // this can be greedy - '(foo+ bar)'
       if (cr.greedy === true) {
         // like getGreedy, anchors should not apply to the repeated terms
-        const gr = Object.assign({}, cr, { start: false, end: false });
+        const gr = { ...cr, start: false, end: false };
         for (let i = t + 1; i < state.terms.length; i += 1) {
           if (wrapMatch(state.terms[i], gr, state.start_i + i, state.phrase_length) !== true) {
             break
@@ -3948,7 +4293,7 @@
     const block = state.regs[state.r];
     for (let c = 0; c < block.choices.length; c += 1) {
       const regs = block.choices[c];
-      if (!isArray$4(regs)) {
+      if (!Array.isArray(regs)) {
         return 0
       }
       const len = tryChoice(state, regs, skipN);
@@ -4122,7 +4467,7 @@
     const reg = regs[state.r];
 
     // match *anything* but this term
-    const tmpReg = Object.assign({}, reg);
+    const tmpReg = { ...reg };
     tmpReg.negative = false; // try removing it
 
     // found it? if so, we die here
@@ -4221,7 +4566,7 @@
     // Get or create capture group
     const g = getGroup$1(state, startAt);
     // Update group - add greedy or increment length
-    if (state.t > 1 && reg.greedy) {
+    if (state.t - state.offset > 1 && reg.greedy) {
       g.length += state.t - startAt;
     } else {
       g.length++;
@@ -4276,19 +4621,23 @@
    * on a sequence of terms, 
    * starting at this certain term.
    */
-  const tryHere = function (terms, regs, start_i, phrase_length) {
+  const tryHere = function (terms, regs, start_i, phrase_length, offset = 0) {
     // console.log(`\n\n:start: '${terms[0].text}':`)
-    if (terms.length === 0 || regs.length === 0) {
+    if (offset >= terms.length || regs.length === 0) {
       return null
     }
-    // all the variables that matter
+    // Use the original terms with a cursor instead of copying the remaining
+    // sentence at every starting position. origin maps array indices to match
+    // pointers; offset marks the beginning of this attempt within the array.
+    const origin = start_i - offset;
     const state = {
-      t: 0,
+      t: offset,
+      offset: offset,
       terms: terms,
       r: 0,
       regs: regs,
-      groups: {},
-      start_i: start_i,
+      groups: null,
+      start_i: origin,
       phrase_length: phrase_length,
       inGroup: null,
     };
@@ -4385,16 +4734,18 @@
       return null
     }
     //return our results, as pointers
-    const pntr = [null, start_i, state.t + start_i];
+    const pntr = [null, start_i, state.t + origin];
     if (pntr[1] === pntr[2]) {
       return null //found 0 terms
     }
     const groups = {};
-    Object.keys(state.groups).forEach(k => {
-      const o = state.groups[k];
-      const start = start_i + o.start;
-      groups[k] = [null, start, start + o.length];
-    });
+    if (state.groups) {
+      Object.keys(state.groups).forEach(k => {
+        const o = state.groups[k];
+        const start = origin + o.start;
+        groups[k] = [null, start, start + o.length];
+      });
+    }
     return { pointer: pntr, groups: groups }
   };
 
@@ -4419,7 +4770,7 @@
       res.forEach(r => {
         ptrs.push(r.pointer);
         Object.keys(r.groups).forEach(k => {
-          byGroup[k] = byGroup[k] || [];
+          byGroup[k] ||= [];
           byGroup[k].push(r.groups[k]);
         });
       });
@@ -4432,8 +4783,7 @@
       const [n, start, end] = res.pointer;
       const terms = docs[n].slice(start, end);
       for (let i = 0; i < terms.length; i += 1) {
-        const slice = terms.slice(i);
-        const found = tryHere(slice, not, i, terms.length);
+        const found = tryHere(terms, not, i, terms.length, i);
         if (found !== null) {
           return false
         }
@@ -4441,6 +4791,39 @@
       return true
     });
     return results
+  };
+
+  // Compiled sweeps cache this check; editable public patterns are rechecked.
+  const isFixed = regs => regs.every(reg => !reg.optional && !reg.greedy &&
+    !reg.negative && !reg.choices && !reg.anything &&
+    (reg.word !== undefined || reg.tag !== undefined || reg.switch !== undefined || reg.fastOr !== undefined));
+
+  const fromFixed = (terms, regs, start, length, offset = 0) => {
+    if (offset + regs.length > terms.length) {
+      return null
+    }
+    for (let r = 0; r < regs.length; r += 1) {
+      const term = terms[offset + r];
+      // A literal contraction can consume more than one term.
+      if (term.implicit) {
+        return tryHere(terms, regs, start, length, offset)
+      }
+      if (wrapMatch(term, regs[r], start + r, length) !== true) {
+        return null
+      }
+    }
+    // Failed attempts never need capture state.
+    const groups = {};
+    for (let r = 0; r < regs.length; r += 1) {
+      const name = regs[r].group;
+      if (name) {
+        if (!groups[name]) {
+          groups[name] = [null, start + r, start + r];
+        }
+        groups[name][2] += 1;
+      }
+    }
+    return { pointer: [null, start, start + regs.length], groups }
   };
 
   // make proper pointers
@@ -4452,8 +4835,8 @@
     return res
   };
 
-  const handleStart = function (terms, regs, n) {
-    let res = tryHere(terms, regs, 0, terms.length);
+  const handleStart = function (terms, regs, n, attempt) {
+    let res = attempt(terms, regs, 0, terms.length);
     if (res) {
       res = addSentence(res, n);
       return res //getGroup([res], group)
@@ -4463,14 +4846,26 @@
 
   // ok, here we go.
   const runMatch$1 = function (docs, todo, cache) {
-    cache = cache || [];
-    const { regs, group, justOne } = todo;
+    cache ||= [];
+    const { regs, group, justOne, checkFirst } = todo;
     let results = [];
     if (!regs || regs.length === 0) {
       return { ptrs: [], byGroup: {} }
     }
+    const attempt = (todo.fixed ?? isFixed(regs)) ? fromFixed : tryHere;
 
-    const minLength = regs.filter(r => r.optional !== true && r.negative !== true).length;
+    // Compiled rules carry this value; public parsed patterns can still be edited
+    // by callers, so calculate their minimum without caching on the token array.
+    let minLength = todo.minLength;
+    if (minLength === undefined) {
+      minLength = 0;
+      for (let i = 0; i < regs.length; i += 1) {
+        const reg = regs[i];
+        if (reg.optional !== true && reg.negative !== true) {
+          minLength += 1;
+        }
+      }
+    }
     docs: for (let n = 0; n < docs.length; n += 1) {
       const terms = docs[n];
       // let index = terms[0].index || []
@@ -4480,7 +4875,7 @@
       }
       // ^start regs only run once, per phrase
       if (regs[0].start === true) {
-        const foundStart = handleStart(terms, regs, n);
+        const foundStart = handleStart(terms, regs, n, attempt);
         if (foundStart) {
           results.push(foundStart);
         }
@@ -4488,12 +4883,15 @@
       }
       //ok, try starting the match now from every term
       for (let i = 0; i < terms.length; i += 1) {
-        const slice = terms.slice(i);
         // ensure it's long-enough
-        if (slice.length < minLength) {
+        if (terms.length - i < minLength) {
           break
         }
-        let res = tryHere(slice, regs, i, terms.length);
+        // Compiled sweep rules can reject a start before allocating match state.
+        if (checkFirst && !wrapMatch(terms[i], regs[0], i, terms.length)) {
+          continue
+        }
+        let res = attempt(terms, regs, i, terms.length, i);
         // did we find a result?
         if (res) {
           // res = addSentence(res, index[0])
@@ -4562,11 +4960,11 @@
   const isId = /^#./;
 
   const escapeXml = str => {
-    str = str.replace(/&/g, '&amp;');
-    str = str.replace(/</g, '&lt;');
-    str = str.replace(/>/g, '&gt;');
-    str = str.replace(/"/g, '&quot;');
-    str = str.replace(/'/g, '&apos;');
+    str = str.replaceAll('&', '&amp;');
+    str = str.replaceAll('<', '&lt;');
+    str = str.replaceAll('>', '&gt;');
+    str = str.replaceAll('"', '&quot;');
+    str = str.replaceAll("'", '&apos;');
     return str
   };
 
@@ -4602,10 +5000,10 @@
           return
         }
         const a = terms[0].id;
-        starts[a] = starts[a] || [];
+        starts[a] ||= [];
         starts[a].push(tag.start);
-        const b = terms[terms.length - 1].id;
-        ends[b] = ends[b] || [];
+        const b = terms.at(-1).id;
+        ends[b] ||= [];
         ends[b].push(tag.end);
       });
     });
@@ -4621,12 +5019,12 @@
       for (let i = 0; i < terms.length; i += 1) {
         const t = terms[i];
         // do a span tag
-        if (starts.hasOwnProperty(t.id)) {
+        if (Object.hasOwn(starts, t.id)) {
           out += starts[t.id].join('');
         }
         out += t.pre || '';
         out += t.text || '';
-        if (ends.hasOwnProperty(t.id)) {
+        if (Object.hasOwn(ends, t.id)) {
           out += ends[t.id].join('');
         }
         out += t.post || '';
@@ -4636,11 +5034,17 @@
   };
   var html$1 = { html };
 
-  const trimEnd = /[,:;)\]*.?~!\u0022\uFF02\u201D\u2019\u00BB\u203A\u2032\u2033\u2034\u301E\u00B4—-]+$/;
+  // Walk the trailing punctuation run once, rather than retrying at every offset.
+  const endPunctuation = /[,:;)\]*.?~!\u0022\uFF02\u201D\u2019\u00BB\u203A\u2032\u2033\u2034\u301E\u00B4—-]/;
+  const trimEnd = str => {
+    let end = str.length;
+    while (end > 0 && endPunctuation.test(str[end - 1])) end--;
+    return str.slice(0, end)
+  };
   const trimStart =
     /^[(['"*~\uFF02\u201C\u2018\u201F\u201B\u201E\u2E42\u201A\u00AB\u2039\u2035\u2036\u2037\u301D\u0060\u301F]+/;
 
-  const punctToKill = /[,:;)('"\u201D\]]/;
+  const punctToKill = /[,:;)('"\uFF02\u201D\u2019\u00BB\u203A\u2032\u2033\u2034\u301E\u00B4\]]/;
   const isHyphen = /^[-–—]$/;
   const hasSpace = / /;
 
@@ -4650,6 +5054,7 @@
       let pre = t.pre || '';
       let post = t.post || '';
       if (opts.punctuation === 'some') {
+        pre = pre.replace(/[,،]/g, '');
         pre = pre.replace(trimStart, '');
         // replace a hyphen with a space
         if (isHyphen.test(post)) {
@@ -4661,7 +5066,7 @@
         post = post.replace(/!+/, '!');
         post = post.replace(/\?+/, '?');
         // kill elipses
-        post = post.replace(/\.{2,}/, '');
+        post = post.replace(/[,،…]|\.{2,}/g, '');
         // kill abbreviation periods
         if (t.tags.has('Abbreviation')) {
           post = post.replace(/\./, '');
@@ -4676,7 +5081,7 @@
         if (post === '-') {
           post = ' ';
         } else {
-          post = post.replace(trimEnd, '');
+          post = trimEnd(post);
         }
       }
       // grab the correct word format
@@ -4722,9 +5127,13 @@
         text = text.replace(trimStart, '');
       }
       // remove ending periods
-      const last = docs[docs.length - 1];
-      if (!last[last.length - 1].tags.has('Emoticon')) {
-        text = text.replace(trimEnd, '');
+      const last = docs.at(-1);
+      if (!last.at(-1).tags.has('Emoticon')) {
+        text = trimEnd(text);
+        // removing a spaced dash leaves its space behind
+        if (!opts.keepSpace) {
+          text = text.trimEnd();
+        }
       }
       // kill end quotations
       if (text.endsWith(`'`) && !text.endsWith(`s'`)) {
@@ -4737,7 +5146,7 @@
     return text
   };
 
-  const fmts = {
+  const fmts$1 = {
     text: {
       form: 'text',
     },
@@ -4768,18 +5177,16 @@
       form: 'implicit',
     }
   };
-  fmts.clean = fmts.normal;
-  fmts.reduced = fmts.root;
+  fmts$1.clean = fmts$1.normal;
+  fmts$1.reduced = fmts$1.root;
 
-  /* eslint-disable no-bitwise */
-  /* eslint-disable no-mixed-operators */
-  /* eslint-disable no-multi-assign */
+  /* eslint-disable no-bitwise, no-multi-assign */
 
   // https://github.com/jbt/tiny-hashes/
   const k = [];
-  let i$1 = 0;
-  for (; i$1 < 64; ) {
-    k[i$1] = 0 | (Math.sin(++i$1 % Math.PI) * 4294967296);
+  let i = 0;
+  for (; i < 64; i++) {
+    k[i] = 0 | (Math.sin((i + 1) % Math.PI) * 4294967296);
   }
 
   const md5 = function (s) {
@@ -4800,7 +5207,7 @@
       words[a >> 2] |= j.charCodeAt(a) << (8 * a--);
     }
 
-    for (i$1 = j = 0; i$1 < s; i$1 += 16) {
+    for (i = j = 0; i < s; i += 16) {
       a = h;
 
       for (
@@ -4813,7 +5220,7 @@
               a[0] +
               [(b & c) | (~b & d), (d & b) | (~d & c), b ^ c ^ d, c ^ (b | ~d)][(a = j >> 4)] +
               k[j] +
-              ~~words[i$1 | ([j, 5 * j + 1, 3 * j + 5, 7 * j][a] & 15)]) <<
+              ~~words[i | ([j, 5 * j + 1, 3 * j + 5, 7 * j][a] & 15)]) <<
               (a = [7, 12, 17, 22, 5, 9, 14, 20, 4, 11, 16, 23, 6, 10, 15, 21][4 * a + (j++ % 4)])) |
               (d >>> -a)),
           b,
@@ -4842,13 +5249,13 @@
   const opts = { case: 'none', unicode: 'some', form: 'machine', punctuation: 'some' };
 
   const merge = function (a, b) {
-    return Object.assign({}, a, b)
+    return { ...a, ...b }
   };
 
   const fns$1 = {
     text: terms => textFromTerms(terms, { keepPunct: true }, false),
-    normal: terms => textFromTerms(terms, merge(fmts.normal, { keepPunct: true }), false),
-    implicit: terms => textFromTerms(terms, merge(fmts.implicit, { keepPunct: true }), false),
+    normal: terms => textFromTerms(terms, merge(fmts$1.normal, { keepPunct: true }), false),
+    implicit: terms => textFromTerms(terms, merge(fmts$1.implicit, { keepPunct: true }), false),
 
     machine: terms => textFromTerms(terms, opts, false),
     root: terms => textFromTerms(terms, merge(opts, { form: 'root' }), false),
@@ -4864,11 +5271,7 @@
       }
     },
     terms: terms => {
-      return terms.map(t => {
-        const term = Object.assign({}, t);
-        term.tags = Array.from(t.tags);
-        return term
-      })
+      return terms.map(t => ({ ...t, tags: [...t.tags] }))
     },
     confidence: (_terms, view, i) => view.eq(i).confidence(),
     syllables: (_terms, view, i) => view.eq(i).syllables(),
@@ -4880,11 +5283,11 @@
   fns$1.reduced = fns$1.root;
 
   const toJSON = function (view, option) {
-    option = option || {};
+    option ||= {};
     if (typeof option === 'string') {
       option = {};
     }
-    option = Object.assign({}, defaults$1, option);
+    option = { ...defaults$1, ...option };
     // run any necessary upfront steps
     if (option.offset) {
       view.compute('offset');
@@ -4914,25 +5317,17 @@
 
   const isClientSide = () => typeof window !== 'undefined' && window.document;
 
-  //output some helpful stuff to the console
+  // Output the requested format, or the platform's default console view.
   const debug$1 = function (fmt) {
     const debugMethods = this.methods.one.debug || {};
-    // see if method name exists
-    if (fmt && debugMethods.hasOwnProperty(fmt)) {
-      debugMethods[fmt](this);
-      return this
+    if (!fmt || !Object.hasOwn(debugMethods, fmt)) {
+      fmt = isClientSide() ? 'clientSide' : 'tags';
     }
-    // log default client-side view
-    if (isClientSide()) {
-      debugMethods.clientSide(this);
-      return this
-    }
-    // else, show regular server-side tags view
-    debugMethods.tags(this);
+    debugMethods[fmt](this);
     return this
   };
 
-  const toText = function (term) {
+  const toText$1 = function (term) {
     const pre = term.pre || '';
     const post = term.post || '';
     return pre + term.text + post
@@ -4957,7 +5352,7 @@
       for (let i = 0; i < terms.length; i += 1) {
         const t = terms[i];
         // do a span tag
-        if (starts.hasOwnProperty(t.id)) {
+        if (Object.hasOwn(starts, t.id)) {
           const { fn, end } = starts[t.id];
           const m = doc.update([[n, i, end]]);
           text += terms[i].pre || '';
@@ -4965,7 +5360,7 @@
           i = end - 1;
           text += terms[i].post || '';
         } else {
-          text += toText(t);
+          text += toText$1(t);
         }
       }
     });
@@ -4990,7 +5385,7 @@
         return p
       }
     }
-    return entry.parents[entry.parents.length - 1]
+    return entry.parents.at(-1)
   };
 
   // reduce a term's tag-set to a single top-level tag (or '-' when untagged)
@@ -5003,12 +5398,14 @@
     return rootOf(primary, tagSet)
   };
 
-  const makeAliases = function (tagSet) {
-    const aliases = {};
+  const makeAliases = function (tagSet, registered) {
+    const aliases = Object.create(null);
     for (const tag in tagSet) {
       const entry = tagSet[tag];
-      if (entry.alias) {
-        aliases[tag] = entry.alias;
+      // A leading null explicitly keeps the canonical name.
+      const preferred = entry.aliases === undefined ? entry.alias : entry.aliases[0];
+      if (preferred && registered[preferred] === tag) {
+        aliases[tag] = preferred;
       }
     }
     return aliases
@@ -5017,11 +5414,11 @@
   // one line per sentence: '<text> {Tag,Tag,…}'
   const toSpec = function (doc, world) {
     const tagSet = world.model.one.tagSet;
-    const aliases = makeAliases(tagSet);
+    const aliases = makeAliases(tagSet, world.model.one.tagAliases);
     return doc.docs.map(terms => {
       const text = terms.reduce((str, t) => str + t.pre + t.text + t.post, '').trim();
       const tags = terms.map(t => {
-        let tag = slotForTerm(t, tagSet);
+        const tag = slotForTerm(t, tagSet);
         return aliases[tag] || tag
       }).join(',');
       return `${text} {${tags}}`
@@ -5034,19 +5431,16 @@
 
   // sort by frequency
   const topk = function (arr) {
-    const obj = {};
-    arr.forEach(a => {
-      obj[a] = obj[a] || 0;
-      obj[a] += 1;
+    const counts = new Map();
+    arr.forEach(word => {
+      counts.set(word, (counts.get(word) ?? 0) + 1);
     });
-    const res = Object.keys(obj).map(k => {
-      return { normal: k, count: obj[k] }
-    });
-    return res.sort((a, b) => (a.count > b.count ? -1 : 0))
+    const res = Array.from(counts, ([normal, count]) => ({ normal, count }));
+    return res.sort((a, b) => b.count - a.count)
   };
 
   /** some named output formats */
-  const out = function (method) {
+  const out$1 = function (method) {
     // support custom outputs
     if (isObject$2(method)) {
       return wrap(this, method)
@@ -5096,13 +5490,7 @@
 
     // some handy ad-hoc outputs
     if (method === 'terms') {
-      let list = [];
-      this.docs.forEach(terms => {
-        let words = terms.map(t => t.text);
-        words = words.filter(t => t);
-        list = list.concat(words);
-      });
-      return list
+      return this.docs.flatMap(terms => terms.map(t => t.text).filter(Boolean))
     }
     if (method === 'tags') {
       return this.docs.map(terms => {
@@ -5111,6 +5499,14 @@
           return h
         }, {})
       })
+    }
+    if (method === 'best-tag') {
+      this.compute('tagRank');
+      return this.docs
+        .map(ts => {
+          return ts.map(t => (t.tagRank?.[0] ? `#${t.tagRank[0]}` : '')).join(' ')
+        })
+        .join('\n')
     }
     if (method === 'debug') {
       return this.debug() //allow
@@ -5122,7 +5518,7 @@
     /** */
     debug: debug$1,
     /** */
-    out,
+    out: out$1,
     /** */
     wrap: function (obj) {
       return wrap(this, obj)
@@ -5132,15 +5528,17 @@
   const isObject$1 = val => {
     return Object.prototype.toString.call(val) === '[object Object]'
   };
+  // a dash between two words, like '2025-05-11 - they'
+  const spacedDash = /^\s+[-—]\s+$/;
 
   var text = {
     /** */
     text: function (fmt) {
       let opts = {};
-      if (fmt && typeof fmt === 'string' && fmts.hasOwnProperty(fmt)) {
-        opts = Object.assign({}, fmts[fmt]);
+      if (fmt && typeof fmt === 'string' && Object.hasOwn(fmts$1, fmt)) {
+        opts = { ...fmts$1[fmt] };
       } else if (fmt && isObject$1(fmt)) {
-        opts = Object.assign({}, fmt); //todo: fixme
+        opts = { ...fmt }; //todo: fixme
       }
       // is it a full document?
       if (opts.keepSpace === undefined && !this.isFull()) {
@@ -5149,7 +5547,8 @@
       }
       if (opts.keepEndPunct === undefined && this.pointer) {
         const ptr = this.pointer[0];
-        if (ptr && ptr[1]) {
+        const lastTerm = this.docs.at(-1)?.at(-1);
+        if (ptr?.[1] || spacedDash.test(lastTerm?.post)) {
           opts.keepEndPunct = false;
         } else {
           opts.keepEndPunct = true;
@@ -5166,7 +5565,7 @@
     },
   };
 
-  const methods$8 = Object.assign({}, methods$9, text, methods$a, html$1);
+  const methods$8 = { ...methods$9, ...text, ...methods$a, ...html$1 };
 
   const addAPI$1 = function (View) {
     Object.assign(View.prototype, methods$8);
@@ -5191,32 +5590,16 @@
     });
   };
 
-  // https://stackoverflow.com/questions/9781218/how-to-change-node-jss-console-font-color
-  const reset = '\x1b[0m';
-
-  //cheaper than requiring chalk
-  const cli = {
-    green: str => '\x1b[32m' + str + reset,
-    red: str => '\x1b[31m' + str + reset,
-    blue: str => '\x1b[34m' + str + reset,
-    magenta: str => '\x1b[35m' + str + reset,
-    cyan: str => '\x1b[36m' + str + reset,
-    yellow: str => '\x1b[33m' + str + reset,
-    black: str => '\x1b[30m' + str + reset,
-    dim: str => '\x1b[2m' + str + reset,
-    i: str => '\x1b[3m' + str + reset,
-  };
-
   /* eslint-disable no-console */
 
   const tagString = function (tags, model) {
     if (model.one.tagSet) {
       tags = tags.map(tag => {
-        if (!model.one.tagSet.hasOwnProperty(tag)) {
+        if (!Object.hasOwn(model.one.tagSet, tag)) {
           return tag
         }
         const c = model.one.tagSet[tag].color || 'blue';
-        return cli[c](tag)
+        return cli$1[c](tag)
       });
     }
     return tags.join(', ')
@@ -5225,10 +5608,10 @@
   const showTags = function (view) {
     const { docs, model } = view;
     if (docs.length === 0) {
-      console.log(cli.blue('\n     ──────'));
+      console.log(blue('\n     ──────'));
     }
     docs.forEach(terms => {
-      console.log(cli.blue('\n  ┌─────────'));
+      console.log(blue('\n  ╭─────────'));
       terms.forEach(t => {
         const tags = [...(t.tags || [])];
         let text = t.text || '-';
@@ -5238,14 +5621,14 @@
         if (t.implicit) {
           text = '[' + t.implicit + ']';
         }
-        text = cli.yellow(text);
+        text = yellow(text);
         let word = "'" + text + "'";
         if (t.reference) {
           const str = view.update([t.reference]).text('normal');
-          word += ` - ${cli.dim(cli.i('[' + str + ']'))}`;
+          word += ` - ${dim(i$1('[' + str + ']'))}`;
         }
         word = word.padEnd(18);
-        const str = cli.blue('  │ ') + cli.i(word) + '  - ' + tagString(tags, model);
+        const str = blue('  │ ') + i$1(word) + '  - ' + tagString(tags, model);
         console.log(str);
       });
     });
@@ -5254,23 +5637,17 @@
 
   /* eslint-disable no-console */
 
-  const showChunks = function (view) {
-    const { docs } = view;
+  const colors$1 = { Noun: blue, Verb: green, Adjective: yellow, Pivot: red };
+
+  const showChunks = view => {
     console.log('');
-    docs.forEach(terms => {
-      const out = [];
-      terms.forEach(term => {
-        if (term.chunk === 'Noun') {
-          out.push(cli.blue(term.implicit || term.normal));
-        } else if (term.chunk === 'Verb') {
-          out.push(cli.green(term.implicit || term.normal));
-        } else if (term.chunk === 'Adjective') {
-          out.push(cli.yellow(term.implicit || term.normal));
-        } else if (term.chunk === 'Pivot') {
-          out.push(cli.red(term.implicit || term.normal));
-        } else {
-          out.push(term.implicit || term.normal);
+    view.docs.forEach(terms => {
+      const out = terms.map(term => {
+        const text = term.implicit || term.normal;
+        if (Object.hasOwn(colors$1, term.chunk)) {
+          return colors$1[term.chunk](text)
         }
+        return text
       });
       console.log(out.join(' '), '\n');
     });
@@ -5279,19 +5656,10 @@
 
   /* eslint-disable no-console */
 
-  const split = (txt, offset, index) => {
-    const buff = index * 9; //there are 9 new chars addded to each highlight
-    const start = offset.start + buff;
+  const spliceIn = (txt, offset, index) => {
+    const start = offset.start + index * 9; // Each highlight adds nine ANSI characters.
     const end = start + offset.length;
-    const pre = txt.substring(0, start);
-    const mid = txt.substring(start, end);
-    const post = txt.substring(end, txt.length);
-    return [pre, mid, post]
-  };
-
-  const spliceIn = function (txt, offset, index) {
-    const parts = split(txt, offset, index);
-    return `${parts[0]}${cli.blue(parts[1])}${parts[2]}`
+    return txt.substring(0, start) + blue(txt.substring(start, end)) + txt.substring(end)
   };
 
   const showHighlight = function (doc) {
@@ -5300,7 +5668,7 @@
     }
     const bySentence = {};
     doc.fullPointer.forEach(ptr => {
-      bySentence[ptr[0]] = bySentence[ptr[0]] || [];
+      bySentence[ptr[0]] ||= [];
       bySentence[ptr[0]].push(ptr);
     });
     Object.keys(bySentence).forEach(k => {
@@ -5323,29 +5691,130 @@
     highlight: showHighlight,
   };
 
+  // Diagnostics describe the original parse, before the returned View is mutated.
+  const specFailures = (doc, slots, patterns, aliases) => {
+    const terms = doc.docs.flat();
+    const failures = [];
+    if (terms.length !== slots.length) {
+      failures.push({
+        code: 'length', expected: slots.length, actual: terms.length,
+        message: `expected ${slots.length} terms, got ${terms.length}`,
+      });
+    }
+    doc.compute('tagRank');
+    slots.forEach((slot, i) => {
+      const term = terms[i];
+      const actual = term ? Array.from(term.tags) : [];
+      const detail = { term: i + 1, word: term?.implicit || term?.text || '', expected: slot, actual };
+      if (patterns[i] === null) {
+        failures.push({ ...detail, code: 'syntax', message: `term ${i + 1}: invalid slot ${slot.join('|')}` });
+        return
+      }
+      if (!term) {
+        return // covered by the length error
+      }
+      const problems = [];
+      slot.forEach(value => {
+        if (value === '.') {
+          return
+        }
+        const negative = value.startsWith('!');
+        const tag = value.replace(/^!?#?/, '');
+        const present = term.tags.has(aliases[tag] || tag);
+        if (negative && present) {
+          problems.push(`unexpected #${tag}`);
+        } else if (!negative && !present) {
+          problems.push(`missing #${tag}`);
+        }
+      });
+      if (problems.length > 0) {
+        const best = term.tagRank?.[0] || actual.at(-1) || 'Untagged';
+        failures.push({
+          ...detail, code: 'tags',
+          message: `term ${i + 1} '${detail.word}': #${best}, ${problems.join(', ')}`,
+        });
+      }
+    });
+    if (failures.length === 0) {
+      failures.push({ code: 'match', message: 'tags align, but the sentence pattern did not match' });
+    }
+    return failures
+  };
+
+  const logSpec = (doc, slots, failures, aliases) => {
+    const terms = doc.docs.flat();
+    const wrong = new Set(failures.filter(failure => failure.term).map(failure => failure.term - 1));
+    const invalid = new Set(failures.filter(failure => failure.code === 'syntax').map(failure => failure.term - 1));
+    const unmatched = failures.some(failure => failure.code === 'match');
+    let visible = 0;
+    terms.forEach((term, i) => {
+      if (term.text) {
+        visible = i;
+      }
+      // Implicit terms share their visible contraction or number-range token.
+      if (wrong.has(i) || i >= slots.length || unmatched) {
+        wrong.add(visible);
+      }
+    });
+    const text = terms.map((term, i) => {
+      const word = wrong.has(i) && term.text ? red(term.text) : term.text;
+      return term.pre + word + term.post
+    }).join('').trim();
+    const tags = slots.map((slot, i) => {
+      const term = terms[i];
+      if (!term || invalid.has(i) || unmatched) {
+        return red(slot.join('|'))
+      }
+      return slot.map(value => {
+        if (value === '.') {
+          return value
+        }
+        const negative = value.startsWith('!');
+        const tag = value.replace(/^!?#?/, '');
+        const present = term.tags.has(aliases[tag] || tag);
+        return present === negative ? red(value) : value
+      }).join('|')
+    }).join(',');
+    const block = slots.length === 0 ? red('{}') : `{${tags}}`;
+    return `${text} ${block}`
+  };
+
   const lastBrace = /\{(?=[^{]*$)/; // split on the last { only
   const comment = /\}[ \t]*#.*$/; // an optional '# comment' after the last {tags} block
 
+
   // parse the spec output
   const parseLine = function (line = '') {
-    let [text, tags] = line.split(lastBrace);
+    let [text, tags] = line.split(lastBrace); // eslint-disable-line prefer-const
     if (tags === undefined) {
-      return { text, tags: [] } // no {tags} block on this line
+      return { text: text.replace(/\s#.*$/, '').trimEnd(), tags: null } // no {tags} block on this line
     }
     tags = tags.replace(comment, '}'); // drop the comment - only ever one, always last
     tags = tags.split(',').map(tag => tag.trim());
-    let lastTag = tags[tags.length - 1];
+    const lastTag = tags[tags.length - 1];
     tags[tags.length - 1] = lastTag.replace(/\}$/, '');
     tags = tags.map(tag => tag.split('|').map(t => t.trim()));
-    tags = tags.filter(arr => arr.some(t => t !== '')); // drop empty '{}'
+    if (tags.length === 1 && tags[0].length === 1 && tags[0][0] === '') {
+      tags = []; // empty '{}'; retain empty slots in nonempty lists
+    }
     return { text, tags }
   };
 
   // make a match syntax looping through the arrays of tags
   const toMatchString = function (tags, aliases) {
+    // Slots accept tags and '.', never match-syntax quantifiers or groups.
+    if (tags.some(slot => slot.some(tag => tag !== '.' && !/^!?#?[a-z][a-z0-9]*$/i.test(tag)))) {
+      return null
+    }
     return tags.map(arr => {
       arr = arr.map(str => {
-        return '#' + (aliases[str] || str)
+        if (str === '.') {
+          return '.'
+        }
+        const negative = str.startsWith('!');
+        const tag = str.replace(/^!?#?/, '');
+        const prefix = negative ? '!#' : '#';
+        return prefix + (aliases[tag] || tag)
       });
       if (arr.length > 1) {
         return `(${arr.join(' && ')})`
@@ -5354,50 +5823,92 @@
     }).join(' ')
   };
 
-  // parse the adhoc output of out('spec')
-  // note: this(text), not this.tokenize().compute(hooks) - tokenize already
-  // splits contractions, so re-running hooks would split them twice
-  const fromSpec = function (spec) {
-    let cleanText = spec.split('\n').filter(line => line.trim()).map(line => {
-      return parseLine(line).text
-    }).join('\n');
-    return this(cleanText)
+  // Apply only positive constraints; negatives remain assertions.
+  const applyTags = (doc, slots, aliases) => {
+    const terms = doc.terms();
+    // Tokenization can supply structural tags; literal slots replace them.
+    doc.docs.flat().forEach(term => term.tags.clear());
+    slots?.forEach((slot, i) => {
+      const tags = slot.filter(tag => tag !== '.' && !tag.startsWith('!')).map(tag => {
+        tag = tag.replace(/^#/, '');
+        return aliases[tag] || tag
+      });
+      terms.eq(i).tag(tags, 'fromSpec');
+    });
   };
 
-  // rebuild spec-formatted tag list
-  const toTagList = function (tags) {
-    return tags.map(arr => arr.join('|')).join(',')
-  };
-
-  // compare the tagged text output of out('spec')
-  const testSpec = function (spec, verbose = true, throwError = false) {
-    let world = this.world();
-    let aliases = {};
-    // expand tag aliases
-    let tagSet = world.model.one.tagSet;
-    Object.keys(tagSet).forEach(k => {
-      if (tagSet[k].alias) {
-        aliases[tagSet[k].alias] = k;
+  const fromSpec = function (spec, { tags: tagMode = 'ignore', failures: failureMode = 'ignore', verbose = false } = {}) {
+    if (!['ignore', 'use'].includes(tagMode) || !['ignore', 'throw', 'retain', 'log'].includes(failureMode)) {
+      throw new Error('Invalid fromSpec options')
+    }
+    const aliases = this.world().model.one.tagAliases;
+    const result = this('');
+    result.failures = [];
+    spec.split('\n').forEach((line, index) => {
+      if (!line.trim() || /^\s*#/.test(line)) {
+        return
+      }
+      const { text, tags } = parseLine(line);
+      const doc = tagMode === 'use' ? this.tokenize(text) : this(text);
+      let failures = [];
+      if (tags !== null && (tagMode === 'use' || failureMode !== 'ignore')) {
+        const count = doc.docs.reduce((sum, terms) => sum + terms.length, 0);
+        const patterns = tags.map(slot => toMatchString([slot], aliases));
+        const pattern = toMatchString(tags, aliases);
+        // Assigning slots is unsafe when the shape or syntax is invalid.
+        const canApply = count === tags.length && pattern !== null;
+        if (tagMode === 'use' && !canApply && failureMode !== 'log') {
+          const invalid = specFailures(doc, tags, patterns, aliases);
+          throw new Error(`${text.trim()} - ${invalid.map(failure => failure.message).join('; ')}`)
+        }
+        if (tagMode === 'use') {
+          applyTags(doc, canApply ? tags : null, aliases);
+        }
+        if (failureMode !== 'ignore' && (count !== tags.length || pattern === null || !doc.has(pattern))) {
+          failures = specFailures(doc, tags, patterns, aliases)
+            .map(failure => ({ line: index + 1, text: text.trim(), ...failure }));
+          result.failures.push(...failures);
+        }
+      } else if (tagMode === 'use') {
+        applyTags(doc, null, aliases);
+      }
+      const detail = failures.map(failure => failure.message).join('; ');
+      if (failureMode === 'log' && failures.length > 0) {
+        console.error(logSpec(doc, tags, failures, aliases)); //eslint-disable-line no-console
+      } else if (verbose) {
+        const block = tags === null ? '' : ` {${tags.map(slot => slot.join('|')).join(',')}}`;
+        if (failures.length > 0) {
+          console.log(`${red('✗')} ${text}${dim(block)} - ${red(detail)}`); //eslint-disable-line no-console
+        } else {
+          console.log(`${green('✓')} ${green(dim(text))}${dim(block)}`); //eslint-disable-line no-console
+        }
+      }
+      if (failures.length > 0 && failureMode === 'throw') {
+        throw new Error(`${text.trim()} - ${detail}`)
+      }
+      if (failureMode === 'retain' && tags !== null && failures.length === 0) {
+        return
+      }
+      // Preserve the parsed terms and assigned tags, without running hooks twice.
+      if (doc.found) {
+        const previous = result.document.at(-1)?.at(-1);
+        if (previous) {
+          previous.post += '\n';
+        }
+        result.document.push(...doc.docs);
       }
     });
-    let failingLines = spec.split('\n').filter(line => line.trim()).map(line => {
-      let { text, tags } = parseLine(line);
-      // parse it
-      let doc = this(text);
-      // make compromise-compatible match string
-      let matchStr = toMatchString(tags, aliases);
-      let didMatch = doc.has(matchStr);
-      if (verbose !== false) {
-        let char = didMatch ? '✅' : '❌';
-        console.log(`${char} ${text} {${toTagList(tags)}}`); //eslint-disable-line no-console
-      }
-      if (didMatch === false && throwError === true) {
-        throw new Error(`❌ ${text} {${toTagList(tags)}}`)
-      }
-      return didMatch ? null : text
-    }).filter(Boolean).join('\n');
-    // return a doc of only the failing lines - empty means everything passed
-    return this(failingLines)
+    return result
+  };
+
+  // Keep the legacy logging and throwing arguments on the compatibility wrapper.
+  const testSpec = function (spec, verbose = true, throwError = false) {
+    const result = this.fromSpec(spec, { tags: 'ignore', failures: 'retain', verbose });
+    if (throwError && result.failures.length > 0) {
+      const failure = result.failures[0];
+      throw new Error(`${failure.text} - ${failure.message}`)
+    }
+    return result
   };
 
   var output = {
@@ -5453,7 +5964,7 @@
   const indexN = function (ptrs) {
     const byN = {};
     ptrs.forEach(ref => {
-      byN[ref[0]] = byN[ref[0]] || [];
+      byN[ref[0]] ||= [];
       byN[ref[0]].push(ref);
     });
     return byN
@@ -5571,7 +6082,7 @@
     if (newEnd === -1) {
       // if end-term wasn't found, so go all the way to the end
       ptr[2] = document[n].length;
-      ptr[4] = terms.length ? terms[terms.length - 1].id : null;
+      ptr[4] = terms.length > 0 ? terms[terms.length - 1].id : null;
     } else {
       ptr[2] = newEnd; // repair ending pointer
     }
@@ -5586,7 +6097,7 @@
         return
       }
       // eslint-disable-next-line prefer-const
-      let [n, start, end, id, endId] = ptr; //parsePointer(ptr)
+      let [n, start, end, id, endId] = ptr;
       let terms = document[n] || [];
       if (start === undefined) {
         start = 0;
@@ -5736,12 +6247,8 @@
 
   // console.log(getIntersection([[0, 1, 3]], [[0, 2, 4]]))
 
-  const isArray$3 = function (arr) {
-    return Object.prototype.toString.call(arr) === '[object Array]'
-  };
-
   const getDoc = (m, view) => {
-    if (typeof m === 'string' || isArray$3(m)) {
+    if (typeof m === 'string' || Array.isArray(m)) {
       return view.match(m)
     }
     if (!m) {
@@ -5873,6 +6380,51 @@
 
   };
 
+  // Resolve actions and index hints once, alongside the match expression.
+  const resolveAliases = (rule, aliases) => {
+    const tag = value => {
+      if (Array.isArray(value)) {
+        return value.map(tag)
+      }
+      if (typeof value !== 'string') {
+        return value
+      }
+      return value.trim().split(/ +/).map(name => {
+        name = name.replace(/^#/, '');
+        return aliases[name] || name
+      }).join(' ')
+    };
+    const hook = value => {
+      if (typeof value === 'string' && value.startsWith('#')) {
+        return '#' + tag(value)
+      }
+      return value
+    };
+    if (rule.tag !== undefined) {
+      rule.tag = tag(rule.tag);
+    }
+    if (rule.unTag !== undefined) {
+      rule.unTag = tag(rule.unTag);
+    }
+    if (rule.hook !== undefined) {
+      rule.hook = hook(rule.hook);
+    }
+    if (rule.ifNo !== undefined) {
+      rule.ifNo = [rule.ifNo].flat().map(hook);
+    }
+  };
+
+  // Only precheck required, single-term tokens without special matching steps.
+  const canCheck = reg => Boolean(reg && !reg.optional && !reg.negative && !reg.greedy &&
+    !reg.choices && !reg.anything && !reg.regex && !reg.method);
+
+  const getBoundary = (reg, boundary) => {
+    if (!canCheck(reg) || !reg[boundary]) {
+      return null
+    }
+    return reg
+  };
+
   // extract the clear needs for an individual match token
   const getTokenNeeds = function (reg) {
     // negatives can't be cached
@@ -5889,6 +6441,21 @@
       return `%${reg.switch}%`
     }
     return null
+  };
+
+  // Only allow hooks that every successful match must contain. In particular,
+  // a word inside an optional or negative AND block is not a required hook.
+  const hasRequiredHook = function (regs, hook) {
+    return regs.some(reg => {
+      if (reg.optional || reg.negative) {
+        return false
+      }
+      if (getTokenNeeds(reg) === hook) {
+        return true
+      }
+      return reg.operator === 'and' && reg.choices &&
+        reg.choices.some(side => hasRequiredHook(side, hook))
+    })
   };
 
   const getNeeds = function (regs) {
@@ -5938,23 +6505,75 @@
   const parse$1 = function (matches, world) {
     const parseMatch = world.methods.one.parseMatch;
     matches.forEach(obj => {
+      resolveAliases(obj, world.model.one.tagAliases);
       obj.regs = parseMatch(obj.match, {}, world);
-      // wrap these ifNo properties into an array
-      if (typeof obj.ifNo === 'string') {
-        obj.ifNo = [obj.ifNo];
-      }
+      obj.fixed = isFixed(obj.regs);
+      obj.checkFirst = canCheck(obj.regs[0]);
+      obj.startTerm = getBoundary(obj.regs[0], 'start');
+      obj.endTerm = getBoundary(obj.regs[obj.regs.length - 1], 'end');
       if (obj.notIf) {
         obj.notIf = parseMatch(obj.notIf, {}, world);
       }
       // cache any requirements up-front 
       obj.needs = getNeeds(obj.regs);
+      if (obj.hook !== undefined) {
+        if (typeof obj.hook !== 'string' || !obj.needs.includes(obj.hook) || !hasRequiredHook(obj.regs, obj.hook)) {
+          throw new Error(`Invalid hook "${obj.hook}" for match "${obj.match}": use a required word, #Tag, or %Switch%.`)
+        }
+      }
       const { wants, count } = getWants(obj.regs);
       obj.wants = wants;
       obj.minWant = count;
       // get rid of tiny sentences
       obj.minWords = obj.regs.filter(o => !o.optional).length;
+      // The matcher excludes negative tokens from its own minimum. Cache that
+      // separately rather than changing the sweep's existing length filter.
+      obj.minLength = obj.regs.filter(o => o.optional !== true && o.negative !== true).length;
     });
     return matches
+  };
+
+  // Choose one necessary hook per rule. A missing required hook guarantees that
+  // the rule cannot match, so broader hooks need not enqueue it as well.
+  const buildIndex = function (matches, hooks, hookOrder) {
+    const index = Object.create(null);
+    const seen = new Set();
+    const lastRank = Object.keys(hooks).length;
+    matches.forEach((rule, order) => {
+      if (seen.has(rule)) {
+        return
+      }
+      seen.add(rule);
+      let anchor = null;
+      let rank = lastRank;
+      for (let i = 0; i < rule.needs.length; i += 1) {
+        const key = rule.needs[i];
+        // Prefer the hook shared by the fewest rules in this network.
+        if (anchor === null || hooks[key].length < hooks[anchor].length) {
+          anchor = key;
+        }
+        rank = Math.min(rank, hookOrder[key]);
+      }
+      // Explicit hooks have already been checked against required match tokens.
+      if (rule.hook !== undefined) {
+        anchor = rule.hook;
+      }
+      // Historically, any earlier matching alternative could determine where
+      // this rule ran. Retain that ordering even when using a required anchor.
+      const earlier = [...new Set(rule.wants)]
+        .filter(key => hookOrder[key] < rank)
+        .sort((a, b) => hookOrder[a] - hookOrder[b]);
+      const keys = anchor === null ? [...new Set(rule.wants)] : [anchor];
+      // The bucket already proves its anchor; check each remaining need once.
+      const needs = [...new Set(rule.needs)].filter(key => key !== anchor);
+      const entry = { rule, order, rank, earlier, needs, single: keys.length === 1 };
+      for (let i = 0; i < keys.length; i += 1) {
+        const key = keys[i];
+        index[key] ||= [];
+        index[key].push(entry);
+      }
+    });
+    return index
   };
 
   // do some indexing on the list of matches
@@ -5976,14 +6595,18 @@
         hooks[str].push(obj);
       });
     });
-    // remove duplicates
-    Object.keys(hooks).forEach(k => {
-      const already = {};
+    // Record enumeration order, including numeric keys, so input-driven lookup
+    // can preserve the order in which tag actions have always been applied.
+    const hookOrder = Object.create(null);
+    Object.keys(hooks).forEach((k, i) => {
+      hookOrder[k] = i;
+      // remove duplicates
+      const already = new Set();
       hooks[k] = hooks[k].filter(obj => {
-        if (typeof already[obj.match] === 'boolean') {
+        if (already.has(obj)) {
           return false
         }
-        already[obj.match] = true;
+        already.add(obj);
         return true
       });
     });
@@ -5992,58 +6615,141 @@
     const always = matches.filter(o => o.needs.length === 0 && o.wants.length === 0);
     return {
       hooks,
+      hookOrder,
+      index: buildIndex(matches, hooks, hookOrder),
       always
     }
   };
 
-  // for each cached-sentence, find a list of possible matches
-  const getHooks = function (docCaches, hooks) {
-    return docCaches.map((set, i) => {
-      let maybe = [];
-      Object.keys(hooks).forEach(k => {
-        if (docCaches[i].has(k)) {
-          maybe = maybe.concat(hooks[k]);
-        }
-      });
-      // remove duplicates
-      const already = {};
-      maybe = maybe.filter(m => {
-        if (typeof already[m.match] === 'boolean') {
+  // Reject impossible candidates before allocating and sorting their entries.
+  const canMatch = (obj, haves, terms, needs = obj.needs) => {
+    const termCount = terms.length;
+    if (!(termCount >= obj.minWords)) {
+      return false
+    }
+    for (let j = 0; j < needs.length; j += 1) {
+      if (!haves.has(needs[j])) {
+        return false
+      }
+    }
+    if (obj.ifNo !== undefined) {
+      for (let j = 0; j < obj.ifNo.length; j += 1) {
+        if (haves.has(obj.ifNo[j])) {
           return false
         }
-        already[m.match] = true;
-        return true
-      });
-      return maybe
-    })
+      }
+    }
+    if (obj.wants.length > 0) {
+      let count = 0;
+      for (let j = 0; j < obj.wants.length; j += 1) {
+        if (haves.has(obj.wants[j])) {
+          count += 1;
+          if (count >= obj.minWant) {
+            break
+          }
+        }
+      }
+      if (!(count >= obj.minWant)) {
+        return false
+      }
+    }
+    // Required anchors must match the sentence boundary, not just occur in it.
+    if (termCount && obj.startTerm && !wrapMatch(terms[0], obj.startTerm, 0, termCount)) {
+      return false
+    }
+    if (termCount && obj.endTerm && !wrapMatch(terms[termCount - 1], obj.endTerm, termCount - 1, termCount)) {
+      return false
+    }
+    return true
   };
 
-  // filter-down list of maybe-matches
-  const localTrim = function (maybeList, docCache) {
-    return maybeList.map((list, n) => {
-      const haves = docCache[n];
-      // ensure all stated-needs of the match are met
-      list = list.filter(obj => {
-        return obj.needs.every(need => haves.has(need))
-      });
-      // ensure nothing matches in our 'ifNo' property
-      list = list.filter(obj => {
-        if (obj.ifNo !== undefined && obj.ifNo.some(no => haves.has(no)) === true) {
-          return false
+  // Required anchors narrow the candidate list. Sort surviving entries by their
+  // original first matching hook, then their position within that hook's bucket.
+  const getIndexed = function (set, index, hookOrder, terms) {
+    const found = [];
+    const seen = new Set();
+    set.forEach(key => {
+      const bucket = index[key];
+      if (!Array.isArray(bucket)) {
+        return
+      }
+      for (let i = 0; i < bucket.length; i += 1) {
+        const entry = bucket[i];
+        // Single-bucket entries cannot be encountered twice. Older nets fall back.
+        if (entry.single !== true) {
+          if (seen.has(entry)) {
+            continue
+          }
+          seen.add(entry);
         }
-        return true
-      });
-      // ensure atleast one(?) of the wants is found
-      list = list.filter(obj => {
-        if (obj.wants.length === 0) {
-          return true
+        if (!canMatch(entry.rule, set, terms, entry.needs)) {
+          continue
         }
-        // ensure there's one cache-hit
-        const found = obj.wants.filter(str => haves.has(str)).length;
-        return found >= obj.minWant
+        let rank = entry.rank;
+        for (let j = 0; j < entry.earlier.length; j += 1) {
+          const earlier = entry.earlier[j];
+          if (set.has(earlier)) {
+            rank = hookOrder[earlier];
+            break
+          }
+        }
+        if (rank === entry.rank) {
+          found.push(entry);
+        } else {
+          found.push({ rule: entry.rule, rank, order: entry.order });
+        }
+      }
+    });
+    found.sort((a, b) => a.rank - b.rank || a.order - b.order);
+    return found.map(entry => entry.rule)
+  };
+
+  // for each cached-sentence, find a list of possible matches
+  const getHooks = function (docCaches, net, document) {
+    const { hooks, index, always } = net;
+    let { hookOrder } = net;
+    // Older compiled nets may not include the precomputed hook order.
+    if (!hookOrder) {
+      hookOrder = Object.create(null);
+      Object.keys(hooks).forEach((k, i) => { hookOrder[k] = i; });
+    }
+    const lists = docCaches.map((set, n) => {
+      if (index) {
+        return getIndexed(set, index, hookOrder, document[n])
+      }
+      const keys = [];
+      set.forEach(k => {
+        if (typeof hookOrder[k] === 'number') {
+          keys.push(k);
+        }
       });
-      return list
-    })
+      keys.sort((a, b) => hookOrder[a] - hookOrder[b]);
+      // Append each rule once, without concatenating and then filtering buckets.
+      const maybe = [];
+      const already = new Set();
+      for (let i = 0; i < keys.length; i += 1) {
+        const bucket = hooks[keys[i]];
+        for (let j = 0; j < bucket.length; j += 1) {
+          const m = bucket[j];
+          if (!already.has(m)) {
+            already.add(m);
+            if (canMatch(m, set, document[n])) {
+              maybe.push(m);
+            }
+          }
+        }
+      }
+      return maybe
+    });
+    // Apply the same exclusions to unindexed rules, preserving their final position.
+    lists.forEach((list, n) => {
+      for (let i = 0; i < always.length; i += 1) {
+        if (canMatch(always[i], docCaches[n], document[n])) {
+          list.push(always[i]);
+        }
+      }
+    });
+    return lists
   };
 
   // finally,
@@ -6051,10 +6757,11 @@
   const runMatch = function (maybeList, document, docCache, methods, opts) {
     const results = [];
     for (let n = 0; n < maybeList.length; n += 1) {
+      const sentence = [document[n]];
       for (let i = 0; i < maybeList[n].length; i += 1) {
         const m = maybeList[n][i];
         // ok, actually do the work.
-        const res = methods.one.match([document[n]], m);
+        const res = methods.one.match(sentence, m);
         // found something.
         if (res.ptrs.length > 0) {
           res.ptrs.forEach(ptr => {
@@ -6079,7 +6786,7 @@
             //     }
             //   }
             // }
-            const todo = Object.assign({}, m, { pointer: ptr });
+            const todo = { ...m, pointer: ptr };
             if (m.unTag !== undefined) {
               todo.unTag = m.unTag;
             }
@@ -6095,29 +6802,11 @@
     return results
   };
 
-  const tooSmall = function (maybeList, document) {
-    return maybeList.map((arr, i) => {
-      const termCount = document[i].length;
-      arr = arr.filter(o => {
-        return termCount >= o.minWords
-      });
-      return arr
-    })
-  };
-
   const sweep$1 = function (document, net, methods, opts = {}) {
     // find suitable matches to attempt, on each sentence
     const docCache = methods.one.cacheDoc(document);
-    // collect possible matches for this document
-    let maybeList = getHooks(docCache, net.hooks);
-    // ensure all defined needs are met for each match
-    maybeList = localTrim(maybeList, docCache);
-    // add unchacheable matches to each sentence's todo-list
-    if (net.always.length > 0) {
-      maybeList = maybeList.map(arr => arr.concat(net.always));
-    }
-    // if we don't have enough words
-    maybeList = tooSmall(maybeList, document);
+    // filter candidates before sorting them into execution order
+    const maybeList = getHooks(docCache, net, document);
 
     // now actually run the matches
     const results = runMatch(maybeList, document, docCache, methods, opts);
@@ -6125,17 +6814,36 @@
     return results
   };
 
+  const sets = new WeakMap();
+  const empty = new Set();
+
+  // Normalization replaces these arrays when plugins rebuild the tag graph.
+  const getTagSet = (tags) => {
+    if (!tags || tags.length === 0) {
+      return empty
+    }
+    let set = sets.get(tags);
+    if (!set) {
+      set = new Set(tags);
+      sets.set(tags, set);
+    }
+    return set
+  };
+
   // is this tag consistent with the tags they already have?
   const canBe$1 = function (terms, tag, model) {
     const tagSet = model.one.tagSet;
-    if (!tagSet.hasOwnProperty(tag)) {
+    if (!Object.hasOwn(tagSet, tag)) {
       return true
     }
-    const not = tagSet[tag].not || [];
+    const conflicts = getTagSet(tagSet[tag].not);
+    if (conflicts.size === 0) {
+      return true
+    }
     for (let i = 0; i < terms.length; i += 1) {
       const term = terms[i];
-      for (let k = 0; k < not.length; k += 1) {
-        if (term.tags.has(not[k]) === true) {
+      for (const existing of term.tags) {
+        if (conflicts.has(existing)) {
           return false //found a tag conflict - bail!
         }
       }
@@ -6150,17 +6858,13 @@
     if (list.length === 0) {
       return list
     }
-    // some logging for debugging
-    const env = typeof process === 'undefined' || !process.env ? self.env || {} : process.env;
-    if (env.DEBUG_TAGS) {
-      console.log(`\n\n  \x1b[32m→ ${list.length} post-tagger:\x1b[0m`); //eslint-disable-line
-    }
     return list.map(todo => {
       if (!todo.tag && !todo.chunk && !todo.unTag) {
         return
       }
       const reason = todo.reason || todo.match;
       const terms = getDoc([todo.pointer], document)[0];
+      let validated;
       // handle 'safe' tag
       if (todo.safe === true) {
         // check for conflicting tags
@@ -6171,9 +6875,14 @@
         if (terms[terms.length - 1].post === '-') {
           return
         }
+        // Only an exact single tag was checked by canBe; arrays and shorthand
+        // still need their individual checks in setTag.
+        if (typeof todo.tag === 'string' && Object.hasOwn(model.one.tagSet, todo.tag)) {
+          validated = model.one.tagSet[todo.tag];
+        }
       }
       if (todo.tag !== undefined) {
-        setTag(terms, todo.tag, world, todo.safe, `[post] '${reason}'`);
+        setTag(terms, todo.tag, world, todo.safe, `[post] '${reason}'`, validated);
         // quick and dirty plural tagger 😕
         if (todo.tag === 'Noun' && looksPlural) {
           const term = terms[terms.length - 1];
@@ -6189,7 +6898,7 @@
         }
       }
       if (todo.unTag !== undefined) {
-        unTag(terms, todo.unTag, world, todo.safe, reason);
+        unTag(terms, todo.unTag, model.one.tagSet, reason);
       }
       // allow setting chunks, too
       if (todo.chunk) {
@@ -6223,7 +6932,8 @@
     }
   };
 
-  const tagTerm = function (term, tag, tagSet, isSafe) {
+  // eslint-disable-next-line max-params
+  const tagTerm = function (term, tag, tagSet, isSafe, validated, reason) {
     // does it already have this tag?
     if (term.tags.has(tag) === true) {
       return null
@@ -6236,17 +6946,21 @@
     if (term.frozen === true) {
       isSafe = true;
     }
+    const previous = debug$3.tags ? debug$3.before(term) : null;
     // for known tags, do logical dependencies first
     const known = tagSet[tag];
     if (known) {
       // first, we remove any conflicting tags
-      if (known.not && known.not.length > 0) {
-        for (let o = 0; o < known.not.length; o += 1) {
-          // if we're in tagSafe, skip this term.
-          if (isSafe === true && term.tags.has(known.not[o])) {
-            return null
+      if (known !== validated && known.not && known.not.length > 0) {
+        const conflicts = getTagSet(known.not);
+        for (const existing of term.tags) {
+          if (conflicts.has(existing)) {
+            // Safe and frozen terms cannot lose conflicting tags.
+            if (isSafe === true) {
+              return null
+            }
+            term.tags.delete(existing);
           }
-          term.tags.delete(known.not[o]);
         }
       }
       // add parent tags
@@ -6263,54 +6977,36 @@
     term.dirty = true;
     // add a chunk too, if it's easy
     addChunk(term, tag);
+    if (previous) {
+      debug$3.log(term, previous, reason);
+    }
     return true
   };
 
   // support '#Noun . #Adjective' syntax
-  const multiTag = function (terms, tagString, tagSet, isSafe) {
+  // eslint-disable-next-line max-params
+  const multiTag = function (terms, tagString, tagSet, aliases, isSafe, reason) {
     const tags = tagString.split(isMulti);
     terms.forEach((term, i) => {
       let tag = tags[i];
       if (tag) {
         tag = tag.replace(/^#/, '');
-        tagTerm(term, tag, tagSet, isSafe);
+        tag = aliases?.[tag] || tag;
+        tagTerm(term, tag, tagSet, isSafe, undefined, reason);
       }
     });
   };
 
-  const isArray$2 = function (arr) {
-    return Object.prototype.toString.call(arr) === '[object Array]'
-  };
-
-  // verbose-mode tagger debuging
-  const log = (terms, tag, reason = '') => {
-    const yellow = str => '\x1b[33m\x1b[3m' + str + '\x1b[0m';
-    const i = str => '\x1b[3m' + str + '\x1b[0m';
-    const word = terms
-      .map(t => {
-        return t.text || '[' + t.implicit + ']'
-      })
-      .join(' ');
-    if (typeof tag !== 'string' && tag.length > 2) {
-      tag = tag.slice(0, 2).join(', #') + ' +'; //truncate the list of tags
-    }
-    tag = typeof tag !== 'string' ? tag.join(', #') : tag;
-    console.log(` ${yellow(word).padEnd(24)} \x1b[32m→\x1b[0m #${tag.padEnd(22)}  ${i(reason)}`); // eslint-disable-line
-  };
-
   // add a tag to all these terms
-  const setTag = function (terms, tag, world = {}, isSafe, reason) {
+  // Whole-match validation is separate from per-term safety.
+  // eslint-disable-next-line max-params
+  const setTag = function (terms, tag, world = {}, isSafe, reason, validated) {
     const tagSet = world.model.one.tagSet || {};
     if (!tag) {
       return
     }
-    // some logging for debugging
-    const env = typeof process === 'undefined' || !process.env ? self.env || {} : process.env;
-    if (env && env.DEBUG_TAGS) {
-      log(terms, tag, reason);
-    }
-    if (isArray$2(tag) === true) {
-      tag.forEach(tg => setTag(terms, tg, world, isSafe));
+    if (Array.isArray(tag) === true) {
+      tag.forEach(tg => setTag(terms, tg, world, isSafe, reason));
       return
     }
     if (typeof tag !== 'string') {
@@ -6320,57 +7016,281 @@
     tag = tag.trim();
     // support '#Noun . #Adjective' syntax
     if (isMulti.test(tag)) {
-      multiTag(terms, tag, tagSet, isSafe);
+      multiTag(terms, tag, tagSet, world.model.one.tagAliases, isSafe, reason);
       return
     }
     tag = tag.replace(/^#/, '');
+    tag = world.model.one.tagAliases?.[tag] || tag;
     // let set = false
     for (let i = 0; i < terms.length; i += 1) {
-      tagTerm(terms[i], tag, tagSet, isSafe);
+      tagTerm(terms[i], tag, tagSet, isSafe, validated, reason);
     }
   };
 
   // remove this tag, and its children, from these terms
-  const unTag = function (terms, tag, tagSet) {
+  const unTag = function (terms, tag, tagSet, reason = 'untag') {
     tag = tag.trim().replace(/^#/, '');
+    const children = getTagSet(tagSet[tag]?.children);
     for (let i = 0; i < terms.length; i += 1) {
       const term = terms[i];
       // don't untag anything if term is frozen
       if (term.frozen === true) {
         continue
       }
+      const previous = debug$3.tags ? debug$3.before(term) : null;
       // support clearing all tags, with '*'
       if (tag === '*') {
         term.tags.clear();
+        if (previous) {
+          debug$3.log(term, previous, reason);
+        }
         continue
       }
-      // for known tags, do logical dependencies first
-      const known = tagSet[tag];
       // removing #Verb should also remove #PastTense
-      if (known && known.children.length > 0) {
-        for (let o = 0; o < known.children.length; o += 1) {
-          term.tags.delete(known.children[o]);
+      if (children.size > 0) {
+        for (const existing of term.tags) {
+          if (children.has(existing)) {
+            term.tags.delete(existing);
+          }
         }
       }
       term.tags.delete(tag);
+      if (previous) {
+        debug$3.log(term, previous, reason);
+      }
     }
   };
 
   // quick check if this tag will require any untagging
   const canBe = function (term, tag, tagSet) {
-    if (!tagSet.hasOwnProperty(tag)) {
+    if (!Object.hasOwn(tagSet, tag)) {
       return true // everything can be an unknown tag
     }
-    const not = tagSet[tag].not || [];
-    for (let i = 0; i < not.length; i += 1) {
-      if (term.tags.has(not[i])) {
+    const conflicts = getTagSet(tagSet[tag].not);
+    if (conflicts.size === 0) {
+      return true
+    }
+    for (const existing of term.tags) {
+      if (conflicts.has(existing)) {
         return false
       }
     }
     return true
   };
 
-  const e=function(e){return e.children=e.children||[],e._cache=e._cache||{},e.props=e.props||{},e._cache.parents=e._cache.parents||[],e._cache.children=e._cache.children||[],e},t=/^ *(#|\/\/)/,n=function(t){let n=t.trim().split(/->/),r=[];n.forEach((t=>{r=r.concat(function(t){if(!(t=t.trim()))return null;if(/^\[/.test(t)&&/\]$/.test(t)){let n=(t=(t=t.replace(/^\[/,"")).replace(/\]$/,"")).split(/,/);return n=n.map((e=>e.trim())).filter((e=>e)),n=n.map((t=>e({id:t}))),n}return [e({id:t})]}(t));})),r=r.filter((e=>e));let i=r[0];for(let e=1;e<r.length;e+=1)i.children.push(r[e]),i=r[e];return r[0]},r=(e,t)=>{let n=[],r=[e];for(;r.length>0;){let e=r.pop();n.push(e),e.children&&e.children.forEach((n=>{t&&t(e,n),r.push(n);}));}return n},i=e=>"[object Array]"===Object.prototype.toString.call(e),c=e=>(e=e||"").trim(),s=function(c=[]){return "string"==typeof c?function(r){let i=r.split(/\r?\n/),c=[];i.forEach((e=>{if(!e.trim()||t.test(e))return;let r=(e=>{const t=/^( {2}|\t)/;let n=0;for(;t.test(e);)e=e.replace(t,""),n+=1;return n})(e);c.push({indent:r,node:n(e)});}));let s=function(e){let t={children:[]};return e.forEach(((n,r)=>{0===n.indent?t.children=t.children.concat(n.node):e[r-1]&&function(e,t){let n=e[t].indent;for(;t>=0;t-=1)if(e[t].indent<n)return e[t];return e[0]}(e,r).node.children.push(n.node);})),t}(c);return s=e(s),s}(c):i(c)?function(t){let n={};t.forEach((e=>{n[e.id]=e;}));let r=e({});return t.forEach((t=>{if((t=e(t)).parent)if(n.hasOwnProperty(t.parent)){let e=n[t.parent];delete t.parent,e.children.push(t);}else console.warn(`[Grad] - missing node '${t.parent}'`);else r.children.push(t);})),r}(c):(r(s=c).forEach(e),s);var s;},h=e=>"[31m"+e+"[0m",o=e=>"[2m"+e+"[0m",l=function(e,t){let n="-> ";t&&(n=o("→ "));let i="";return r(e).forEach(((e,r)=>{let c=e.id||"";if(t&&(c=h(c)),0===r&&!e.id)return;let s=e._cache.parents.length;i+="    ".repeat(s)+n+c+"\n";})),i},a=function(e){let t=r(e);t.forEach((e=>{delete(e=Object.assign({},e)).children;}));let n=t[0];return n&&!n.id&&0===Object.keys(n.props).length&&t.shift(),t},p={text:l,txt:l,array:a,flat:a},d=function(e,t){return "nested"===t||"json"===t?e:"debug"===t?(console.log(l(e,true)),null):p.hasOwnProperty(t)?p[t](e):e},u=e=>{r(e,((e,t)=>{e.id&&(e._cache.parents=e._cache.parents||[],t._cache.parents=e._cache.parents.concat([e.id]));}));},f=(e,t)=>(Object.keys(t).forEach((n=>{if(t[n]instanceof Set){let r=e[n]||new Set;e[n]=new Set([...r,...t[n]]);}else {if((e=>e&&"object"==typeof e&&!Array.isArray(e))(t[n])){let r=e[n]||{};e[n]=Object.assign({},t[n],r);}else i(t[n])?e[n]=t[n].concat(e[n]||[]):void 0===e[n]&&(e[n]=t[n]);}})),e),j=/\//;class g{constructor(e={}){Object.defineProperty(this,"json",{enumerable:false,value:e,writable:true});}get children(){return this.json.children}get id(){return this.json.id}get found(){return this.json.id||this.json.children.length>0}props(e={}){let t=this.json.props||{};return "string"==typeof e&&(t[e]=true),this.json.props=Object.assign(t,e),this}get(t){if(t=c(t),!j.test(t)){let e=this.json.children.find((e=>e.id===t));return new g(e)}let n=((e,t)=>{let n=(e=>"string"!=typeof e?e:(e=e.replace(/^\//,"")).split(/\//))(t=t||"");for(let t=0;t<n.length;t+=1){let r=e.children.find((e=>e.id===n[t]));if(!r)return null;e=r;}return e})(this.json,t)||e({});return new g(n)}add(t,n={}){if(i(t))return t.forEach((e=>this.add(c(e),n))),this;t=c(t);let r=e({id:t,props:n});return this.json.children.push(r),new g(r)}remove(e){return e=c(e),this.json.children=this.json.children.filter((t=>t.id!==e)),this}nodes(){return r(this.json).map((e=>(delete(e=Object.assign({},e)).children,e)))}cache(){return (e=>{let t=r(e,((e,t)=>{e.id&&(e._cache.parents=e._cache.parents||[],e._cache.children=e._cache.children||[],t._cache.parents=e._cache.parents.concat([e.id]));})),n={};t.forEach((e=>{e.id&&(n[e.id]=e);})),t.forEach((e=>{e._cache.parents.forEach((t=>{n.hasOwnProperty(t)&&n[t]._cache.children.push(e.id);}));})),e._cache.children=Object.keys(n);})(this.json),this}list(){return r(this.json)}fillDown(){var e;return e=this.json,r(e,((e,t)=>{t.props=f(t.props,e.props);})),this}depth(){u(this.json);let e=r(this.json),t=e.length>1?1:0;return e.forEach((e=>{if(0===e._cache.parents.length)return;let n=e._cache.parents.length+1;n>t&&(t=n);})),t}out(e){return u(this.json),d(this.json,e)}debug(){return u(this.json),d(this.json,"debug"),this}}const _=function(e){let t=s(e);return new g(t)};_.prototype.plugin=function(e){e(this);};
+  const validate$1 = function (node) {
+    node.children = node.children || [];
+    node._cache = node._cache || {};
+    node.props = node.props || {};
+    node._cache.parents = node._cache.parents || [];
+    return node
+  };
+
+  // Iterative DFS keeps deep inputs safe and distinguishes shared nodes from cycles.
+  const checkCycles = roots => {
+    const states = new Map();
+    const stack = roots.map(node => [node, false]);
+    for (; stack.length > 0;) {
+      const [node, done] = stack.pop();
+      if (done) {
+        states.set(node, 2);
+      } else if (states.get(node) === 1) {
+        throw new Error('[Grad] - cyclic input')
+      } else if (!states.has(node)) {
+        states.set(node, 1);
+        stack.push([node, true]);
+        for (const child of node.children || []) {
+          stack.push([child, false]);
+        }
+      }
+    }
+    return states.keys()
+  };
+
+  // turn parent-index rows into nested json
+  const fromArray = function (rows) {
+    const index = new Map();
+    // addTags allocates these rows for this graph, so initialize them in place.
+    rows.forEach(node => {
+      validate$1(node);
+      index.set(node.id, node);
+    });
+    const root = validate$1({});
+    rows.forEach(node => {
+      if (node.parent) {
+        if (index.has(node.parent)) {
+          const parent = index.get(node.parent);
+          delete node.parent; //no-longer needed
+          parent.children.push(node);
+        } else {
+          console.warn(`[Grad] - missing node '${node.parent}'`); // eslint-disable-line no-console
+        }
+        return
+      }
+      // no parent, add it to root
+      root.children.push(node);
+    });
+    checkCycles(rows);
+    return root
+  };
+
+  // [a, a1, b, b1]
+  // Visitor-only callers can skip collecting nodes.
+  const byDepth = (root, fn, collect = true) => {
+    const list = collect ? [] : null;
+    const queue = [root];
+    for (; queue.length > 0;) {
+      // get first
+      const node = queue.pop();
+      if (collect) {
+        list.push(node);
+      }
+      // add kids to queue
+      if (node.children) {
+        for (let i = node.children.length - 1; i >= 0; i -= 1) {
+          const child = node.children[i];
+          if (fn) {
+            fn(node, child);
+          }
+          queue.push(child);
+        }
+      }
+    }
+    return list
+  };
+
+  // Fresh graph nodes already have empty caches; fill ancestors in root-to-parent order.
+  const cacheParents = root => {
+    byDepth(root, (parent, child) => {
+      if (parent.id) {
+        child._cache.parents = parent._cache.parents.concat([parent.id]);
+      }
+    }, false);
+  };
+
+  // addTags supplies only exclusions, additional parents, and these scalar flags.
+  const inherit = (props, parent) => {
+    if (parent.not) {
+      props.not = new Set([...props.not, ...parent.not]);
+    }
+    if (Array.isArray(parent.also) && (props.also === undefined || Array.isArray(props.also))) {
+      props.also = parent.also.concat(props.also || []);
+    } else if (props.also === undefined) {
+      props.also = parent.also;
+    }
+    if (props.is === undefined) {
+      props.is = parent.is;
+    }
+    if (props.novel === undefined) {
+      props.novel = parent.novel;
+    }
+    return props
+  };
+
+  const fillDown = root => {
+    byDepth(root, (parent, child) => {
+      child.props = inherit(child.props, parent.props);
+    }, false);
+  };
+
+  // https://stackoverflow.com/questions/9781218/how-to-change-node-jss-console-font-color
+
+  const reset = '\x1b[0m';
+  //cheaper than requiring chalk
+  const cli = {
+    // green: str => '\x1b[32m' + str + reset,
+    red: str => '\x1b[31m' + str + reset,
+    // blue: str => '\x1b[34m' + str + reset,
+    // magenta: str => '\x1b[35m' + str + reset,
+    // cyan: str => '\x1b[36m' + str + reset,
+    // yellow: str => '\x1b[33m' + str + reset,
+    // black: str => '\x1b[30m' + str + reset,
+    dim: str => '\x1b[2m' + str + reset,
+  };
+
+  const indent = '    ';
+
+  const toText = function (json, color) {
+    let arrow = '-> ';
+    if (color) {
+      arrow = cli.dim('→ ');
+    }
+    let txt = '';
+    const rows = byDepth(json);
+    rows.forEach((node, i) => {
+      let label = node.id || '';
+      if (color) {
+        label = cli.red(label);
+      }
+      if (i === 0 && !node.id) {
+        return //skip empty root
+      }
+      const depth = node._cache.parents.length;
+      txt += indent.repeat(depth) + arrow + label + '\n';
+    });
+    return txt
+  };
+
+  const toArray$1 = function (json) {
+    // The tag formatter only reads these graph-owned nodes.
+    const nodes = byDepth(json);
+    // should we show the root?
+    const root = nodes[0];
+    if (root && !root.id && Object.keys(root.props).length === 0) {
+      nodes.shift();
+    }
+    return nodes
+  };
+
+  // Keep this dispatch intact: an array-only version regresses V8 benchmarks.
+  const fmts = {
+    text: toText,
+    txt: toText,
+    array: toArray$1,
+    flat: toArray$1,
+  };
+
+  const out = function (root, label) {
+    // return internal json
+    if (label === 'nested' || label === 'json') {
+      return root
+    }
+    if (label === 'debug') {
+      console.log(toText(root, true)); // eslint-disable-line no-console
+      return null
+    }
+    if (fmts.hasOwnProperty(label)) {
+      return fmts[label](root)
+    }
+    return root
+  };
+
+  // The tag-inheritance subset of grad-school;
+  // https://github.com/spencermountain/grad-school
+
+  class Graph {
+    constructor(json) {
+      Object.defineProperty(this, 'json', {
+        enumerable: false,
+        value: json,
+        writable: true,
+      });
+    }
+    cache() {
+      cacheParents(this.json);
+      return this
+    }
+    fillDown() {
+      fillDown(this.json);
+      return this
+    }
+    out(fmt) {
+      // fillDown changes properties, so the cached graph relationships still hold.
+      return out(this.json, fmt)
+    }
+  }
+
+  const graph = rows => new Graph(fromArray(rows));
 
   // i just made these up
   const colors = {
@@ -6380,18 +7300,17 @@
     Date: 'red',
     Value: 'red',
     Adjective: 'magenta',
-    Preposition: 'cyan',
-    Conjunction: 'cyan',
+    Connector: 'cyan',
     Determiner: 'cyan',
     Hyphenated: 'cyan',
     Adverb: 'cyan',
   };
 
   const getColor = function (node) {
-    if (colors.hasOwnProperty(node.id)) {
+    if (Object.hasOwn(colors, node.id)) {
       return colors[node.id]
     }
-    if (colors.hasOwnProperty(node.is)) {
+    if (Object.hasOwn(colors, node.is)) {
       return colors[node.is]
     }
     const found = node._cache.parents.find(c => colors[c]);
@@ -6413,22 +7332,107 @@
         novel,
         also,
         parents,
-        children: node._cache.children,
+        children: [],
         color: getColor(node),
-        alias: node.alias,
+        // Retain the preferred output name for legacy model consumers.
+        alias: node.aliases === undefined ? node.alias : node.aliases[0],
+        aliases: node.aliases,
       };
     });
-    // lastly, add all children of all nots
+    // `also` is another inheritance edge. Resolve its ancestors before building
+    // reverse edges, so removing any parent also removes all dependent tags.
+    const resolved = new Set();
+    const resolving = new Set();
+    const resolveParents = function (tag) {
+      if (resolved.has(tag)) {
+        return res[tag].parents
+      }
+      if (resolving.has(tag)) {
+        throw new Error(`compromise: cyclic tag inheritance at '${tag}'`)
+      }
+      resolving.add(tag);
+      const parents = new Set();
+      res[tag].parents.forEach(parent => {
+        if (res[parent]) {
+          resolveParents(parent).forEach(ancestor => parents.add(ancestor));
+        }
+        parents.add(parent);
+      });
+      res[tag].parents = Array.from(parents);
+      resolving.delete(tag);
+      resolved.add(tag);
+      return res[tag].parents
+    };
+    Object.keys(res).forEach(tag => resolveParents(tag));
+    Object.keys(res).forEach(tag => {
+      res[tag].parents.forEach(parent => {
+        if (res[parent]) {
+          res[parent].children.push(tag);
+        }
+      });
+    });
+
+    // Inherit exclusions through every parent, then exclude all descendants of
+    // each conflicting tag. Read a snapshot to keep this independent of order.
+    const exclusions = {};
+    Object.keys(res).forEach(tag => { exclusions[tag] = res[tag].not; });
     Object.keys(res).forEach(k => {
-      const nots = new Set(res[k].not);
-      res[k].not.forEach(not => {
+      const nots = new Set(exclusions[k]);
+      res[k].parents.forEach(parent => {
+        for (const not of exclusions[parent] || []) {
+          nots.add(not);
+        }
+      });
+      Array.from(nots).forEach(not => {
         if (res[not]) {
           res[not].children.forEach(tag => nots.add(tag));
         }
       });
       res[k].not = Array.from(nots);
+      getTagSet(res[k].not);
+      getTagSet(res[k].children);
+      // Keep accepting custom definitions, but flag impossible combinations once
+      // per tag, after both inheritance and reciprocal exclusions are resolved.
+      const conflicts = [k, ...res[k].parents].filter(tag => nots.has(tag));
+      if (conflicts.length > 0) {
+        const names = conflicts.map(tag => `#${tag}`).join(', ');
+        console.warn(`compromise: contradictory tag '#${k}' requires and excludes: ${names}`); // eslint-disable-line no-console
+      }
     });
     return res
+  };
+
+  // Compile once per registration. Real tag names always take precedence.
+  const compileAliases = (tags, normalize) => {
+    const aliases = Object.create(null);
+    Object.keys(tags).forEach(tag => { aliases[tag] = tag; });
+    Object.keys(tags).forEach(tag => {
+      const entry = tags[tag];
+      const names = entry.aliases === undefined ? [entry.alias] : [entry.aliases].flat();
+      names.forEach(name => {
+        if (name === null || name === undefined) {
+          return
+        }
+        if (typeof name !== 'string' || !/^[\p{L}_][\p{L}\p{M}\p{N}_-]*$/u.test(name)) {
+          throw new Error(`compromise: invalid alias for '#${tag}'`)
+        }
+        // Match strings undergo Unicode normalization before parsing.
+        const spellings = normalize ? [name, normalize(name)] : [name];
+        spellings.forEach(spelling => {
+          if (Object.hasOwn(tags, spelling)) {
+            if (spelling !== name && spelling !== tag) {
+              throw new Error(`compromise: tag alias '${name}' normalizes to '#${spelling}'`)
+            }
+            return
+          }
+          if (aliases[spelling] && aliases[spelling] !== tag) {
+            throw new Error(`compromise: duplicate tag alias '${spelling}'`)
+          }
+          aliases[spelling] = tag;
+        });
+      });
+    });
+    return aliases
   };
 
   const toArr = function (input) {
@@ -6438,10 +7442,12 @@
     if (typeof input === 'string') {
       return [input]
     }
-    return input
+    return input.slice()
   };
 
-  const addImplied = function (tags, already) {
+  const addImplied = function (tags) {
+    const aliases = compileAliases(tags);
+    const resolve = tag => aliases[tag] || tag;
     Object.keys(tags).forEach(k => {
       // support deprecated fmts
       if (tags[k].isA) {
@@ -6450,38 +7456,61 @@
       if (tags[k].notA) {
         tags[k].not = tags[k].notA;
       }
+      if (typeof tags[k].is === 'string') {
+        tags[k].is = resolve(tags[k].is);
+      }
+      if (tags[k].also) {
+        tags[k].also = toArr(tags[k].also).map(resolve);
+      }
+      if (tags[k].not) {
+        tags[k].not = toArr(tags[k].not).map(resolve);
+      }
       // add any implicit 'is' tags
       if (tags[k].is && typeof tags[k].is === 'string') {
-        if (!already.hasOwnProperty(tags[k].is) && !tags.hasOwnProperty(tags[k].is)) {
+        if (!Object.hasOwn(tags, tags[k].is)) {
           tags[tags[k].is] = {};
         }
       }
-      // add any implicit 'not' tags
-      if (tags[k].not && typeof tags[k].not === 'string' && !tags.hasOwnProperty(tags[k].not)) {
-        if (!already.hasOwnProperty(tags[k].not) && !tags.hasOwnProperty(tags[k].not)) {
-          tags[tags[k].not] = {};
+      // Additional parents need entries too, including parents introduced by plugins.
+      toArr(tags[k].also).forEach(parent => {
+        if (!Object.hasOwn(tags, parent)) {
+          tags[parent] = {};
         }
-      }
+      });
+      // add any implicit 'not' tags
+      toArr(tags[k].not).forEach(excluded => {
+        if (!Object.hasOwn(tags, excluded)) {
+          tags[excluded] = {};
+        }
+      });
     });
     return tags
   };
 
 
   const validate = function (tags, already) {
-
-    tags = addImplied(tags, already);
+    // Reciprocal links must reach previously registered tags too. Copy entries
+    // before normalization so the existing compiled model remains untouched.
+    tags = Object.fromEntries(Object.keys({ ...already, ...tags }).map(tag => [tag, { ...already[tag], ...tags[tag] }]));
+    tags = addImplied(tags);
 
     // property validation
     Object.keys(tags).forEach(k => {
+      if (tags[k].aliases !== undefined) {
+        tags[k].aliases = toArr(tags[k].aliases);
+      }
       tags[k].children = toArr(tags[k].children);
       tags[k].not = toArr(tags[k].not);
+      if (tags[k].also) {
+        tags[k].also = toArr(tags[k].also);
+      }
     });
     // not links are bi-directional
     // add any incoming not tags
     Object.keys(tags).forEach(k => {
       const nots = tags[k].not || [];
       nots.forEach(no => {
-        if (tags[no] && tags[no].not) {
+        if (tags[no] && tags[no].not && !tags[no].not.includes(k)) {
           tags[no].not.push(k);
         }
       });
@@ -6495,31 +7524,32 @@
     const flatList = Object.keys(allTags).map(k => {
       const o = allTags[k];
       const props = { not: new Set(o.not), also: o.also, is: o.is, novel: o.novel };
-      return { id: k, parent: o.is, props, children: [], alias: o.alias }
+      return { id: k, parent: o.is, props, children: [], alias: o.alias, aliases: o.aliases?.slice() }
     });
-    const graph = _(flatList).cache().fillDown();
-    return graph.out('array')
+    const graph$1 = graph(flatList).cache().fillDown();
+    return graph$1.out('array')
   };
 
   const fromUser = function (tags) {
     Object.keys(tags).forEach(k => {
-      tags[k] = Object.assign({}, tags[k]);
+      tags[k] = { ...tags[k] };
       tags[k].novel = true;
     });
     return tags
   };
 
   const addTags$1 = function (tags, already) {
+    // Normalization owns its definitions, including when callers reuse a tagset.
+    tags = Object.fromEntries(Object.entries(tags).map(([tag, definition]) => [tag, { ...definition }]));
     // are these tags internal ones, or user-generated?
     if (Object.keys(already).length > 0) {
       tags = fromUser(tags);
     }
     tags = validate(tags, already);
 
-    const allTags = Object.assign({}, already, tags);
     // do some basic setting-up
     // 'fill-down' parent logic
-    const nodes = compute$1(allTags);
+    const nodes = compute$1(tags);
     // convert it to our final format
     const res = fmt(nodes);
     return res
@@ -6535,9 +7565,7 @@
   };
 
   /* eslint no-console: 0 */
-  const isArray$1 = function (arr) {
-    return Object.prototype.toString.call(arr) === '[object Array]'
-  };
+
   const fns = {
     /** add a given tag, to all these terms */
     tag: function (input, reason = '', isSafe) {
@@ -6553,7 +7581,7 @@
       if (verbose === true) {
         console.log(' +  ', input, reason || '');
       }
-      if (isArray$1(input)) {
+      if (Array.isArray(input)) {
         input.forEach(tag => methods.one.setTag(terms, tag, world, isSafe, reason));
       } else {
         methods.one.setTag(terms, input, world, isSafe, reason);
@@ -6583,10 +7611,14 @@
         console.log(' -  ', input, reason || '');
       }
       const tagSet = model.one.tagSet;
-      if (isArray$1(input)) {
-        input.forEach(tag => methods.one.unTag(terms, tag, tagSet));
+      const resolve = tag => {
+        tag = tag.trim().replace(/^#/, '');
+        return model.one.tagAliases[tag] || tag
+      };
+      if (Array.isArray(input)) {
+        input.forEach(tag => methods.one.unTag(terms, resolve(tag), tagSet, reason));
       } else {
-        methods.one.unTag(terms, input, tagSet);
+        methods.one.unTag(terms, resolve(input), tagSet, reason);
       }
       // uncache
       this.uncache();
@@ -6596,6 +7628,7 @@
     /** return only the terms that can be this tag  */
     canBe: function (tag) {
       tag = tag.replace(/^#/, '');
+      tag = this.model.one.tagAliases[tag] || tag;
       const tagSet = this.model.one.tagSet;
       const canBe = this.methods.one.canBe;
       const nope = [];
@@ -6617,11 +7650,14 @@
 
   // wire-up more pos-tags to our model
   const addTags = function (tags) {
-    const { model, methods } = this.world();
+    const world = this.world();
+    const { model, methods } = world;
     const tagSet = model.one.tagSet;
     const fn = methods.one.addTags;
     const res = fn(tags, tagSet);
+    const aliases = compileAliases(res, name => methods.one.killUnicode(name, world));
     model.one.tagSet = res;
+    model.one.tagAliases = aliases;
     return this
   };
 
@@ -6632,10 +7668,10 @@
   const sortByKids = function (tags, tagSet) {
     tags = tags.sort((a, b) => {
       // (unknown tags are interesting)
-      if (boringTags.has(a) || !tagSet.hasOwnProperty(b)) {
+      if (boringTags.has(a) || !Object.hasOwn(tagSet, b)) {
         return 1
       }
-      if (boringTags.has(b) || !tagSet.hasOwnProperty(a)) {
+      if (boringTags.has(b) || !Object.hasOwn(tagSet, a)) {
         return -1
       }
       let kids = tagSet[a].children || [];
@@ -6660,7 +7696,7 @@
 
   var tag = {
     model: {
-      one: { tagSet: {} }
+      one: { tagSet: {}, tagAliases: Object.create(null) }
     },
     compute: {
       tagRank
@@ -6670,50 +7706,69 @@
     lib: lib$1
   };
 
-  // split by periods, question marks, unicode ⁇, etc
-  // also ।॥ (devanagari), ؟ (arabic), ۔ (urdu), ։ (armenian), ።፧ (ethiopic), ။ (burmese), ។ (khmer)
-  const initSplit = /([.!?\u203D\u2E18\u203C\u2047-\u2049\u0964\u0965\u061F\u06D4\u0589\u1362\u1367\u104B\u17D4\u3002]+\s)/g;
-  // merge these back into prev sentence
-  const splitsOnly = /^[.!?\u203D\u2E18\u203C\u2047-\u2049\u0964\u0965\u061F\u06D4\u0589\u1362\u1367\u104B\u17D4\u3002]+\s$/;
-  const newLine = /((?:\r?\n|\r)+)/; // Match different new-line formats
+  // Scan punctuation runs once. Searching for an unanchored run followed by
+  // whitespace repeatedly rescans long runs that have no following whitespace.
+  const stops = new Set('.!?\u203D\u2E18\u203C\u2047\u2048\u2049\u0964\u0965\u061F\u06D4\u0589\u1362\u1367\u104B\u17D4\u3002');
+  const cjkStops = new Set('。！？｡');
+  const openers$1 = new Set('「『（【〔《〈“');
+  const closers = new Set('」』）】〕》〉”');
+  const whitespace = /\s/;
+  const splitsOnly = /^[.!?‽⸘‼\u2047-\u2049।॥؟۔։።፧။។。]+\s$/;
+  const splitsOnlyCjk = /^(?:[.!?‽⸘‼\u2047-\u2049।॥؟۔։።፧။។。！？｡]+\s|[。！？｡]+[」』）】〕》〉”]*)$/;
+  const newLine = /((?:\r?\n|\r)+)/;
 
-  // CJK full-stops 。！？｡ are never used in numbers or abbreviations,
-  // so they can end a sentence without any whitespace after them.
-  // A full-stop followed by a closing bracket 」』）” only ends the sentence when the
-  // bracket is followed by whitespace, another opening bracket, or the end of the text
-  //  - '「行きません。」と言った' stays together,  '「はい。」「いいえ。」' splits
-  const hasCjkStop = /[\u3002\uFF01\uFF1F\uFF61]/;
-  const cjkStops = '\\u3002\\uFF01\\uFF1F\\uFF61'; // 。！？｡
-  const allStops = '.!?\\u203D\\u2E18\\u203C\\u2047-\\u2049' + '\u0964\u0965\u061F\u06D4\u0589\u1362\u1367\u104B\u17D4' + cjkStops;
-  const openers = '\\u300C\\u300E\\uFF08\\u3010\\u3014\\u300A\\u3008\\u201C'; // 「『（【〔《〈“
-  const closers = '\\u300D\\u300F\\uFF09\\u3011\\u3015\\u300B\\u3009\\u201D'; // 」』）】〕》〉”
-  const initSplitCjk = new RegExp(
-    `([${allStops}]+\\s|[${cjkStops}]+(?![${closers}${cjkStops}])|[${cjkStops}]+[${closers}]+(?=[\\s${openers}]|$))`,
-    'g'
-  );
-  const splitsOnlyCjk = new RegExp(`^(?:[${allStops}]+\\s|[${cjkStops}]+[${closers}]*)$`);
-
-  // Start with a regex:
   const basicSplit = function (text) {
     const all = [];
-    // japanese/chinese text has no whitespace after its full-stops
-    const isCjk = hasCjkStop.test(text);
-    const splitReg = isCjk ? initSplitCjk : initSplit;
-    const onlyReg = isCjk ? splitsOnlyCjk : splitsOnly;
-    //first, split by newline
-    const lines = text.split(newLine);
-    for (let i = 0; i < lines.length; i++) {
-      //split by period, question-mark, and exclamation-mark
-      const arr = lines[i].split(splitReg);
-      for (let o = 0; o < arr.length; o++) {
-        // merge 'foo' + '.'
-        if (arr[o + 1] && onlyReg.test(arr[o + 1]) === true) {
-          arr[o] += arr[o + 1];
-          arr[o + 1] = '';
+    const isCjk = /[。！？｡]/.test(text);
+    const activeStops = isCjk ? new Set([...stops, ...cjkStops]) : stops;
+    for (const line of text.split(newLine)) {
+      let start = 0;
+      const arr = [];
+      const emit = (from, end) => {
+        arr.push(line.slice(start, from), line.slice(from, end));
+        start = end;
+      };
+      let i = 0;
+      while (i < line.length) {
+        if (!activeStops.has(line[i])) {
+          i++;
+          continue
         }
-        if (arr[o] !== '') {
-          all.push(arr[o]);
+        const runStart = i;
+        while (i < line.length && activeStops.has(line[i])) i++;
+        if (i < line.length && whitespace.test(line[i])) {
+          emit(runStart, i + 1);
+          i++;
+          continue
         }
+        if (!isCjk) continue
+        // A CJK stop ends a sentence without whitespace. Following closing quotes
+        // only end it when followed by whitespace, another opener, or end of text.
+        let j = runStart;
+        while (j < i) {
+          if (!cjkStops.has(line[j])) {
+            j++;
+            continue
+          }
+          const from = j;
+          while (j < i && cjkStops.has(line[j])) j++;
+          let end = j;
+          while (end < line.length && closers.has(line[end])) end++;
+          if (end === j || end === line.length || whitespace.test(line[end]) || openers$1.has(line[end])) {
+            emit(from, end);
+            if (end > i) i = end;
+          }
+        }
+      }
+      arr.push(line.slice(start));
+      // Preserve the existing merge behavior, including punctuation-only pieces.
+      for (let k = 0; k < arr.length; k++) {
+        const next = arr[k + 1];
+        if (next && (isCjk ? splitsOnlyCjk : splitsOnly).test(next)) {
+          arr[k] += next;
+          arr[k + 1] = '';
+        }
+        if (arr[k]) all.push(arr[k]);
       }
     }
     return all
@@ -6749,7 +7804,7 @@
   };
 
   const hasNewline = function (c) {
-    return Boolean(c.match(/\n$/))
+    return Boolean(/\n$/.test(c))
   };
 
   //loop through these chunks, and join the non-sentence chunks back together..
@@ -6895,7 +7950,7 @@
   const startWhitespace = /^\s+/;
 
   const splitSentences = function (text, world) {
-    text = text || '';
+    text ||= '';
     text = String(text);
     // Ensure it 'smells like' a sentence
     if (!text || typeof text !== 'string' || hasSomething.test(text) === false) {
@@ -6925,58 +7980,6 @@
       }
     }
     return sentences
-  };
-
-  const hasHyphen = function (str, model) {
-    const parts = str.split(/[-–—]/);
-    if (parts.length <= 1) {
-      return false
-    }
-    const { prefixes, suffixes } = model.one;
-
-    // l-theanine, x-ray
-    if (parts[0].length === 1 && /[a-z]/i.test(parts[0])) {
-      return false
-    }
-    //dont split 're-do'
-    if (prefixes.hasOwnProperty(parts[0])) {
-      return false
-    }
-    //dont split 'flower-like'
-    parts[1] = parts[1].trim().replace(/[.?!]$/, '');
-    if (suffixes.hasOwnProperty(parts[1])) {
-      return false
-    }
-    //letter-number 'aug-20'
-    const reg = /^([a-z\u00C0-\u00FF`"'/]+)[-–—]([a-z0-9\u00C0-\u00FF].*)/i;
-    if (reg.test(str) === true) {
-      return true
-    }
-    //number-letter '20-aug'
-    const reg2 = /^[('"]?([0-9]{1,4})[-–—]([a-z\u00C0-\u00FF`"'/-]+[)'"]?$)/i;
-    if (reg2.test(str) === true) {
-      return true
-    }
-    return false
-  };
-
-  const splitHyphens = function (word) {
-    const arr = [];
-    //support multiple-hyphenated-terms
-    const hyphens = word.split(/[-–—]/);
-    let whichDash = '-';
-    const found = word.match(/[-–—]/);
-    if (found && found[0]) {
-      whichDash = found;
-    }
-    for (let o = 0; o < hyphens.length; o++) {
-      if (o === hyphens.length - 1) {
-        arr.push(hyphens[o]);
-      } else {
-        arr.push(hyphens[o] + whichDash);
-      }
-    }
-    return arr
   };
 
   // combine '2 - 5' like '2-5' is
@@ -7039,27 +8042,23 @@
     return h
   }, {});
 
-  const isArray = function (arr) {
-    return Object.prototype.toString.call(arr) === '[object Array]'
-  };
-
   //turn a string into an array of strings (naiive for now, lumped later)
   const splitWords = function (str, model) {
     let result = [];
     let arr = [];
     //start with a naiive split
-    str = str || '';
+    str ||= '';
     if (typeof str === 'number') {
       str = String(str);
     }
-    if (isArray(str)) {
+    if (Array.isArray(str)) {
       return str
     }
     const words = str.split(naiiveSplit);
     for (let i = 0; i < words.length; i++) {
       //split 'one-two'
-      if (hasHyphen(words[i], model) === true) {
-        arr = arr.concat(splitHyphens(words[i]));
+      if (hasHyphen$1(words[i], model) === true) {
+        arr = arr.concat(splitHyphens$1(words[i]));
         continue
       }
       arr.push(words[i]);
@@ -7069,7 +8068,7 @@
     for (let i = 0; i < arr.length; i++) {
       const word = arr[i];
       //if it's more than a whitespace
-      if (wordlike.test(word) === true && notWord.hasOwnProperty(word) === false && isBoundary.test(word) === false) {
+      if (wordlike.test(word) === true && Object.hasOwn(notWord, word) === false && isBoundary.test(word) === false) {
         //put whitespace on end of previous term, if possible
         if (result.length > 0) {
           result[result.length - 1] += carry;
@@ -7106,34 +8105,50 @@
   const hasAcronym = /^[a-z]\.([a-z]\.)+/i;
   const chillin = /[sn]['’]$/;
   const isFullNumber = /^[(+\-]?\d+(th|st|nd|rd)?[)+\-]?$/;
+  const openers = { ')': '(', ']': '[', '}': '{' };
+
+  // does this closing bracket close one inside the word, like 'foo(bar)'
+  const closesInside = function (chars, start, end) {
+    const close = chars[end - 1];
+    let depth = 0;
+    for (let i = start; i < end - 1; i += 1) {
+      if (chars[i] === openers[close]) {
+        depth += 1;
+      } else if (chars[i] === close) {
+        depth -= 1;
+      }
+    }
+    return depth > 0
+  };
 
   const normalizePunctuation = function (str, model) {
     // quick lookup for allowed pre/post punctuation
     const { prePunctuation, postPunctuation, emoticons } = model.one;
-    let original = str;
+    const original = str;
     let pre = '';
     let post = '';
     const chars = Array.from(str);
+    let start = 0;
+    let end = chars.length;
 
     // punctuation-only words, like '<3'
-    if (emoticons.hasOwnProperty(str.trim())) {
+    if (Object.hasOwn(emoticons, str.trim())) {
       return { str: str.trim(), pre, post: ' ' } //not great
     }
 
-    // pop any punctuation off of the start
-    let len = chars.length;
-    for (let i = 0; i < len; i += 1) {
-      const c = chars[0];
+    // Locate the first retained code point without shifting the array.
+    while (start < end) {
+      const c = chars[start];
       // keep any declared chars
       if (prePunctuation[c] === true) {
-        continue//keep it
+        break//keep it
       }
       // keep '+' or '-' only before a number
       if ((c === '+' || c === '-' || c === '(') && isFullNumber.test(str.trim())) {
         break//done
       }
       // '97 - year short-form
-      if (c === "'" && c.length === 3 && isNumber.test(chars[1])) {
+      if (c === "'" && c.length === 3 && isNumber.test(chars[start + 1])) {
         break//done
       }
       // start of word
@@ -7141,16 +8156,15 @@
         break //done
       }
       // punctuation
-      pre += chars.shift();//keep going
+      start++;
     }
 
-    // pop any punctuation off of the end
-    len = chars.length;
-    for (let i = 0; i < len; i += 1) {
-      const c = chars[chars.length - 1];
+    // Locate the last retained code point.
+    while (end > start) {
+      const c = chars[end - 1];
       // keep any declared chars
       if (postPunctuation[c] === true) {
-        continue//keep it
+        break//keep it
       }
       // start of word
       if (isLetter.test(c) || isNumber.test(c)) {
@@ -7158,28 +8172,32 @@
       }
       // F.B.I.
       if (c === '.' && hasAcronym.test(original) === true) {
-        continue//keep it
+        break//keep it
       }
       //  keep s-apostrophe - "flanders'" or "chillin'"
       if (c === "'" && chillin.test(original) === true) {
-        continue//keep it
+        break//keep it
       }
       // keep '+' or ')' only for a number like (800) or 500+
       if ((c === '+' || c === ')') && isFullNumber.test(str.trim())) {
         break//done
       }
+      if (Object.hasOwn(openers, c) && closesInside(chars, start, end)) {
+        break//keep it
+      }
       // punctuation
-      post = chars.pop() + post;//keep going
+      end--;
     }
-    str = chars.join('');
+    pre = chars.slice(0, start).join('');
+    post = chars.slice(end).join('');
+    str = chars.slice(start, end).join('');
     //we went too far..
     if (str === '') {
       // do a very mild parse, and hope for the best.
-      original = original.replace(/ *$/, after => {
-        post = after || '';
-        return ''
-      });
-      str = original;
+      let last = original.length;
+      while (last > 0 && original[last - 1] === ' ') last--;
+      post = original.slice(last);
+      str = original.slice(0, last);
       pre = '';
     }
     return { str, pre, post }
@@ -7200,7 +8218,7 @@
   // 'Björk' to 'Bjork'.
   const killUnicode$1 = function (str, world) {
     const unicode = world.model.one.unicode || {};
-    str = str || '';
+    str ||= '';
     const chars = str.split('');
     chars.forEach((s, i) => {
       if (unicode[s]) {
@@ -7210,22 +8228,28 @@
     return chars.join('')
   };
 
+  // Inspect the trailing run once, including when punctuation occurs internally.
+  const trimPunctuation = (str, punctuation) => {
+    let end = str.length;
+    while (end > 0 && punctuation.test(str[end - 1])) end--;
+    return str.slice(0, end)
+  };
+
   /** some basic operations on a string to reduce noise */
   const clean = function (str) {
-    str = str || '';
+    str ||= '';
     str = str.toLowerCase();
     str = str.trim();
     const original = str;
     //punctuation
-    str = str.replace(/[,;.!?]+$/, '');
+    str = trimPunctuation(str, /[,;.!?]/);
     //coerce Unicode ellipses
-    str = str.replace(/\u2026/g, '...');
+    str = str.replaceAll('…', '...');
     //en-dash
-    str = str.replace(/\u2013/g, '-');
+    str = str.replaceAll('–', '-');
     //strip leading & trailing grammatical punctuation
     if (/^[:;]/.test(str) === false) {
-      str = str.replace(/\.{3,}$/g, '');
-      str = str.replace(/[",.!:;?)]+$/g, '');
+      str = trimPunctuation(str, /[",.!:;?)]/);
       str = str.replace(/^['"(]+/g, '');
     }
     // remove zero-width characters
@@ -7242,10 +8266,10 @@
   };
 
   // do acronyms need to be ASCII?  ... kind of?
-  const periodAcronym$1 = /([A-Z]\.)+[A-Z]?,?$/;
+  const periodAcronym$1 = /^([A-Z]\.)+[A-Z]?,?$/;
   const oneLetterAcronym$1 = /^[A-Z]\.,?$/;
-  const noPeriodAcronym$1 = /[A-Z]{2,}('s|,)?$/;
-  const lowerCaseAcronym$1 = /([a-z]\.)+[a-z]\.?$/;
+  const noPeriodAcronym$1 = /^[A-Z]{2,}('s|,)?$/;
+  const lowerCaseAcronym$1 = /^([a-z]\.)+[a-z]\.?$/;
 
   const isAcronym$2 = function (str) {
     //like N.D.A
@@ -7289,7 +8313,7 @@
   const parse = function (input, world) {
     const { methods, model } = world;
     const { splitSentences, splitTerms, splitWhitespace } = methods.one.tokenize;
-    input = input || '';
+    input ||= '';
     // split into sentences
     const sentences = splitSentences(input, world);
     // split into word objects
@@ -7307,7 +8331,7 @@
   };
 
   const isAcronym$1 = /[ .][A-Z]\.? *$/i; //asci - 'n.s.a.'
-  const hasEllipse = /(?:\u2026|\.{2,}) *$/; // '...'
+  const hasEllipse = /(?:\u2026|\.{2}) *$/; // '...'
   const hasLetter = /\p{L}/u;
   const hasPeriod = /\. *$/;
   const leadInit = /^[A-Z]\. $/; // "W. Kensington"
@@ -7334,7 +8358,7 @@
     const words = txt.split(' ');
     const lastWord = words[words.length - 1].toLowerCase();
     // check for 'Mr.' (and not mr?)
-    if (abbrevs.hasOwnProperty(lastWord) === true && hasPeriod.test(str) === true) {
+    if (Object.hasOwn(abbrevs, lastWord) === true && hasPeriod.test(str) === true) {
       return false
     }
     // //check for jeopardy!
@@ -7785,8 +8809,8 @@
     const str = term.normal || term.text || term.machine;
     const aliases = world.model.one.aliases;
     // lookup known aliases like '&'
-    if (aliases.hasOwnProperty(str)) {
-      term.alias = term.alias || [];
+    if (Object.hasOwn(aliases, str)) {
+      term.alias ||= [];
       term.alias.push(aliases[str]);
     }
     // support slashes as aliases
@@ -7797,7 +8821,7 @@
         arr.forEach(word => {
           word = word.trim();
           if (word !== '') {
-            term.alias = term.alias || [];
+            term.alias ||= [];
             term.alias.push(word);
           }
         });
@@ -7835,12 +8859,12 @@
   // sort words by frequency
   const freq = function (view) {
     const docs = view.docs;
-    const counts = {};
+    const counts = Object.create(null);
     for (let i = 0; i < docs.length; i += 1) {
       for (let t = 0; t < docs[i].length; t += 1) {
         const term = docs[i][t];
         const word = term.machine || term.normal;
-        counts[word] = counts[word] || 0;
+        counts[word] ??= 0;
         counts[word] += 1;
       }
     }
@@ -7954,14 +8978,13 @@
     if (docs.length === 0 || Object.keys(prefixes).length === 0) {
       return
     }
-    const lastPhrase = docs[docs.length - 1] || [];
-    const lastTerm = lastPhrase[lastPhrase.length - 1];
+    const lastTerm = docs.at(-1)?.at(-1);
     // if we've already put whitespace, end.
-    if (lastTerm.post) {
+    if (!lastTerm || lastTerm.post) {
       return
     }
     // if we found something
-    if (prefixes.hasOwnProperty(lastTerm.normal)) {
+    if (Object.hasOwn(prefixes, lastTerm.normal)) {
       const found = prefixes[lastTerm.normal];
       // add full-word as an implicit result
       lastTerm.implicit = found;
@@ -7982,9 +9005,8 @@
     if (docs.length === 0) {
       return this
     }
-    const lastPhrase = docs[docs.length - 1] || [];
-    const term = lastPhrase[lastPhrase.length - 1];
-    if (term.typeahead === true && term.machine) {
+    const term = docs.at(-1)?.at(-1);
+    if (term?.typeahead === true && term.machine) {
       term.text = term.machine;
       term.normal = term.machine;
     }
@@ -8009,15 +9031,15 @@
       for (let size = opts.min; size < max; size += 1) {
         const prefix = str.substring(0, size);
         // ensure prefix is not a word
-        if (opts.safe && world.model.one.lexicon.hasOwnProperty(prefix)) {
+        if (opts.safe && Object.hasOwn(world.model.one.lexicon, prefix)) {
           continue
         }
         // does it already exist?
-        if (existing.hasOwnProperty(prefix) === true) {
+        if (Object.hasOwn(existing, prefix) === true) {
           collisions.push(prefix);
           continue
         }
-        if (index.hasOwnProperty(prefix) === true) {
+        if (Object.hasOwn(index, prefix) === true) {
           collisions.push(prefix);
           continue
         }
@@ -8025,7 +9047,7 @@
       }
     });
     // merge with existing prefixes
-    index = Object.assign({}, existing, index);
+    index = { ...existing, ...index };
     // remove ambiguous-prefixes
     collisions.forEach((str) => {
       delete index[str];
@@ -8044,7 +9066,7 @@
 
   const prepare = function (words = [], opts = {}) {
     const model = this.model();
-    opts = Object.assign({}, defaults, opts);
+    opts = { ...defaults, ...opts };
     if (isObject(words)) {
       Object.assign(model.one.lexicon, words);
       words = Object.keys(words);
@@ -8053,7 +9075,7 @@
     // manually combine these with any existing prefixes
     Object.keys(prefixes).forEach(str => {
       // explode any overlaps
-      if (model.one.typeahead.hasOwnProperty(str)) {
+      if (Object.hasOwn(model.one.typeahead, str)) {
         delete model.one.typeahead[str];
         return
       }
@@ -8096,26 +9118,27 @@
 
   // generated in ./lib/lexicon
   var lexData = {
-    "Conjunction": "true¦а,будJгде,да,есIзаJиGкFлибо,нEоDп8словHт4хот3ч0;ем,то0;!б0;!ы;ь,я;ак1о0; есть,же; 0же;как,чB;о2ри0;том,ч0;ем,ём;ка,тому0этому;! ч6;днако,ттого;еже3о;ак,огда;!бо,ли,мен0;но;ли;то",
-    "Preposition": "true¦бQвLдKза,изIкHмEнаAо9п3раMс0у,через;!в1квозь,о0пустя,реL;!гласно;ерх,ыше;ередOо2р0;и,о0;!т7;!дLзаFми8с0;ле,ред0;и,ством;!бIколо,тI;!встречу,дHкануне,п1сч0;ет,ёт;ерекор,одобие,рот0;ив;еж1и0;мо;!ду;!о,роме;!-0о;за,под;ля,о;!близи,доль,место,н2о1пере0роде,след;ди;!зле,круг,преки;е,утр0;и,ь;ез1л0;агодаря,из;!о",
-    "Adverb": "true¦0:16;абсолют0б11в0Nг0Lд0Eещ0Dз0Aиног0Qк07л05м01нRоNпFрDс7т5у4х3ч1;ас0Lуть1;!-чуO;орошо,уже;же,тр0S;ам,еперь,иHруд0у1;да,т;е5зади,ко0Vл3н2ов1пра4разу,ю0J;ершVс04;ачала,о2;е1ишк0M;ва;годня,йчас;ан1ед0Sяд0J;о,ь0P;ло7о2р1;имер0ос06ямо;-3з2лностBслезавт07т0Fч1;ему-04ти;авче05д0же;англий1моему,рус1;ски;хо;быч0пя3с2т1чень;деVсю02ту02;ен3обE;ть;а6е4и2оч1;ью;г06к1;огWуW;дав0м1;а8ноL;вер3зад,конец,ле2пр1;а1имер;во;ное,ху;а3е1ноG;дл1нь01;ен0;ло;е1учY;гZтQ;ак-Fо1райLстати,уда-F;гда-1неч0;нибудь,то;а1десь,имO;втDт1;ем;е,ё;ал6ействите5н4о1;во4л2м1;а,ой;го;ем,ём;ль0;еLьJ;де-1ромK;то;верхDдруг,е8месте,низDо7п4с2че1;ра;ег1юду;да;ер2ол1;не;ед,ёд;змож0обще;з4с2чер1;ом;н1ьма;ой;де;!у;ли3оль2ыст1;ро;ше;же,з1;ко;но",
-    "Pronoun": "true¦вLеKиJкEмBн5он4с1т0что-Gэто,я;еб2о1ы;еб1о0;боA;е,я;!а,и,о;аJе4и0ём;к1мJх,ч0;е9то;ем,о0то;го,му;го,е,й,м7ю,ё;еня,н0ы;е,о0;й,ю;ем,о2то0;!-0;нибудь,то;го,м0;!у;м6х;го,е,й,му,ю,ё;а3с0ы;е0ю,ё;!го,м0х;!и,у;м0с;!и",
-    "FemaleNoun": "true¦б0Aв06гр03дZе01жиз0Dзеле0DкVлTмKнIоFпBр9с5т3це2ч0шерс08ще01;ас07е0;с06тв6;пь,рK;е0ка09;нь,тра00;вяYе02ире07корSм2оVт0;а0еп9р00упе06;ль,рQ;ерZ;адOеQо0ысь;жь,ль;амяWеч1лощаTо0ропVыP;моWстеO;а0ь;ль,ть;б1с0череP;еWь;лPуT;иPо0;вEчь;а7е5о1ы0;сFшь;лод1р0;коN;е0ё0;жь;беAд0теA;а9ь;зь,ть;адоJеJо0юбоH;жь,шаA;азHосCр0;еп1ов0;аAь;ос9;а2верь,ета1о0;чь;ль;ль,нь;а9у1я0;зь;дь;е2л0;ас0;ть;щь;ол1ро0;вь;ез0ь;нь",
-    "AnimateNoun": "true¦а29б21в1Rг1Kд1Gе1Eж18з16и12к0Pл0Lм0Dначальн0Uо07пVрSсHтFуBфAх7ц4ч1шофUщен15электр0Uю0яще0Qёж;ноша,ри2D;е0ита1W;ловек,мпиLр0;вь,епаH;а0ыплV;пля,р0;и0Kь;о0удожн0M;зя0мяк;ин,й1Y;ерм0Tотог10;лит1Wт1Wч0;ени1итель0;!ни0D;к,ца;е0игр,оварищ,ури1YюлWётя;лJтя;в8е7л6о4порт1Lт0уд9ын;ар1р0удент4;аус,ои1E;ик,у0;ха;ба1Lва,кол,лд1Sсед0;!ка;он;крета0Hст12;ин0ященн03;ья;абFе0ыбак;б6да1Gжисс0;ер,ёр;а8е6и5о3р0тиVче0Tёс;е1о0;грамми1GдавCфесс1I;зидеGступнV;вZдру00купа0Yпугай,рос0эт;ен04ён04;л0Dнгв0Mса0W;в0реводчRс,т3;ец,иN;нда,па,р7с0;саж10т0;ух;безья05вJл4р13с3т2фиц1х0;отнL;ер,иа5;ец;ел,ёл;ень;а6е4инистр,о3у0ышь;ж1зыка0рав0Iха;нт;!чиW;нах,рж;д0ханB;ве4сест08;льч9ма,ть;е1и0Rо0яг0Lётч8;сь,ша1;бе0опард,тч6;дь;абан,енгуру,нязь,о5р2у0;ри0;ца;о0ы0K;кодил,л0;ик;з5лле4м3нь,ро1смонавт,т0ш0C;!ен8ён8;ва,л0;ева,ь;ар;га;а,ел,ёл;гр2н0;дюк,жен0;ер;ок;аяц,ве0ебLмея;рь;ен3и2у0;к,р0;авOнали03;раф;а,щи0;на;ж,н0;от;е1иреTо0руг,ядя;ктYчь;в0дOльф5путW;очOушO;е5ид,о0усь;лубь,рил3с0;по0ть;д0жа;ин;ла;нерал,рой;ерблюд,ну8о2ра1ыд0;ра;г,ч;ди3лк,р0;!о0;б0на;ей;те0;ль;к,ч7;а2ел6изне1о0рDык;бр,г;смен;б2нк1р0;ан,сук;ир;уш0;ка;вт6двок5и4кт2нг1рхите0;кт5;ел;ер,ри0ёр;са;ст;ат;ор",
-    "MaleNoun": "true¦аZбукXвоевода,гTдRевро,журав00зPкJлIмGнEоDп9р7с4т3у2фонаYцирку00ч1шимпанзе,юноша,я0;коXнтаX;ервь,ита8;ровеLчи7;опоWюлеK;л1пектакVт0ухаT;аршBиU;оQуга;емеGу0;бRль;а1еEиса0ортDуG;теP;па,р0;еBоN;гоAлеA;о0уL;гоAль;едвеFужч0;ина;агеFебеDоко7;а2енгуру,исеGо0ремG;н0ре3фе;троEь;лендаBме1рто0;феC;нь;ве8я0;ть;е0ож4ядя;душка,нь;воз2о0усь;лубь,с0;пита4ть;дь;ва0;рь;втомоби0нсамб0;ль",
-    "NeuterNoun": "true¦алоэ,бю9видео,депо,ж8интервью,к5ме4п2р0такси,фо3шоссе;а0езюме;гу,дио;аль0иани3юре;то;ню,т4;а1и0;но;као,фе,шне;еле,юри;ро",
-    "MaleName": "true¦0:2C;1:2D;2:29;3:24;spencer,а1Wбо1Uв1Eг18д12е0Vжд3зинов0и0Oк0Gл0Cм06н01оZпTрQсGтCурб3ф5х4;ар0Mриса0T;адд1е8и5о4рол,ёд1J;ка,ма,т0;л4рс;ат,и4;м2пп;до4ликс,октист;с1т;арас,и5р4;иф2оф1T;м4т,х2;оф1ур;аBвятоAе8ил7о6п5т4;анTеп3;енсер,ирид2;з2фр2;а,ьвесD;васть1Bмён,р4;аф1Kг1;полк,с0Y;в4му0S;ва,ел0;азумник,о4усл3;д4м3стJ;и2ос0T;а7лат2о6ро5ё4;тр;в,коп0т15х0T;ликарп,рфир0тап;вел,ис0н4рф16фнут0хом0;крYтелейм2;лег,н4;ис16уфр0;азар,ест0Nик4;ан6и5о4;д13лYн;та,ф0K;др,ор;а6еле1Bи5ст4;ис0E;на,рос0Dтроф3ха08;гистри3к5моEр4тв1;к,тын;ар,с0V;авре15е5огг11ук4;а,ий,ь0J;в,он4;ид,т0;апAи8лиме7о5у4;зьма,при0F;н4рн0A;дрOон,стант0U;нт;м,р4;!илл;ит2;аки9в3г7зот,лья,нноке0Tр6с5у4;да,ли3;аак,идY;акл0ин1;н4орь;ат0;нф;в7гTмель01р5ф4;им,рем;ем1мол4оф1;ай;г5док07с4;ей,таф0;ен0раф;ан8е6митр0о4;брыня,н4роф1;ат;м4нT;ид,ьQ;аJи9;а7е4леб,орд1ригор0;лRннVорг0р4;асWман4;!н;ври4лакти2;ил;аDенBи8ла4севолод,ячес7;д4с;и4лен;мир,с4;лав;к4ссари2тал0;еXт4;ор;еди4иамR;кт;вила,дIле6р5с4;ил0;лам,соноф0фолом1;нтMр4;ий,ь4;ян;гд3р4;ис;вKгаIкGлCн9р5фан4;ас0;истарх,к6с5т4хипп;ем0ур,ём;ен0;ад0;атол0др1икита,тон5ф4;им;!ин;екс6ь4;берт,ви3;ан;андр,ей;ак0инд4;ин;пит,ф2;он;д1ксе4;нт0;ий;ей",
-    "City": "true¦0:37;1:30;2:2W;3:2U;а2Yб2Fв25г21д1Uе1Sжуков29златоуст,и1Qйо1Oк16л11м0Tн0Gо0Dп08р07сQтNуLфKхGцFчAш7щёлко3э5южно-сахал2я4;к1Qнг2Dрослав01;л4нгельс,р-рияд;ектростаZис2Z;а5энь4;чжэ1ян;нх8хты;е5и4унц1Fэнду;каYта;боксары,ляб2нн5р4;еповец,кес0;ай;зина1индао;а4им28ошим19ьюст21;бар0Kйдар2Mн5р4савюрт;б17тум;ты-манс13ч1M;иладельф2Uоша1укуо1J;л4ссур11фа,ха1;ан-удэ,ьян0F;а5верь,егер2Sо4у15юме1яньцзи1;бо2Kкио,льят22м0ронто;ганрог,мб0U;аGеAи9мол1Vо0Xт7у5ы4;з04ктывк0N;р4ч1D;ат,гут;а4ерлитамак;вр9мб20рый оскол;а1мферопo9нга0G;в5р4ул;гиев пос26пух0L;аст5ер4;одв2ск;опо4;ль;лават,м14н5ра4;н0т0F;-паулу,кт-петер0Rтья4;го;аменск18еут0Cио-де-жанейро,остов-на-дону,убцUыб2яза1;ариж,е5одо20рокопь24ск0Bу4ятиг07;на,шкино;к0Fнза,р5тро4;за07павловск-камчат11;воура1Wмь;бн2динцо3ктябрь0Zм0р4са0Q;е4ск,ёл;н0Hхово-зуе3;аEеBижн8о4ью-йорк;в4г2ри1Rябрь0;о4ый уренгой;кузнOмоскIросс03сибир0че4шахт2;бокс1Qркас0;е5ий 4;н0Uтагил;вартEк6;винномыс0фте4;к4югA;ам0;бережные челны,гоя,з4льчик,нкYход0C;ра1;а9ехико,и7осква,у4ытищи;мбаи,р4;м4ом;ан0;асс,хайл4;ов0;гнитогGдрид,й4ниTхачкаT;ами,коп;а7и5о4уан0Aюберцы;нд0Fс-анджел0H;ма,п4;ецк;гос,х0T;аFеEиBоAрасно7у4ызыл;ала лум5р4;г17ск;пур;г5д4яр0;ар;ор0;вр6лом0Hмсомольск-на-амуре,пей0ролёв,строма;ншаса,р5сло4;вод0;ов;меро3рчь;за1ир,л8м6ра5сп4;ий0;чи;енск-уральRыш4;ин;ининCуга,ькут0I;ханнес8шкар-о4;ла;вано3ж0Mрк4;ут0;впатор0Mкатерин4ссентуW;бург;а7е6жакар0Bзерж2имитров5о4унгуа1;лгопрудBмодедо3;гр08;ли,рбент;к5л4р-эс-салам;л0Aя1;ка;вадалах6онконг,роз5уанч4;жоу;ный;ара;ашингтCеликий нBиднAлади9о4;л4ронеж;го6ж5ог4;да;ский;грUдон0;востMкавказ;ое;овгE;он;аDе7ий0лаговещ6огоQр5уэнос-айр4;ес;ат0ян0;ен0;л6р4;д0езни4;ки;г5у-оризон4;ти;ород;гдFлаAнг7р4тай0;на5село4;на;ул;ал5к4;ок;ор;ко3шиха;во;бакHлDнгCр9страха1тлан7хмед5ч2;ин0;аб4;ад;та;нь;зам5мавир,ханге4;ль0;ас;ар0;ександр6ьметь4;ев0;ск;ия;ан",
-    "Ordinal": "true¦в4де1п0сед5третий,четверт3шест6;ерв2ят2;в0с0;ят0;ый;ос0тор1;ьм0;ой",
-    "Cardinal": "true¦восVдKмиллиIоDпятBс7т2четыр0шестA;е0нYёх;!с4х;р1ысяч0;!а,и,у;ех,и0ёх;!дNнTс0;та;ем2орок1т0;а,о;!а;и,нOьM;и0нNьL;!десяE;б3д0;ин1н0;а,и,о;!нI;а,е;ард0он0;!а,ов;в4е0;вя0сят8;носто,т0;и,нBь0;!с9;а2е0ух;!н8с0;ти;!д0;цат0;и,ь;ем0ьми;н2ь0;!десят,с0;от;адцать",
-    "Country": "true¦0:3G;1:36;а2Yб2Jв2Bг1Vд1Rегип1Qз1Oи1Hйемен,к16л12м0Qн0Gо0Eп08р03сMтGуFфCхорват0центральноафрикан1TчAш8э5южн3я2;май1п0J;ая 2ый суд3D;аф17кX;ква3ритр09с2фиоп0;ватини,т0F;д27ториальн06;ве2ри-ланка (ранее цейлон);йц2Hц0;ад,е2иG;рногор0х0;арер2Kедеративные штаты микронезии,и3олкленд2Kранц2;ия,узская поли1B;джи,липпKнля1M;ган2Sзбе7краи2Pоллис и футу2PруX;а5иб1Bо4ринидад и тоба1Fу2;валу,нGр2;км2Kц0;го,кел1Oнга;джи2иланд (ранее сиам),нз2V;ки2F;аGвазиленд,е8и7лов6о3у2ша,ьерра-леоне;д2Tрин1Q;единённ3ломон09ма2;ли;ое королевст0Mые штаты америки;ак0ен0;нгапур,р0;верн6йшель23н2рб0;егUт-2;винсент и гренад3китс и нев2люс0;ис;ины;ая 2ые марианские;к2макL;орE;львад1Dм2Cн-2удовская арT;марино,томе и принсипи;е4осси3у2;ан23мын0;йская федерац0я;спублика ко2юнь15;н0Oр7со05;а3еIо2уэрто-риQ;льша,ртуг0A;ки1Qл0Xна1Hпуа — нов3ра2;гвай;ая гвин2;ея;бъединённые арабские эмираты (оаэ),м22строва к2;айм21у1;а9еп8и6о2;вая 2рвег0;зела0Iкал2;ед2;он0;гер2карагуа;!ия;ал;миб0у2;ру;а5екси1о2ьян11;замбик,лд3н2;гол0тсеррат;ав0;ври8дагаск09йотта,као,л5р2;ок3тини1шалл2;овы11;ко;а3и,ь2;дивы,та;ви,йз0;кий,т1E;а4есото,и2юксембург;бер0в2т0Vхтеншт0S;ан,ия;ос,тв0;аAен0и7ндр,о3у2;ба,вейт;лумб0мор0Oс2т-д'ивуV;о3та-2;ри1;во;пр (остров),р3тай2;!ская республика (тайвань);гиз0ибаW;бо-верде,зах0Lм2на0SтO;боджа,ерун;зраиль,нд6орд0Yр4с3т2;ал0;лаHп0W;а2лаG;к,н (персV;ия,о2;нез0;а2имбабве;мб0падная саха0K;ет;ан0емократическая республика кон4жибуJоминика2;!н2;ская республи1;го;аEв9ерм0Kибралт8о6р2уI;е2уз0;н2ц0;а09ла2;нд0;н2сударство палес03;дурас,конг;ар;а5и2;а00нея2;!-бис2;ау;делупа,тема04;б3и2йаWмб0на;ти;он;а8е6иргинские острова4осточный тим3ьетн2;ам;ор;! (великобритан2;ия);ликобритZн2;гр0есуэU;нуату,тикан (святой престол);аBе9ир8о5р4у2;р2тW;кина-фасо,унди;азил0уней;л2сния и герцеговиHтсваH;г2ив0;ар0;ма;л2нин,рмуд5;из,орусс0ьг0;гам3нгладеш,рбадос,хр2;ейн;ские2; остро2;ва;встрJзербайджIлGмерикаEн7омынь,р3фгани2;стH;ген3м2уба;ен0;ти2;на;г6дор5т2;аркти1игуа и барбу2;да;ка;ра;илья,о2;ла;!нское сам2;оа;б2жир;ан0;ан;ал0ия;ия",
-    "Infinitive": "true¦0:SX;1:T1;2:RW;3:SW;4:RP;5:RL;6:T0;7:SV;8:QD;9:QG;A:QA;B:ST;C:RH;D:R2;E:Q5;F:QH;G:PZ;H:S6;I:SR;J:RX;K:JY;аSZбS8вNBгMUдLOеLNжLJзIYиHQкGVлGNмGDнEYоC9п60р4Dс1Wт1Kу05ф03хZцUчQшNщMэкLявR3;о1WспI8;иJKёлкG;агGеMи0оSJуL;ме0ти0;вF3пSE;еMиLувс4B;ни0сFта1;рLса0;пGти0;арOвес5еMиL;ркуSVтиB;лLни0;и2о6;и0сH;арактеT3ваNлоJ7муLWоMраLуQS;ни1пе0;ди0роLCте1хоS2;ли0с9AтA;иLлирSEо1KунGX;кIVнанIV;б0Wв0Rг0Pд0IеOIж0Hз0Gй5к0Bл09м07н06п00роL8сRтPхOцеQTчL;асHес0итL;ы3ьL;/науP0ся;аDCоEудшBL;вA6ешAоLраNU;ну0чн8;а6MвELес2илиKк45лыA1мехOFоSпQтLыIU;аNрLупA;аLои1;и6н8;вLнCDть;а0и2ля2;е4окL;аи6ои1;верше2EмJF;аPеOKи6PлаFоNрLусN7;аLоNC;вGLзIG;мLтHY;иIXяD;кS8с0;ес5ичтKRоPOы3;еLиMBнKQол8ыD7;ньшR5ре0ть;авORетQ7оLучшAыбNX;ви0жи0;аз3GлаPXорOрL;аLепCы4;сLша0;и0ть;аJSоF;акоDOна4;аM9иO1;аQвDUеPивHAоL;влетв3DстLчN;аи3оL;вLи0;ер8;л8ржJ9;ва2лN4р8тьJ;ад7оLроPX;вJCди0жMLсFща0;аPVеOиде1леNоL;ди0зи0лL;и1ьня1;ка1чьRR;з5лиC8р8с5;еLиGVра0;га0ди1жL;а0да1;аVвUеSоOрLуLOя6X;аMеLоQBу6ZясKF;бо6воP2ниB;нсR3ти0;лкNну0пMрLсFRшJP;го3моKSо6Yча0;и0та0;а0ну0о3;рLсIчь;е0пе0я1;ерEоKU;нце3сMVя0;а20б1Zв1Rг1Qд1Oе1NжIDи1Mк1Eл1Aм17н15о0Iп09р06с05тVуTфоRхPчOши0ъеNыMэкоL;ноDS;гL5па0;зD4с0ха0;ес0и3P;ватLоJX;и1ы9;куGWрмLтографиB;иQEуQM;ди0мLну0ши0щ5K;е0миB;аRеQиPоOрLу6L;аMеLиI3ои1;ля0ми2;да0хо3;и0лкI4на0я0;муQEра0;ли0ре0с6H;ви1лки9нMрLть;а2е0то3;оN9це3;оJEыла2;аLы6;бL6внLжа2зи2ть;и4я2;аRеQис7лаK9оOрLусAK;аMоLя33;воFTси0;вNZши3;ри0с69тL;кHPыML;ть,циализиPRши0;сLть;а1тиOM;б05в01гYдеXедBNжWзVйJ6к57лUмне9оSпроRрQсOтMх1YчL;е6Hин8;ворLруд6J;и1я0;а0ла2редотоAQтLущ4R;авCоя1;ва1евно9тиB;воN9тивля2;бLтвеP7;раMVщOV;га0и0;даKна4ре4;аNSра0;йсHржа1;лаLну0реK0;сLша2;и2ов7;а0еLмеKNокупNCпаM3ра0;ршLто6;а1еLи1;нсH;и1NлюLра1;да0с5;ес5иLоMYя1;жа1зи1ма1тьJ;еMирMBоLуF9яAR;ло0нIт5Hчь;нKSри0ть,шKRя2;едNиKо64уMыL;ха0ша1;жи0ч86ша1;и0о3;аQлPоLрыKуNR;льзNмMнLпиB;цCZча1;биJ1прD5;и0ну0;ады6еи0онLZ;зLка0ти0чи3;а1ы9;г2Uде0я0;р4Lс0я0;аKеLохDыNJ;ла1ржKB;иба0орMZ;аRеQиOоLязJE;ди1рL;аGNоL;ва0ти0;д8UстL;е0ну0;ркGсHRти1;лиKри0та2;еKBи4р8C;ди2жа0нCO;а00ва1еTжаJWисRоPуMыL;да0тьOS;би0га1ководLли0хDши1;и0сL;тво6;ди1жLня0;а0да2;кLо3;ну0о3;аPвOгNд7LзMкLм7Kф1OшNC;лаHLомендо6;а0ерNXюHK;иHHуO1;е0но3;гиBлизовL;а0ы6;боNAв41до6з04ни0сL;к01пWсPтMходLчес7шир8;и2о3;аMвLеря2и,роDB;ор8;моEDя0;ер3Lк6LлPмOорIпрGMтLужIXчитIIыпа2;аMрL;аи3ел05ои0;в7SтьJ;атри6отEO;абLеNJ;и0ля2;ахJ6оNрLусIM;е2WостL;ранJ5;з7Mл2QрL;о0я0O;аLлаLIры4;и9чL7я2;б04в01гZдWлUмQоOрMъед94ыL;гр7скIY;абIAеLушAы3;за0шMI;бLй0NчарNH;ра1;еMыL;сHRшBO;нLсFшIRща0;и3я0;иLоL1уч67;ва2тьJчGP;аMеLражA;ва2лINтьJ;вGMтьNF;лLоваEW;а2DядIO;еMиKлеKIоLяз7;ди1раEB;р2LсLIши3;иMрLуE;а6QоHE;ва1ра1тьN7;а5Rе5Eи5Cл5Aну0о29рOуMыL;ли2та1;блиBDга1сHQтL;а0еш1M;а24е1Eи0PоMыC3яL;та1;а0Mб0Kв0Iг0Bд07еIHжи4звуLBи03й5к00летKVмZнXпWрVсQтMхоEциIчLшепLXща1явC7;ес0ит7;еNивLяIH;и2оL;дL2постJWреIYст7N;ка0сM6чь;иOлNм1Fпа0тLыHQ;и1оIQуL;ди2жа2;авK8еE;ть,я0;абH8ва2ы9;аганM6ис7усHA;есLикGоBI;тись;алE7олKW;ашAMоL;ммM7нL;суA6тA4;гр7зMлB6нфLс1I;орFI;вLн4Uой5;естиMEоF6;аKвиFHеMикLOлLолжL5ум7;е3и1;кFCл7мL;нFAонFA;лQнPоOрNуL;де0лL;и9я2;амF8еме0;вDMло83ня0;а0оLQ;аGNоFядHE;а5UеEVоL;ди1жа0згла11циB;еHGи4оLу8N;ва0рмоKW;наLJ;б07в04г02д00еHEжZзYйERкWлVмUнTоSпQсMтворILуLхоEPч78щемC;краK1чA;аNв7Mес0лMни2оединIJпосLтупAуKYыFW;абI9оF7;а0ушJ6;жи9;арA0оL;дн0GмHM;бреC7сI2ткры4;адлеJPес5иIAоIXу8Bя1;енGUкDыH7;аANетJHоJ4;аз7рL;епCы4;ва0емлI7наKы3;а1иI4;а4ержIUиLра2ум7;ра2;ла0FоL;вCVди2ж79тоET;атиKZеMлеIJоLыкGяз7;ди1зи0;з5сE5тсH;авCеGQи4лиLы4;жа2зи2;бы4в07дQкраIAнебре6IоOпNрMс9Iт1BуL;вели6FменьшAспе4;ва1ы6;ода4яK8;бLдоле4;лаFTразKV;а4виINл00назн7HоWпRстOуMчуAKшLъявC;есH;пре7NсмL;атCHотBK;аLоя0;вLть;а0и1ля1;оMринL;иIOя0;лMчL;ес0иJP;аF5ожи1;преNставMтвLхра0E;раAB;и0ля1;дел8;аF0оI4;зой5осMраHNыL;си0ша0;хоE;ви0зд6Vктико6;б2Iв2Bг27д1Nе1Mж1Iз1BисG1й1Aк13л10м0Wн0Uо0Sп0Mр0Hс01тRужиGEхPцело6чNшMщиAHяL;вHXсн8;ев61уF;еEKиLти0;ни0сFта0;ваLлоACоEуHX;ли0с0H;еSороRрMуECяL;ну1;еNуMясL;а0ти;ди2;бLвоHN;и0ля0о6;пи2;рLть;е0я1;аEвZеYкаFKлWмUоTпоRра0соCPтLчи06ыE1;аOесNи2оя0рMуL;пAча0;аENои2;ня2;вCрL;а2е0;ри0сL;обсH;вето6дHXли0;е0отL;ре1;а0еJ5уLыша2;жи0ша1;лGAти0ща0я0;аRя97;аOва0еMоE9ти1учAыL;ва0тьJ;за0комL;енIY;жа0зи0ни0;аPолз5рMыL;та2;авCоLы8E;бо3си0шайL;ниHM;да1с1;беLщр8;да0ща0;адLесC1иH1раFQюHKя0;ея2оби2;еNиBUни0оLучи2ча2ы0;га0ли2чL;и2ь;ня1сFти0ча0ша0ща0;аDFеMз5и4оLучHTьFOюCE;жи1ма0;з0те0чи1;аQиPлOоNрMуL;па0ри0са0ша0;асI5у92ы4;ле6QнEXр8;о9Nяс2;да0ну0;зD3ти1ча0;ма0ти;аPвNдMнаL;ва0к83ть;о87рFO;а0оL;л8ни0;бо1DвLимсH;иI1тA4;аMеLиGD;ва0ла0рH;лLть;е0о6;да0с0ха0;а03б02вWг7HдVеUкл6TлеGFме8WнTоSписCPраQсPтвOуNх0PчMъеDVыL;ша0;еC6инDJ;ма0ть;ер4X;к0NлушDF;жа0зLтьJ;ни0уме3;бC3жCWзре3й5;иERя1;йсHлAшеD7;а2WержD9;еNиMоL;ди0ра9N;га2ну2;рLс5;гLну0;а1ну1;ад9Eи72одH1;вDNри0ть;аF3ибGлNоMруL;жа1зи1;воGXди0;о7DядD2;аBVеOзросFIиNлия0оMреEторCXыL;си1ша1;зи2ра8O;но9сG;д7з5рMсL;и0ти;и0ну1;еLи4лагодаGOри2;ди0жLре8N;а0да0;аLе3ы0юD;ва0ка0ниGRти0;ли0на0са1тL;а1ь;реLть,чаG9;бVвSдRеCSжи4й5кус73меC3нQсOтNхMчL;иB3у6S;в70оE;ерпе0ь;еEDкLпр9Mта4;аз7;ес5оEE;аKвиA8ел7ум7;еMоL;ди0зи0ра8O;з5рDс5;и66ра0;да0ко3рLс0хD;ал42ко3;б1Hвл8Kг1Dд1AжиE2зна19к16п0Uр0Tс0GтQформCхNцениKчMшибLщуDZ;а2и2;арGNиBNну2уN;арактер3Yв6LоMрL;ан8ипD;ти2;б07в04гад7д03зы6к01л00меZнYоWпUрPсNтLхоEыскBX;алки3олкDяL;ги3ну2;леAWтLуFR;а2Fоя0упA;аOеLица0ы6;агиBдMза0мL;онI;акI;бB1жа1зи1;раLусB3;в5Nзд2T;браLз6й5мсFр6;жа0зи0ть;ес97иE7оBCя0;н8ти1ча1;ичF3оDT;азALлLрыK;аDWикBUон8ючA;а4елBFохDыEL;еLлеDDоEO;з5рLс5ти0ча0;гGну2ты9;иA1рL;аLоDC;сы3;вUкорбCлабCмSнRозQп7IтMуL;ди0жAQществ57;аLри74у1W;вMнLтьJ;авли6о9C;а2и0ля0;на4;аAMовA5;ат7BеLот6E;ли0L;аи3е5DидMоL;боCUи0;етельсH;а0ган2Jиен3D;аVерTиSлаALоQрNуL;бликFEсL;ка1ти1;аMеделARоL;киDLси0;вд7ши3;веA9зL;да0на4;ра2с7;еLиB;ди0жа0тьJ;зCZса2;аMкупиBонBDрL;есFужA;з9Kн6V;комCPча0;алMеKоL;бр8лCO;жи3;лядNраL;би0ниL;чиK;е2ы9;в0Bдум7е06и05л03м00нZоVрSсPуNхо7Sща2ъLяз7;единA6яL;вCснA5;словLчDP;и0ли3;лу50тMуL;ди0жBZ;оя0;аMе5AушиL;ва2тьJ;б99до6зов91ти1ща1;бщAжа0зNй7JрMсL;нEGра2;ачи9уE4;ли0н11;аружиKиCFовCя0;анMенL;и6я1;у0ы3;а97еL;гчA;де1жа1та0;да0рNспLща0;еLокои2;чи4;еLну2;га0чь;ин8;аSеOоNраARуж03ыLюCL;рLть;ну0я0;си1че3;доMнB2рвLс5;иBниCE;оцеLста4;ни4;б0Qв0Oгр0Mд0Iе0Hж0Gз0Eиме0Dй6Uк0Aл09ме07н06пZрWсPтOу4XхNцMчL;а1ерFи4F;ели2;му6Mо6P;к55ре7KыA1я9F;и2SлOме52тL;аMоя0рLупA;аи3ои0;ва0и3ть;аLеD8;ди2жL;да2;астAJе83иMушAяL;ди0жа0;со3;а9TечаCIиPоOрLу2M;аMо2FяL;га2чьJ;в2Pши9;лн8м9D;ва2са1тL;а1ьJ;ес5иB8оANя0;кGрLти0ча0;е9и2;а7Jи4оAT;аз7лMоLры4;пи0рS;аAVон9W;но3;ва1нLы6;ачA;а0иAY;да2зB4с2ха0;еNоMры9ыL;ми0;е98р9;ва0ть,я2;аLу9Q;ди0ж7N;еLоEяз7;сти7Dща0;и89лю9Zра1;аTеQиPоMсFу3Qча2ыLя0;с6Xть;билMдер18лLнIроA0тиC6чZ;и2о0ча0;изCH;гGно3ри2;лькGня1рMтLчBKша0;а2ну0;зDи0;за0нипуC4ршиBте62хG;ая0га0еQиOоMюбL;и0о9;ви0жи2калLма0;изо3;кLсBCтьCFшB7;виBWо3;жа0з0тA8чL;и1ь;а0Cи0Aл07оRрNуL;пLри0са0ша0;а2и0;асNесFиMуL;жи2ти1;кDти0Fча0;и1не0ть;лXмUнOорди5SпMрLс3D;ми0реBN;а0иLну0;ро3ть;в53ку5LсNтMцLчAS;ент5K;роBI;таIуL;льL;тиB7;анBBби5IмBIпL;ен1MрL;омеI;еMлеL;кцио5E;ба2;аLеи0яс2;ня2сL;с0Vть;вGда1ну1пL;е0яF;зMле7Lр7Nса2тABчGшL;ля0;а2ни0;г0Rд0Oз06л05м02нYроXсL;кTпQсPтMхоEчеL;зGрп7;е8JоLраF;лLпи0;ко3;леAR;оLр89у3Rыт7;веAPлLр1E;н6EьB4;аMлL;ючA;ле76ть;ниAP;весIтеMфL;инитив,ор43;г4LрL;е21преI;еMиIпL;орI;но3тьAW;лю3V;бZвYгXдWжа9ZлUмSнOоMрасхоABуL;мCчA;брLй5лиB;а7Jе19;аMоL;си2;сиLши9;ло3;а51еLя0;н5Sр8;аLо82;га0;а4е9;от6V;е58ин5Nле7M;авMе5VиLра0;ва0ра0ть;и1ля1;ентLти;ифиL;циB;но3Uра0;аTвSдPлNнаLуб9D;кLть,чи0;оми1;и0оупотL;ребC;оMраL;всH;ро9;а0о27у8B;б1Sв1Iг1Bд15е5Gж12зуб94и10й5к0Tл0Qм0Nн0Lп08р06сYтTфикSхOчMщиLявC;ти0ща0;ерпLи3Q;ну0ы3;вMоL;ди0те1;атL;и0ы3;сиB;кDоOрMы5AяL;ги6ну1;а7MоDуL;дн8;рмо2Xш1T;веRлуQмея2ну0овы3тMуDыL;па0;а5AрMыL;ва0ну0;ах99еLя0;ва0ли4;жи4;ти1;аLегистри8Pжа4G;б3Vжа0зи0;аз6YеWиVлSоPрMуL;с3Wт7;еMоL;грам2Aтес8J;ти0ща1;доз8Bз3Wлн8мL;иLни1;на1;аMеL;с5та0;ка0ниBти0;ра0с3B;ре0;ес5и5KоLя1;си0че3;еLи2Tол77у4Y;н8рLти0ча0;е0зG;ез6Dи4оLюбо9;гиLжи0;ни2;аPлOонNрLури4;епCу67ыK;ва1ть8O;чи1;а69юч1T;з7нL;чи6;мсHнтереL;со6;а0еMиL;га0ма0;чь;а4еOохNуMыL;ха2;м2Nши0;ну2;ва0ржLть;а1и6;ля6Aна0оMрL;у4Zязн8;вNня0рL;аLе0оE;жи3ть;аLо78;ри3;аTеRиPлOоMтLяз7;ра3K;ди0ев7раL;чи3;аде4;до3сL;а0е0ну0;до3рLс5;бо3и0ну0ш6Lя0;ли4ри4;ереме70и36оNрLы4;а34оL;ниBса0;ле4ти2;аMда0еLи0ра0;ва0ла0ни1рHчь;ж2BлLри0;е0и0о6;зEс0ха0;а0Nви0Mе0Gи0Fли2оQрNуMыL;ми0ша0;ма1ть,ши0;аLо5Gу4X;зLтьJ;ни0;б07в03гYе2TжWй5кVло4UмTнSпPрOстLхоE;аLигG;вLть7A;а1и0ля0;ожA;олн8рMусL;ка1ти0;а1Wо4E;аши9о23;и0RоL;га2;аз7ла4Oум6P;да2иL;ва0да2ть;адOна0оL;вLня0;а2WоL;ри2;а2ы9;еMоL;ди1;р8сL;ти4Z;авCиLра2ы4;ва2ра2тьJ;к5YскуI;ва2жу5RзPйсHкNл5EмонMрLтьJше1P;га0жа1ну0;ст05;лаL;миB;ерI;га1ну1;вMри0тL;иBь6E;а1и0;аYенеXибDлVна1оQрMуL;де0ля0;аNеMоLуLыз0;зи0;ме0ть,ши0;би0;воOди2лоNрMсподсHтоL;ви1;ди2е4;да0со3;ри1;аLо4Yя3M;ди0си0;риB;рLси0;анIмоL;ниB;а4Fв4Bд47е42з3Lи3Jкл3Hл3Bме37н32о24па23р21с1Iт1DхоEцеп3Cъе1CыLя0A;б16в4Aг13д0Yе1Bжи4з0Vигр7й5к0Pл0Nме0Mн0Iп0Fр07сUтQучиPхоEчMши4яL;вCсн4E;еMиL;сл8;рк1K;ва0ть5P;аNеMиLь,я17;ра0;ка0ре0чь;ск0Rщи0;аWкTлRоQтNуMыL;ла0;ши0;авCрLупA;аи3еLои0;ли0;са0;а0еLуш0J;ди0жи3;аLо1D;зLки3;а1ы6;ди2жи9сы3;аNва1еMуLы6;га1;за0;бNжа1зи1стLщи3;а0иL;!ть;аLо3Y;ты3;а17иMлаXолн3Kрям2GусL;ка0ти0;ва0с7ть;аNи2Qо25уL;ди0жLть;да0;ши3;сFща0;еLо29;з2Aт2L;ачVи2RлPрMуL;па1;аMуL;ти0чи3;си1;а27ючA;ва0дорLы3;ав0XоL;ве0;а4вOеLохDы2T;лMржL;а0и3;и1я1;и32ор8;лLна0оня0;аEядL;е0ы3;еOиNрL;аLо1G;сы3ть46;ва0ра1ть;га0жа0;з24ха0;исOоргNыMяL;ги3ну0;ка0;а2ну2;ки3ну0;кYмVпQтL;аNрLупA;аи3еLои0яхP;ти1ча1;вLть;а0и0ля0;оMыхL;и3ну0;мLте0;иLни0;на0;атMотL;ре2;ри9;аMипяFоLры4;чи0;ки3рL;абL;ка2;аLеEучAы9;ть,ща1;да0с0;вле0Hди1е3з04й5л1Fня0о02пи0р01сLткD;клиZпQсNхL;вал8иL;ти2ща2;танL;авLови0;ли3;алSит7ольRрL;епя26инOоL;извMтиL;ви2;ес5оE;иLя0;ма1;зо9;и2я2;кDца0;ва2о3;браLдушевC;жа0зи0;буVвSглRдеQи1нNобновCраL;жа0зи0стL;а0и;енMикG;а0ну0;ави07;йсHл7ржY;авC;ес5оEраL;ти1ща1;ди0;ди1жL;да1;ка0чь;еNоMушA;а0и0;си0;др8с5;и0я0;сFшLща0;а2и9;ва2;ти0;аPеNия0оMюбL;и2ля2;жи0;зLчь;а0ть;де0;аLюч0Q;ды3;дLзиBсе0;е1не2;аимод00бол0RвXгляWдQлNор6рLя1;осLы6;ле0;амы3етMоL;ма0;а0е0;оNрLы01;аLогD;ги3;роMхD;ну0;жа0;ды3ну0;еMолLы0;но6;си0ши3;ейсH;да0з5ле0нOрNсLша0;и0тиL;!сь;бо3и0ну1те0;ча0;охнMыL;ха0;овCу0;и0ля0;еMоL;ди0зи0;з5с5;ти;лLри0;и0я1;а08е04и1лXоRрNуMы4;ва0ть;ди0ше3;а1и2оMызL;га0ну0;ди0ниBсL;а1и1;дрсHйкоIлPмбар09рNя2;тьJ;ся;моLо1;та0;е0та0;агоNесMоL;киB;ну0те0;даNприяL;тсH;тво3;ри0;га0жа0реMсL;еUпокои1;меLчь;не0;зиMсL;то3;ро6;вто03дресZкUнQплоPрLссоцииBтакZ;гумUеMхиL;виB;нLстW;до3;диB;аMнуL;лиB;лиL;зиB;тивиNцL;енI;тиB;зиBро3;ро3;ов7;а0ы3;ва0;ть;риL;зо6;ва1;тьL;!ся",
+    "Conjunction": "true¦:!1:#:от;аIбHеEиCкакBм8о2ум#1ыбHьт0ятох;ох,се #;оп,эH;би4г#то,кандо,н3т0;аз,дуб,ч0;! 0;кAум#D;!волс,неми;!л;еч0#и1ёчи1;!и0;рп;! к4;!л0;ежен,и,се;дг,ж0;к0#;ат;#ч;!д1к0;оп;!гок",
+    "Preposition": "true¦!1:#$%&():ре,ст,од,за,из,ле;бQвLдK&,(IкHмEнаAо9п3раMс0у,че#з;!в1квозь,о0пу$я,#L;!гласно;ерх,ыше;е#дOо2р0;и,о0;!т7;!дL&Fми8с0;),#д0;и,$вом;!бIколо,тI;!в$#чу,дHкануне,п1сч0;ет,ёт;е#кор,%обие,рот0;ив;еж1и0;мо;!ду;!о,роме;!-0о;&,п%;ля,о;!бл(и,доль,ме$о,н2о1пе#0р%е,с)д;ди;!з),круг,п#ки;е,утр0;и,ь;ез1л0;аг%аря,(;!о",
+    "Adverb": "true¦:!1:#$%&()*+./<=>?@[]^_`~:ре,оп,ем,тс,ад,ар,ел,аз,ен,он,еч,ур,ин,ач,ту,ок,ан,нд,ед,бо,од;а0Mг=дв,д0Iе06з>в,и02йо00мUо8#миTс?й7@т,у4х#вв,ц.[],ь1юь0я^ог7ёще;неK&/л$,ч/;дуб>-(гHн<о,#пет,с_з,т0;уч0япо;!-ь@ч;дюсв,з1меом-$,х#в0;],в;)с,иY;ес;вJгGкFламHмяEн6р5т1х0шорох;ит,олп;-1с0;?,оB;(0_г,как,ум<$;г5ук;[с,&ыб;),в(.,д6жомзSне4#ми7тюлосба,ч2ьл0;е0овA;дто,тив&й_;.0ы`;[;`0лд%,ш#E;со;з$,=т;рп;г*,дер,*(,зиRморг;л1/м0;!.;~;а0*S;рпR;ат,е3о0ё^;дяр,кшилс,р1т0;*,$;<U@;^,с0т+;вос;м0нсR;из,~;д+с,кс1т0;а&к,чM;йилгна-Lс=-L;нв;дAж7н6/#вE&%в,ш2щ0;`0е;ов;чул,ь0;л1н0;),%;(,об;й)к,ло6;зBи1у0;!х;лб;гGзA;+2е0ё0;#0;пв;];вDд6л?аEм4р0;<в1тв+0;!*с1;!+0;$;~,ьс0;ев;г2у0юс1;к3т0;!то;е2о0;к0ни;>;св;)пс,е1о0;нс;лс",
+    "Pronoun": "true¦:!1:#$%:св,но,ин;а$,еLиHйFмB$,о5саKум9х4ы3ьдуб%-7ю2я1ё0;еL#;!беLнем;еJоD#;в,м,т;еEиH;г3$,т0;-0к7ч6э;от0;к,ч;е0ок4;!н,#,ч2;а8е0иAок,ён;к1н,#,ч0;%;!%;е6о0;бо6нм;м0$;а1е0и3;#;в,н;бе1е0нм,#;!н;с,т",
+    "FemaleNoun": "true¦:!1:#$%&(:ре,ом,рг,ем,ол;ь0;в04д01жYзWлMнFпеE#вд,сDт4ч1шNщ0;ев,$Q;е1о0;д,н;п,р;а6ес,ин,#5с0ямап;а2еч,о0#ш;вон,дар,к,пе5р0;аBокс;л0порп,рAч;бо,в;втеч,мс;во0м,чH;рк;о,ыр;тс,ц;а5е1з0одал;ак,елоб,иж;л2п0рис,со,т;е0у0;тс;!ез;д,кт,%;а5е2о1с0ып;ым;б,р,с;!б&,т0щ;&,с0;оп;д2т1ч0;еп;ед,с;!&;ам,я0;вс,%;е1о0ё1;л,р;д($;а1е0у%;м,#чо;ртет,ш(,щ(п;о0убо;бюл,кр1р0;б,к;ец,$",
+    "AnimateNoun": "true¦!1:#$%&()*+-./<=>?@[]^_`~:ен,ст,ка,ер,ра,на,ри,ел,ни,ль,ок,ин,ар,са,кт,ит,ве,па,ца,от,ва,да;а29б21в1Rг1Kд1Gе1Eж18з16и12к0Pл0Lм0D)ча.-к,о07пVрSсHтFуBфAх7ц4ч1шофUщ#/,эле?*к,ю0яще0Qёж;ноша,*$;е0@а1W;ло[к,мпиLр0;вь,е]H;а0ыплV;пля,р0;и^,ь;о0удож-к;зя0мяк;<,й%;&м&,_ог10;л@%,т%,ч0;#и1@+ь0;!-^;к,^;е0игр,о`*щ,у*$,юлWётя;лJтя;в8е7л6о4порт1Lт0уд9ын;=1р0уд#т4;аус,ои1E;ик,у0;ха;ба%,`,кол,л~т,сед0;!%;он;крет=ь,$(;<0ящ#-к;ья;абFе0ыбак;б6~1Gжисс0;&,ёр;а8е6и5о3р0тиVч+а,ёс;е1о0;г(мми$,~вCфессор;зидеG$упнV;вZдруга,ку]0Yпугай,рос0эт;#/,ён/;л_,нгв<,>0W;в0реводчRс,т3;ец,иN;н~,],р7с0;>жир,т0;ух;безья),вJл4р+,с3т2фиц1х0;_нL;&,иа5;ец;+,ёл;#ь;а6е4и-$р,о3у0ышь;ж1зы%0([й,ха;нт;!чиW;)х,рж;д0ханB;[4се$(;.ч9ма,ть;е1и>,о0яг0Lётч8;сь,ша1;бе0оп=д,тч6;дь;абан,#гуру,нязь,о5р2у0;*0;^;о0ы>;кодил,л0;ик;з5лле4м3нь,ро1смо)вт,т0ш%;!#8ён8;`,л0;е`,ь;=;га;а,+,ёл;гр2н0;дюк,ж#0;&;/;аяц,[0ебLмея;рь;#3и2у0;к,р0;авO)ли$;(ф;а,щи0;);ж,н0;_;е1иреTо0руг,ядя;?Yчь;в0дO.ф5путW;очOушO;е5ид,о0усь;лубь,*л3с0;по0ть;д0жа;<;ла;н&ал,рой;&блюд,ну8о2(1ыд0;(;г,ч;ди3лк,р0;!о0;б0);ей;те0;.;к,ч7;а2+6изне1о0рDык;бр,г;см#;б2нк1р0;ан,сук;ир;уш0;%;вт6дв/5и4?2нг1рх@е0;?5;+;&,*0ёр;>;$;ат;ор",
+    "MaleNoun": "true¦:!1:#$%&():ап,ру,ок,ат,от,ов;аTеRорве,у$гнек,ь0ядяд;булPвреч,дNлCн6р2суг,т0;о0сOуп,яз;гон,кол;а1е0%я;вз,гал;в0днелEноф,тня,хус;куб,оO;е1о0;го,к;во$,д,л2м1п,р0;#,%;ак,ер;о,ют;&ипсCб9ва$ж,е4и3к&кепс,мерк,о1у0;криц,н,р;н,п(,р0;#,тнB;бом(ва,тс;сик,т2ф0;(р0троп;ак;а0ичу;сип,тич;масна,ур;е0жод,з)г;бел,вдем;ог;зн#миш,ф0;%;гу1д)е),кшудед,ни0п#,шоню;чжум,шр&с;лс",
+    "NeuterNoun": "true¦:е8и7о1уг6эола,ю0;н3ьвретни;ак7едив,ид4ни3пед,р1т0;оф,ьлап;т0юб;ем;к,наип;ар;рюж,скат;леж,мюзер,нш0рюп,ссош,ф0;ак",
+    "MaleName": "true¦!1:#$%&()*+-./<=>?@[]^_`~:ор,ан,им,ис,ст,ин,ар,ри,ил,та,ол,оф,ла,ле,ат,ик,ен,ян,ел,он,ак,ас;0:2C;1:2D;2:29;3:24;spencer,а1Wбо1Uв1Eг18д12е0Vжд3з)ов0и0Oк0Gл0Cм06н01оZпTрQсGтCурб3ф5х4;*0Mр&$ф;адд1е8и5о4р/,ёд#;ка,ма,т0;л4рс;?,и4;м2пп;до4л@с,окт&т;с1т;*~,и5р4;иф2<%;м4т,х2;<1ур;аBвятоAе8-7о6п5т4;$Tеп3;[сер,и+д2;з2фр2;а,ьвесD;ва(ь],мён,р4;аф%,г1;п/к,с0Y;в4му-;ва,^0;азумн@,о4усл3;д4м3(J;и2ос0T;а7=т2о6ро5ё4;тр;в,коп0т15х#;л@*п,рфир0.п;в^,&0н4рф16фнут0хом0;крYте>йм2;>г,н4;&%,уфр0;аз*,е(#,@4;$6и5о4;д%,лYн;.,ф#;др,#;а6е>1Bи5(4;&0E;на,рос0Dтр<3ха-;г&т+3к5моEр4тв1;к,тын;*,с%;авре15е5огг),ук4;а,ий,ь];в,_4;ид,т0;апAи8л%е7о5у4;зьма,п+];н4рн0A;дрO_,($т);нт;м,р4;!-л;ит2;`и9в3г7зот,лья,нноке0Tр6с5у4;да,ли3;а`,идY;`л0)1;н4#ь;?0;нф;в7гTм^ь],р5ф4;%,рем;ем1м/4<1;ай;г5док%,с4;ей,.ф0;[0раф;$8е6митр0о4;брыня,н4р<1;?;м4нT;ид,ьQ;аJи9;а7е4>б,#д1+г#0;лRннV#г0р4;~Wм$4;!н;в+4=кти2;-;аD[Bи8=4сев/од,ячес7;д4с;и4>н;мир,с4;=в;к4сс*и2.л0;еXт4;#;еди4иамR;кт;в-а,дI>6р5с4;-0;=м,с_<0ф/ом1;нтMр4;ий,ь4;];гд3р4;&;вKгаIкGлCн9р5ф$4;~0;&т*х,к6с5т4хипп;ем0ур,ём;[0;ад0;?/0др1@и.,т_5ф4;%;!);екс6ь4;берт,ви3;$;$др,ей;`0)д4;);пит,ф2;_;д1ксе4;нт0;ий;ей",
+    "City": "true¦!1:#$%&()*+./<=>?@[]^_`~:ро,ан,ов,ин,ла,ка,ск,он,ос,ар,ер,ко,нг,ра,ст,го,ль,та,то,са,ха;0:37;1:30;2:2W;3:2U;а2Yб2Fв25г21д1Uе1Sжук%29з(_у@,и1Qйо1Oк16л11м0Tн0Gо0Dп08р07сQтNуLфKхGцFчAш7щёл=3э5южно-`~л2я4;к1Q>+,#с(в];л4>е]с,р-рияд;ект#@аZи@а;а5энь4;чжэ1ян;нх8хты;е5и4унц&,энду;)Y^;бокс/ы,ляб2нн5р4;еп%ец,кес0;ай;з&а1&дао;а4имки,ошим&,ью@+;б/0Kйд/2Mн5р4`вюрт;б&,тум;ты-м$с13ч1M;и(де]фия,оша1укуо);л4ссур11фа,~1;$-удэ,ьян0F;а5в<ь,ег<$,о4у(,юме1яньцзи1;бо2Kкио,]ятти,м0#н_;г$#г,мб%;аGеAи9мол1Vочи,т7у5ы4;з04ктыв)р;р4ч1D;ат,гут;а4<ли^мак;вр9мбул,рый о*ол;а1мфе#пo9>а0G;в5р4ул;гиев п.ад,пух%;а@5<4;одв2*;опо4;];(ват,м14н5?4;н0т%;-паулу,кт-пет<0Rтья4;[;амен*ое,еут%,ио-де-ж$ей#,.т%-на-д+у,убцUыб2яза1;/иж,е5одо20#=пь24*%,у4ятиг07;на,шк&о;к&,нза,р5т#4;за07павл%*-)мчат11;воу?1Wмь;бн2д&цо3ктябрь0Zм0р4`);е4*,ёл;н0Hх%о-зуе3;аEеBижн8о4ью-йорк;в4г2ри1Rябрь0;о4ый уре>ой;кузнOмо*I#сс03сибир0че4шахт2;бокс1Qр)с0;е5ий 4;н0U^гил;в/тEк6;в&номыс0фте4;к4югA;ам0;б<ежные челны,[я,з4]чик,нкYход);?1;а9ехи=,и7о*ва,у4ытищи;мбаи,р4;м4ом;$0;асс,~йл4;%0;гни_гGдрид,й4ниT~ч)T;ами,=п;а7и5о4у$да,юб<цы;нд+,с-$джелес;ма,п4;ецк;г.,хор;аFеEиBоA?сно7у4ызыл;а( лум5р4;г$,*;пур;г5д4яр0;/;ор0;вр6ломна,мсомо]*-на-амуре,пей0#лёв,@#ма;нша`,р5сло4;вод0;%;ме#3рчь;за1ир,л8м6?5сп4;ий0;чи;ен*-у?]Rыш4;&;&&Cуга,ькут^;х$нес8ш)р-о4;(;в$о3ж0Mрк4;ут0;впа_рия,)т<&4ссентуW;бург;а7е6жа)р^,з<ж2имит#в5о4у>уа1;л[прудBмодедо3;г?д;ли,рбент;к5л4р-эс-`(м;(с,я1;);вада(х6+к+г,#з5у$ч4;жоу;ный;/а;аш&гтCеликий нBиднA(ди9о4;л4#неж;[6ж5ог4;да;*ий;грUд+0;в.тM)в)з;ое;%гE;+;аDе7ий0(г%ещ6о[Qр5уэн.-айр4;ес;ат0ян0;ен0;л6р4;д0езни4;ки;г5у-ориз+4;ти;о#д;гдF(A>7р4^й0;на5село4;на;ул;ал5к4;ок;ор;=3ши~;во;бакHлD>Cр9@?~1тл$7хмед5ч2;&0;аб4;ад;^;нь;зам5мавир,х$ге4;]0;ас;/0;екс$др6ьметь4;ев0;*;ия;$",
+    "Ordinal": "true¦:й0;итерт,о4ы0;вреп,т0;ревтеч,я0;в0п,с0;ед;мь0ротв,тсеш;дес,сов",
+    "Cardinal": "true¦!1:#$:ся,цат;восVдKмиллиIоDпятBс7т2четыр0шестA;е0нYёх;!с4х;р1ы#ч0;!а,и,у;ех,и0ёх;!дNнTс0;та;ем2орок1т0;а,о;!а;и,нOьM;и0нNьL;!де#E;б3д0;ин1н0;а,и,о;!нI;а,е;ард0он0;!а,ов;в4е0;вя0#т8;носто,т0;и,нBь0;!с9;а2е0ух;!н8с0;ти;!д0;$0;и,ь;ем0ьми;н2ь0;!де#т,с0;от;ад$ь",
+    "Country": "true¦!1:#$%&*+./<=>?@[]^_`~:ан,ра,ка,ри,ин,ер,ая ,ва,ар,я республи,ор,ик,ск,ен,ал,ма,ла,на,да;0:3G;1:36;а2Yб2Jв2Bг1Vд1Rегипет,з1Oи1Hйем[,к16л12м0Qн0Gо0Eп08р03сMтGуFфCх>/т0ц[т$льноаф&к#1TчAш8э5южн3я2;^й1п0J;.2ый суд#;аф17кX;к/3&трея,с2фиоп0;/т*и,т0F;д>,то&]ьн06;ве2&-л#% (р#ее цейлон);йц2Hц0;ад,е2иG;рног>0х0;<+2Kеде$тивные штаты м?ронезии,и3олкл[д2Kр#ц2;ия,узс%я поли1B;джи,липпKнля1M;г#~,збе7к$*а,оллис и футу`,руX;а5ибет,о4&ни~д и тобаго,у2;/лу,нGр2;км2Kц0;го,ке_у,нга;джи2ил#д (р#ее сиам),нз2V;ки2F;аG/зил[д,е8и7лов6о3у2ша,ь+$-леоне;д#,&`м;ед*ённ3ломон09^2;ли;ое к>олевство,ые штаты аме&ки;ак0[0;нгапур,р0;в+н6йшель23н2рб0;егUт-2;в*с[т и гр[ад3китс и нев2люс0;ис;*ы;.2ые ^&#@ие;к2^кL;>E;ль/д>,моа,н-2удовс%я <T;^&но,томе и п&нсипи;е4осси3у2;#~,мын0;йс%я феде$ц0я;спубли% ко2юньон;нго,р7сово;а3еIо2уэрто-&Q;льша,ртуг0A;ки1Q_у,`^,пуа — нов3$2;г/й;.гв*2;ея;бъед*ённые а$б@ие эми$ты (оаэ),м#,стро/ к2;айм#,у1;а9еп8и6о2;в.2рвег0;зе_0I%л2;ед2;он0;г+2%$гуа;!ия;];миб0у2;ру;а5екси1о2ьян^;замб?,лд3н2;гол0тс+$т;ав0;в&8~гас%р,йотта,%о,л5р2;ок3т*и1ш]л2;овы11;ко;а3и,ь2;дивы,та;ви,йз0;кий,т1E;а4есото,и2юксембург;б+0в2т/,хт[шт0S;#,ия;ос,тв0;аA[0и7ндр,о3у2;ба,вейт;лумб0м>0Oс2т-д'ивуV;о3та-2;&1;во;пр (остров),р3тай2;!с%=% (тайв#ь);гиз0ибаW;бо-в+де,зах0Lм2`~,тO;боджа,+ун;з$иль,нд6>д0Yр4с3т2;]0;_Hп0W;а2_G;к,н (п+сV;ия,о2;нез0;а2имбабве;мб0падн.саха$;ет;#0емок$тичес%=% кон4жибуJом*и%2;!н2;с%=1;го;аEв9+м0Kиб$лт8о6р2уI;е2уз0;н2ц0;а~,_2;нд0;н2суд<ство п]ес03;ду$с,конг;<;а5и2;#а,нея2;!-бис2;ау;делупа,тем]а;б3и2йаWмб0`;ти;он;а8е6ирг*@ие остро/4осточный тим3ьетн2;ам;>;! (вел?об&т#2;ия);л?об&тZн2;гр0есуэU;нуату,т?# (святой престол);аBе9ир8о5р4у2;р2тW;к*а-фасо,унди;азил0уней;л2сния и г+цеговиHтс/H;г2ив0;<0;^;л2н*,рмуд5;из,>усс0ьг0;гам3нг_деш,рбадос,хр2;ейн;@ие2; остро2;/;встрJз+байджIлGме&%Eн7омынь,р3фг#и2;стH;г[3м2уба;[0;ти2;`;г6д>5т2;<кти1игуа и б<бу2;~;%;$;илья,о2;_;!н@ое сам2;оа;б2жир;#0;#;]0ия;ия",
+    "Infinitive": "true¦:!1:#$%&()*+-.<=>?@[]^_`~:ыв,то,оп,аз,ер,бо,тс,ан,ар,рп,од,зи,ре,рт,ок,де,со,си,ро,пс,от;0:TQ;1:TE;2:SY;3:TO;4:TR;5:T8;6:TM;7:S3;8:TH;9:RA;A:TL;B:RJ;C:T2;D:SS;E:S0;витинифни,итTDь6HясF;и*евзTKьF;тGчF;елву,я4I;а2Oе2Jи0Gо_б,с0Eун07ы05яF;акс2е03зв,лSнIоHрF;етGYимс,оF;вти0тв1;б,*C;аLв-Eд1емKиJл%IолкHсFь6R;!еJJяF;ъ9#;+,с;^,#;в=,[17.,чд1;!),=,и0%,с;з,лк,рF;т18хоF;[0с;аOбNвJеHмGпFуN1;ецв,у0R;е5R@+зо,я16;дFс1;(по,з2$,#;аGиFтCRя1O;ду,тIW;б=,л3H.1T*F;[0оPVу;ал41юлв;в,ду,`8;д+3мс7;му,рF;!к41%;былу,гр3QиKкJ>Hс@,хGчо,ятF;!&,%,$;емсу,<5;),вF;!з2%,$;и2Zло*,т2X;вд3Lк;ап1еFялк3;+,су;б1Eв15д0Wж0Tз0Rл0Mм0Kн0Aо07п04рYсTтLчGшFщ)C;д1U(MUил,рEHурNTь1R;ел3иHн@7оGуFюлкв;!+,),л1Vм3#;м3тOU;лFнOV;еву,$;аJеIи1HоHр%MYсGуF;рк3чо,що;оDуп23;бNWхо;вс7м$,р*в;вхс,к3рF;),вFке0;е0з8;аIоF#1;нGрF;б,пB;!=,оRK$;лгCркI8;б3еJим86оFумхMF;вFсс3тв1;огGтF;!и0ос;!<;мBтам;+,еGо_т3уF;ковC;цв;к%сGр*F;!%,у;ебQSу;-MеKиIлMFмоHолкGсF;!и0яъ9;+,%,с;п5су;в=,гол5[Fчд1;оP3ъ9;ж,мFцо;=,и0с;тFхN7;]рO8;(*,@+з80яF;.#;!аIдAеGз2ису,ме3YоFс,ып;ву,м3;веш3дFм],с1цLP;!(по,з2$,#;в3Iду,`8;-1SиFов3ург1;л1Qнс;лоK7олGурF;+9к;!%HNс;аMебу,оHрGуFя1H;бз8?3т1I;есJKог;бGVвGгOHр,хF;+,),и0сIJ;!зGи0оFс;д,.MN;-,ио0;лсBсH1;аJз2иIоGтAIяF;!оD;на*F$гO9;!о,у;ду,$QP;б=,л15рG*F;![0у;н3пF;+,с,$;!з2ишо,<GюF;лв;!+1;дHми,ндив,рF$х7;еп2P$мсF;!в,%;!з2иFо,ялго;),вLY;б31в1Cг16д0Yж0Qз0Oк0Kл0Jм0Gн0Eп0Cр05с01тVхTчOшJщF;-G)M2(п5иFо0ущо;хс8;),вFке0;!е0з8;аIGдIеHил,рC5улс04ыGьF;нему;в1лс3;мв,рKF;уху;аIеHилNRм3нJFуFюлкEF;),лF;з2%,с;м$,р*в;кс2н;емсFыд5;+,у;аJеIиGсFып3яI8;авх3оM5с2;пK8чF;!сD6;м,чC;вс3к;аGипFорб;!а6д1;к,пF;о,с;аFOбJдIиF]9;бFди0п1T;а6з2оF#;д,с;!и0%;!а6оF#;д,з2с;укFLысF;о0с2;г,=0иF;м%CTчB;иFуд7;жи0нF;&,д1иP8с;едEсCысс;б-ак9Rелву,иHсупGытF;+,%с;оLFс;лк$;акFявс;!о5OсF8$;-LиJлоI2>дIуGяF;_LS;рг1тF;]0;!&,з8и0ос,у;),лFнс,.;би0;с,$,#;!аLд1еKжGз1GиFо0с,у,юлбB;жоL2к;алсBеHоGуF;бз8н,с9;бEKвEJги0д,р;бу;+,р4;г<,п1;алJивдIом<,рHуGяF;.B;пJ3рEP;евд1~в;!(4оD;[0%EZ;а0Yе0Wз0Vи0AоWрUыF;воRдPзMмуLрJ^пIтF;авGичF>в$;сс2;хс;&,д1;в,дBе0зв,кFо0с,$,#;&,с,$;!д5;аF$,явс;кFн;о4QсEA$,у;аFялго;г<,лкс;зFн];-9ила(;!е0оF#;в,дBзв,.,с,$;бRв*QдPзLкитка0лKнJрFс(еG4теG1;иF<з3;зGмрHIналп,р*иг(5тF;неи_,ьG9;аб,илаиHS;в(Cив1лI4];аж3ец3;-9ирHьл%F;!сF;и,ов;етк-ах,оIG;-IVнем@(;вуч,довJF;еN8юл7;аXбWвз2гят5жTкла*,лQнеPпBрNчJшF;аGемв,уF;лL0р9;нF.B;=,<;аGиFнак5~JR;леву,нJS;кс2_F;),вCO;авог<,тамсF;в,с2;м9цо;авGв+а*Fем],з2ису,с,уH0;о,у;о0с;асG>дFурL0;&,з8и0у;и0у,#;з2<;кFр*у;%су,с2;+,о$;дFнмC>мB;!зL8о;дHнG*F;оJ4с2;=0;!д1(4зFо0с,у;-,ос;ел@3иFылу;шо;^тLYтLчF;еFир*LPом2S;жFZлHрGсDFтF;!о0^,#;бCZеб35;!вF;!зKUи0ов,$,у;а7Tе6Xз6Vи1Lо1Jс1Dу0Kы0IяF;а0Gес3зв,и0Fл00мHHнOо*MрF;аду,)до,[нв,еIи37оF*5що1ын;вFк31тв1;д#,тF;е32ос,с2;вFм=,т3ч<у;&,оFу;д,.,т36;!+,),[0оF$;вHVп,с;аO),дNемMзя3WиKл3PоIсH$,ч3KьF;лоF;ву;!я3I;в,гFлк$,п,р;&,оLI#;в3O[3N.A3чF;д1и0ос;!&,),зKAи0%,с,$;з3U%JEу3T;з,н,рF;*3WхоE;аRбQвKеIмHоGпе31^ч43уг,шF;акAымз2;вз1му;е3X_фо,у=;дFр*E9;е46з2$,у,#;аGе5Iиду,онFт5Cя5A;)6Uх5F;б5Pд1л5NрG*F;&,в,[0о5Iс2#;дз1пF;+,%,^,$,у;ал],(т5Rр5O;вFду;!хс8;лв3сA;л,тDX;бD9вFQлп,м3н,рF;!кCA;д3нF;ам9биг3вик,г03з02иZкUоTпSрPсNтMус7хKчак,ыJюIяF;лгGм%у,тF;!а6в,оD#;&,зв;лп;в,*5;аF<7Tур,ы`в,яHU;м,п;ем,^вс;&,елб,иF;в8Cтв;еFын;вFд;!&,д1(4з2%;!ирхо,@,>ч7;?7тGF;емBиIлHми0>G^р,тFыEPьлем;&,ов;вс,чIJ;~F6ёщ;л7CнAHрк;вдB0кF;!оF#;п,.о;еч^,>м7ырб,ь39;аш,иGоF>вAT;рдзв,с;м,*<;аIеF;!оAHсHYчFъс;оFс,у;пHA.;лк,пFркFY;!+,вG3%,у,#;ломE_F;б,пCU;б4Eв3Vд3CелкEж34з2Wл2Hм2Cн1Nо1Jп1Eр0Rс0HтVчLшGщF;ат#,)5T;!еHил,р65с,уFчулу,#,ь5Y;д7нв,рFсADт3;!+,з2;`,рFту;!гFUз2;+зNг6IеLиJн@IоHуFю68;+F),=,и0л1м7р6A#;!/ьтичу;ксHTм,тGD;!&,о0L;лFнGD;еGEз2$;лFпGE_вFK;!акEF%;!+6Wо9;аTеQищ5оOрNсHуGч1яF;вс1пик4C;мс,рк6Bш3що;аJеHич0BмGоFуп84;гу,.F9;!о$;вFм55ркIP;+,=,%о;н],р#;ечDY%E4;лгоD_F;вс,ку;вGм5VрFс1;п5*в;с4O$;вхKкJлпIрF;),вGк50тF;!^,у;е0з8$G6;!&,о,у,#;!%,с;!&,д1(4о,с;аLевKоFукA0#4Z;нIрF;бGом,пF;!оAHсFD;!с,$,#;!а6в,(4зIWи0<,с,$,у,#;!зF6%;г3лгGркF;!уGG#;!з51и0;аYбXдVеQз<%5иPоHуFщо1;жед,кF;!&,%;вIкH`Fтв1;!оF;!п;%,су;д#,огHтF;!еFос,с2;лв<у;!&,и0оDу;шс2;вGмFтам,ч<у;!=,с;!&,оFу;д,п,.,тF;с<у;еFоFD;нв;<о,уз7;вBQдFжDEц;!оFу;галб3п;!еHоGуF#;к,*5Z;в,кCMтCS;ркF;&,и0у;вGNк%сHр*G*F;!<у;!+,в,с2у,#;еб,у;-00вF9дWеTзQиMлKм%JоHсяGчFш0S;~у;%,ъ9#;вз3кF1лк$,рF;ох,у;!а6и0св;%F;а6<,^,#;вH[GчF;!д1и0о2T;ос,ъEY;),=;аGяF;рг5;к,рд3;ж,мGцF;!оEQ;&,=,и0с,$;зGуF;?5;-F;пу;!%,*GхF;!оE;орE5у;еIоH_GуFыдBQ;=;кBOфо;к+з3н@эE;щи0;!аQдо0еLзKиJоHсFур;!ичFымBG;&,(4#;вFму,п,с3;з1у;п,су;!о9;дGр*F*;&,#;!еFз2%,$,у,#;.F;о3Yс2;вFду,жCFз,н;!&,%,с,хF;!%,с8;-Lинс,оIургHьF;лоF;кс;!а6%;вGмрFрг;~7;!в,(4и0$,у,#;&,)5Zз8%,$,#;!-дз2(4л<оDGоIуF#;лсGрF;+9д,кFE;!&,),%;веG4д,лGмEHнму,рFт5H;<,п;а6в,[0зEQи0оFс,$,у,#;д,п6W;аVеSзеRоK>втJуFярB;бGн61сF*о;!),о;!зFо0;-,ов;!д1у;б61вJг63рHхF;!а6),в,д1(4и0оG2сF$,у,#;!иAове0;!б,оF;г5п;!а6в,д1(4зFZи0оFс,$,у,#;д,кур,.BQ;!ъс;б5VлсGрF;в3епо,пуCS;!о0$,#;лFргBс1;+,г60;аOеNз2иду,оIтHяF;&,о0ъF#;),[0;сещу];лIнG$гF;!д1=,и0;аD2)0UхF;<в;!су9у;шудо8;бMдLлKрI*F;!&,в,[0оFс2#;!дENпFс;!овB4;дз1пF;!+,%,^,$;гз8;!з2%;=,и0<;!аMд1(IзDMи0оHрGс,уF#,юл3;!р;@];п,.,сCP;еп,тF;%F;!уF;!олз;з,лсFн,ргE4;о,с2;елFырг;!&,в,%,#;в08д00лVмTнSпPрK^в7тF;елIоG>в,сF;елб,ивс;пFх7;!св;!зв,и0оDу,#;а4Uг,еHзCог85$мсF;!оFс2уBM;!п,.;м26п7тF;!%,с,#;!-х,ик,>тGсF;!уDS;!(4;ем(еб7с-к3;(гAи,с3уF;!с,ш;ажHеGоF]рзв3;б7дD9;в,цу;!оF;п,с;аKиHо,уGялгF;!з2оD#;гAх3;),вFс;!+енF[0у;!з8;з,лвFн;!&,о;ажр7еFорBI;р,шед3;бигDBв4Mг46д3Iж2Xз2Oк2Bл27м20н1Vп1Pр1Gс19т0Uх0Pци0Nч06шRщF;аM)LеIиHоGуFявс1;мс,що;гу,лг1.9J;чо,щ5;)3вGмF.5с1;в9M(4з2%,#;+,=,%о,];),ос;н],рF;),вGкF;е0ос;!е0з8$AL;аQеOил,рMуJчуIыGьF;немуCU;вFд3лс97;е0%;лу;к3лсGнв,рF;+,з2;!д1%,#;евF;&,ос;в,мFр7Pту;!з2%,с;лгFрку;зFи0;-,ово0;аRгPеNиLломKнJ_т,уHюF;лкF;&,в,д1^,$,#;),взA=,и0кс,л1рF*3;в,%;ев,@E;!&,о0;лARнFрк;в>н,ду?Cйашо.1;в$,мFр*в;а6%,$;ел9яF;мс;кHнF;!зF;+Xо84;!%,#;лFр$;кс8;аIеHыFюн3;дFлс;в,зв,с,$,#;!а6(4и0оCLу,ъ1U#;м,`2;аSеQиLлоб6ZоJпIсFуп7чем,ып76я4Y;!аFв,[0(4ил,<BK$,у;з,н,рF;+,з8#;ешA~;б-Fлг,м_бAхох;!&,),з2о0с,$,#;),пIчF;!оFс4X;пF.;![0;!+,с8;лFмд1рC1;!зв,и0о0п5у,#;вх,к,чеп6M;а`,ечKиHоFук3я?1;рбFс2C;!&,з2;вGпF;!а6д1о8Zс,#;&,%;!%,с2;бLв7QгJж7QиGоFс3;!г9K;бGмFп5т8M;&,у;а6д1(4зA8ос,$,у,#;иFы7Z;!о0#;!а6(4=,оFу,#;д1з2с,$;ищ3оJ>ч6BсAуGысF;!&,о0у;кG*F;!+,в,и0%,$,у,#;%,#;к,лх3;гIзHиFо*A;жу3м%Fп,чB;а6и0св,у;!и0оAJу;!&,оAY#;иHй1олGудF;!&,),(4и0оD;!зв,%,с;жHнF;а6),д%8Tи.F%,с,$,#;![0с8;а6и0%,с;еGсFысF;и0%,#;дFж3;!(4з8оDс;аQеNин0WлM>LсIыGьлF;ем;ви0ми0тF;&,в;ат17и3упFы8P;!&,оFс2K$,у,#;!д,.;вс;~,ёщ;лвGмBс1PтF;о0^,#;з96и0ов,$,у;кс3лп7?в6E;аKеH>м5яF;),вF;!а6з2и0с;лGрFч^;!+,з2%,$,#;&,в,#;кFм5N;а6и0о1YсF$,у;!д1(4с2#;аUеQзеOиNло3KоJ>дIс,уFярB;рF*о;гFко;а6%;!&,д1ос,с,у,#;),во0нHп,рGтF;чину;!гу,д,<4P;му;),нс,.;а6(4и0о9Qу,ъF#;в,д1с;бHлF>по;!дF;+и0%;!=,и0оDс,у,#;ву,з,н,рFс;&,)GдFз8%,$,#;з2%;=,оF$;в,с;!аZв1FеXжLзJиIоHс,$,ыGюлбF;+,ос;в,р;лог,п91.;жо,к3.;-,и,оF;п8Oс;!аPеNоK>втJуF;бHнGсF;),о,с2;и0#;з8о0;д1у;бGвFгу,д1р1;о.C;ов];бF.у6D;%,у;ж,ргB;)3в3оFр8N;дBп;г0Yз,л4CпGрF;*3;!+,в51%,#;аRеNзыMиKл50оJ>HуFы5A;п3NрF;!#;вFд;д1$;м1?1O;вдFж6Pм,*<;!(4о0#;рб;бHрF;бFе9;ене0;!=,и0о0с,у,#;лFш;[0=,и0%F;![0с2;а7Rе7Gз7Eи4Vо0Tр0RыF;б0Pв0Fд07з00ледZмXнWп>чVрQсLтF;аHиFс5уп5ып^;`8чF;о0сс2у;б-GвхFл2I;&,д1(4о;&,),з2о0с,$,#;аHечс2ипGукF;(4;&,д1о5Gс,#;рбFс#;&,з2с,$,#;гHе0з4MкF%,с,$,#;а6и0%,сF$5Xу;!-,в;иFыз2;о0#;&,^;ам9у;алзв,удF;&,),(4и0о0;(4з8о0;аHи0$,#,яF;),вF;а6з2и0с;кFн;а6и0оGсF$,у;д1(4с2#;!д,п;аIвHев1зап6WикGялгF;&,з44оD#;орP#;-O;гHлкF;а6в,<,сF$,у,#;!-;$,у;еов5оF;зKкHн]30ра20сF*(а,х-*5;аF(да;з,лгC;аGилбуF;по;пу,та;-2KиF;лFн2E;а(,и)м;!&,е0и0<;!е0оF#;зв,п,с,$;б3Eвт2Qг_т,д2Fз24к1Xл1Wн1QрOсKтFх-*7;еIкидAрHсF;аб,еF;ра,т0T;а*,илф;вос3;!аH(Fир1NологA;да,еF;тни7;лгC;а1EиFовE;в18га17д16з0Wицосса,ко0Vл0Nм0Iн09п08р01сZтIф-г~0RцFшрам;ифиGовоF;.E;ссалк,тнеди;аUеTиSкад13нN@йоб,рHсеGук^д,ьF;лусн0P;вни,т;еIоF;пGсF;!с2;ми,скэ;вн@,зF;ед;аYеGомF;!(15с;и_,мFцка;м0EуF;гра,кY;ми,цA;мо.мX.рO;д,*н@;киф7нFук06;+иф,епм@;гKеJонги,тFукн@;нецнSсF;иг(7нFюллиA;меFомедA;до0;нег,по;етни;@Eукко;алпM(т0NиJоF;ицкGмFрб7;раг;елл@,нF;ас,уф;бмGд_@,мF;<;@E;!&,с;алкеIмG_фFюз(;!(,ниAс;-гFус;о.7;дAр;(р@,оKсн-т,уF;г(,криц,мGнна,пинF;ам;иGрF;офE;*;=,?нF;@A;лб,ш;аб,иGонF;го0;вKлаHнGтаF;ви0;ори,>дом;иGнF;аAгис;це`;!итF;ка;ивкил,нагапо0олпа,рабмоб;(Q;иG>F;зPн;тGхF;ра;ка,ом;чоF;!з2;вJдз-пIемиHим,лF]0C;овF;!зв;!+;!$;(;аж3ец3ис+Y;аKиHл~Gрап2DсF;ир,~;!^;лGтF;ирк,ка0;!буп3T;п0Aта;-OиGьлF;%W;лJнHрF;етк-ах3OоF;тва;агF;_;аGибF;ом;(,кол,рап;)3L;-NеJивZнGохс-Fу_9;!=;амGеF;м@(3ра,те0;@;вGлсFсеб;!+,е0%,с2K;&,%F;^;!);~;>ж3сF;ачу,)с%с3вYдоUеRйедOмиNнеш>восMрKтFьлетедивс34;евIусHяF;и.огаFпе3Z;лб;и0$;и0$C;ац,дF;об;!у;&3;!з8оF;вFми&в,п,с3;и$0;шGщусF;!ос;[0етуп;вG`F;ог;@F;ур;-дз,учF;![0(4;чу;е33оF>в7;.3;а1Qб1Oвз2г1Kж17к0Zл0Mн0Fп#,р06х02чOшFщ-#;аIеFулс13#;взGмF;з2с;-,в;н#,рF;куи0пF;оGсF;!(4с2;!д;аMепLиHламо0нак1Z~GуF;рк#,#;<(сC;леHнF;-F;го;ву23;се9;кJлпIрF;оFту;вFку;&,д1(4з2%,с;о,#;с,#;аHыпGяF;?F;св;`2;аJдаIтамсFук5;оGс2уF;[0;!.;бд1;вGпF;];&,огF;&,з2и0о0у;вKеG@F;&у;мHцоF;!<F;ен;),з2;-с;аPбасNвG(*Fису,%,с;&,с2;аFолсу9;лу,наHрG$гF;д1=;<зQ;*F;оFс8у;!и0;%F;^0;вFз,н;&,с;!аксLлатK>чJсF;атHиGыF;з2$;тв;#;д1#;$;в,#;аPеNлаMоK>дJуF#;лсHрF;+9;);&,);&,д1с,у,#;д,мF.;а*2;до;лсFр4;$,#;лB_г5ху;+;-GятF;а6в,о0$,#;дFт5;зв;а6д1(4зFи0оDс,у,#;-,и;вJк%Iр*H*F;+,оF$;ду;+,в,с2у,#;су;ду,сF;и0о,у;!+,и0оF#;п,$;дMж3лJмуз-д1ов7`уYрGцнатEчон7шуб;!с;зоFог,*5;д1с;!&;до0оFп;б5дF;ое0;аFо;з,лвFн;&,о;дLлп,нзH*F;а6в,[0(4<F$,у;!ен;и0оFу;пGсF;!о;!о,с2;!&,(IзHи0оFс,$,#;пF.;!е0;-,и,ос;еп,п;%,с;йNсF;аLеGяF;?;вHнF;оD$;п,.;!з2и0оFс;д,.;`;+,и0оF;),з2с;-;ди,з02йXсF;аTеHюлбCяF;?3;ос;вKлп5мд1нHрF;)F;!=,и0;!а6в,(4зFи0%,с,$,у;ио0;&;!а6в,д1(4зGи0оFс,$,у,ц,#;д,п,.;-,иоFов;.F;!с8;%;`,рF;!+,з8#;ов;а6(4и0оFу,#;),в,д3зFп,.,с,$;ве0иA;!о0;з,н;евGл%3;!%;!в,(4и0%,$,у,#;.;еп;ни",
     "Month": "true¦а4дека3ию2ма1ноя3ок0сен0феврал5январ5;тя2;е,й,рт4я;л2н2;бр1;вгуст1прел0;е,ь,я;!а,е",
     "WeekDay": "true¦в4п1с0четверг6;ред1уббот1;онедель3ятниц0;а0у;!м;оскресень2тор0;ник0;!ам;е,ям",
-    "FemaleName": "true¦0:0Q;1:0R;а0Fв0Cг0Aда09е00жZзXиUкRлNмHнGоDпCр9с8та7у5ф3целес0Oюл1я2;на,рI;аи0е2ёкM;врYодо0K;л2рсуK;иZья0;ис1ма0Hтья0;вет3ерафиVнежа0оф1усS;а3еги0имUогнеQус2;ла0;да,и07;ав0Eелагея,ин0о0Eрасков0I;к3л2;импиаLьга;са0тябR;атал0Eи0он0;а4и2;лица,р2;ослава;р2трё0;гариKи2фа;на,я;а4и3юдми2;ла;д1л1;да,риS;а2иXлавд1сI;питоYр2;и0оX;н3о6р2я;аи4и0;га,есMна;инаи2ла8оя;да;ан0;в7кате6л4писти3рми2;он1;ма;е0изаве2;та;ри0;г3док1ла2пракс1фросин1;л1мп1;ен1;на,рL;аGл2;афиDикер1;а2ерони8иктор1ладимиC;ле2рваBсили5;нBр1;гCза,куBл6н2;астас1геAжел3на,тони0фи2;са;а,и2;ка;е3и2ла;на,са;в3ксанд2;ра;ти0;ли0;аф4лая,н1риппи0;на;ия;ья",
-    "LastName": "true¦0:MK;1:ME;2:MF;3:LO;4:L2;5:JA;6:L6;7:M9;8:LE;9:JS;A:IJ;B:M4;C:LH;D:LX;E:L7;F:HI;larin,аL8бISвHRгGNдFUеFEжF3зEKиE5кBKлAHм94н8Pо85п6Oр60с3Zт31у2Lф24х1Qц1Gч0Wш05щWэQюHёG;жиC3лк1;бк1г0дLмаKнJрIсуп0фK3ха7CшG;ак0кG;ивы1ов;ас0ен2ин,к0л0на2ь2;ге,евKCк1;т0ш2;аHиG;н,цкE;ч5шк1;йбожLWкель,лJмD9нHпингJOрGссен,туш;дели,ист0;гGт1;ельгардт,овD;емба2ьG;к1мпт;авNеHуGёBW;к1р0;гJдр8коч3Fпк1рбHтG;ин1к1;аGиAA;к0т64;еKXл0олG;ев,их1я2;еKVл2;аZвеYеVиPкуOлык0мNпMуG;бFBв9й6кKлHрGх0;уп0шал1ыг1;ьGёв;гGдеш0ц;а,ин;ов,ш1;ак,ик9;аASел5;рDт;б9гKк9н6рJхIшG;кGл0ов;ан0ин,о;ов,р4;ин0к0м4ок0;а2ин;вел5лHпов9рG;емеD1ст0;аг1еп0ом0яп1;д0рнI0;бKкмHQляп1поJрHст1тGшл0;ал0ун0;ап0оGш1;в,н0;в9шн3;ал1уG;н1р0;аWеMиKк9мых0уG;бBг8Dд0жKFкре2мHIпGрк1ч4;аHов,рG;ак0ин,ов;л0х1;грHEж3ла2стFчG;ик0к4;бOкNлMмерис,нд2п0DрGснDLх0;вFеKкаJнG;ак0е6Qик0оHух1ыGяв6;х,ш5;бров1в,мырд1;с0ш1;нч3п4;омей,п4;м5JуJ;от5Iык1;аHд0з0йкGлIPпа2рк0;а,ов6;да2;аNвLеKиIуHыG;г4зHE;к4лукидзе;глHVммермHZолкAрGци4;ин6к7Qю5H;йтл1ликAртел2хан1P;етGил0X;а2к0н0;пл1рG;егородц2ицFJёв;аMвостAигир,лLмельн0оJрIуG;дGрт1;овек0як0;ам0ебт0ом0ущ5;в93лIAмGрьк0хл8O;к2Dо65;ебAKоп5E;бKлIмидK3нHрG;ит7лам0мац;ип0ц2;ип0тG;ур1;аGен6;л0р0;аUеQиMл9QоJрHуGыны0ёдD2;к1рм4;анGол0;ко,ц2;к1мGнвиз1роп7;еCиG;н,ч5;лGрс0;ат0еCиGьчеC;м7пG;ов,п0;дGнJ7тис0;ин,оGул0чеC;сGт0;е2ов;де2нG;ин,ыг1;вBгRдом,лPмOнNрLсHтёс0хGшFU;ов,том6;аIенJ0ил0ов,пERтG;иGюжDL;мB7н0;т0ч5;аGбанAи54ус0;к0лBK;герн,кAтFX;ан0скE;ан0и50ьяG;н8ш1;лHолG;ев,ьн3;иGов;цкEчES;а04вардAе00иVкач7LоQрKсыыHAуGыEPюшнFё3K;м9UпIрGхачCA;б1гGов;ен2;ицE3ол2;аJеIиф7оHуGынд1;с0тн2ф4х1;фI6цкE;диакAтьF;вGпезн3;к1н3;кJлHпорDBрG;оп0ш1;б4к74м74окон6стоG;бр0й,кож2;ар2мEZ;моIтIUхG;в9SоG;мC2н9Kход;фе2шG;енI2к1;лDLмн3плIрGтFY;еGёш1;б0х0шк0щHY;ов,яш1;бEPлаMмаLнк0рJтGуш2;аGтар;рGур0;ин68ов;ас0кAнG;ове40;рк1х1;лGн0;их1;а13в9е0Tи0Mк0Jл0Iм0Dн0Bо04п02тRуIчастли03ыGьI7ём1;со2тн3чG;к1ёв;бNворMдлеCкLлт4нгатKпр58рJсIтKхGчк8;аGих,орG8;н0рн3;лFн1;ик0к0н1;ул1;ач5ин,лет1;ин,к1ов;бот1от1;аNеKрG;еGог4;к9лG;к0ьG;н3ц0;бл5жCYпG;аGн0;нC5ш1;л1рGтнE5;ик0оGц2;в7Uдуб5G;ан0ер6BраG;вц2;бLкKлGм0н1п0р35;дDоG;вь5дHмG;ах1ин,он0;н3с8L;ол0;аCWолевFKч50;а6XеG;гир5тк0;аг1еJирнIоG;лGтр0;ин,янин;ит6ов;тB8х0шнEO;ав6епын1обожB7учAA;во2VороHряб1уG;м1рD;богDхEZ;вD9гаLдA0з9BлIмHтн3янG;ин,ко,овH5;ак1он0;а2иHьG;вестр0н0;в4н;ев,л0ч5;вNдLлKмJнIрGчE2;ге2ебрGов,пи7ябки4Wёг1;ов,як0;отрEEьк1;ер3ян1ён0;езн5ив4;е1IоG;в,коC1;ерGо2W;ин0нEGов,юх1;бRвOгаде2дNз7ит0й,лLмJнн3пHрн9FфGхBянAE;иGCр7;ал5оGрAW;г0жн3;ар1оGс7;йл0х1;аг1им0ко,т4ьG;к0н3;ов6ык0;ас1вHеCиGк1р70;нк0ч2;атFGин;а0Uит0;аZеUж9CоOуLыIюр7GяG;бGх1;к8ов,ц2;баHжGк0нд1чеC;ан0ик0к0ов;к0лк1;баFEдHмя0Nн0сGчк1;а04н3Nс76;ав1ин,н3ов;борAгJдIжк0зHкоссAм4стовGщ1;!ц2;ан0ов6;зянFBин,чFA;ач5оG;в,з1;вяJзнHм1Oп1тюнс6YшетG;ил0н3;иGов;к0чF4;г1к1;бин7CвCVзIмаз4сGтк1Fф3;к9пGскDIторгу2;оп0ут1;ин,ува2;а0Pе0Gи0Cл0AоVрQуIшеничн3ы9OьGятос1;еха,янG;ых;гMдLзаKтIшG;кGнCX;ар5ин;иGят1;л8н;к0н0;ин,о30;ач5ин;азD0еJиIоG;ниGскуA2т5Wх86;н,ч2;был0в9гож1мBDходьEL;ображABсьнF;гTдSжар6зднFкрAлLмелKнJпIртн0сох0тG;ап0ёG;мк1;ов,ыр1;икBомMч3;ов,ьн3;иLнKоIтHуGяк0;н1ш1;ан0ор2I;вц2теG;нц2;ар5;в4щEH;а,шив9;од1ребн0;аGемяAMисе0C;кс1т7;вовBмBUроIчуHщаG;льн3;г1шк1;г0жк0;вц0лNнк1рIст0тGчк1;рGух0;енDWов,ух1;в22еHмGов,филь2;ин0як0;вHжог1сторG;он1;ал0ерз2ё0S;ев1ёв1;вл55люл1нKп4рJсHтA0улк1хом0шG;ин,к0;тGх1;ерн1Tух;ам7ши3H;ар1ин,кGфANькив;ин,ов,рD;бWве9LгSз4AкE8лRмельниQнPпOрNсGшуVщов ;иKм9MоJтG;аHровG;еCWскE;л74пB3;к1лодк1;нGп8U;!ов,ц2;бакайте,л0;ок1;ег1ипчD7;цкE;ен2ьхA;аIиHороBHуG;рц0;евBD;рк0;нHоGразцо́8Z;л8Rр1;из0;аTеPиLоHурG;и2магомC0;вHздр3Hр1сG;ач5к0ов;и2LоG;кш7сел6J;замBDкG;иHоGул1;ла2н0;т1ф68ш1;вз67жд4крHмцGн16пе1ст3GтребCOча2;ев,ов;ас0еG;стьD4;бDзBс7ум40ч9;а0Dе07иTоOуIышHяG;гк0сн3тл2ук1;ел0к1;рJхG;аHин,оG;рт0;метш1н0;аGог0;вь5т0;жа2исе2крив6лч4рIсGх0;ал5ин,кGяк0;ал5в1;двBWен0оGяк0;з0шк1;гSлPнOрMс9тLхHшG;ин,н5ут1;аGе2;йл0лG;ицGёв;ин,ын;ин,роф4ьк1;н4SоGскE;в,н0х1;а2е2ин,к1ькA;оHюGёх1;к0т1;в,р7Tс4H;ун0;дKлIнHркуGсяц,хан3RщерF;л0ш2;шиков/меньш3щ3;еGик0ьн3;д1х0щBX;вед9Rн3;гTйсSкPлMмLнKрIслHтве2хмуд0шG;ар1ир;ак,ов;инGк8тюш2ь1;!ин,к1;ин,т4Zяк1;ин,он0ык1;ах0иHк1ыGюг1;х1ш2;к0н8;ар0л83сG;имGуд0;ов,уB6;ак;ер,омAA;а0Bе04и00оPуMыLьв0юJяHёG;вк1;гуш5Iд0люB1м1пG;ин,ун0;бимGт6K;ов,ц2;зл0тк1;бHжк0кG;ашAXин,ов,ь2D;аш2;бNвз06гин9MктMмKпHсGщ7Z;ев9Mкут1O;атGух0;ин,киG;на;оGт2;вц2нос0;ев,и7;аGов;н8AчG;ев6ёв;д1л0м7п8сHхG;ач5;иц64ов,тG;рDун0;бедKв4Bдовск8Jлух,н1онJпIрмонт0сHт0ш2щG;енAGёв;к0ничE;с,ёх1;ид0ов,ти2;ев,инGь;скEц2;врLгJзар2нц0пHри7стовка,чG;ин0к0;а2иGо7Fт2ун0;дус,н;ош1рGут0;ан6;ен24ов;а1Dв1CеAAи18л14няз2о0BрTуG;бRва2дOзMим0клLлIпц0рHст0тG;еп0ик0уз0як0;ак1бDг4д1еп1иц5Lо63пDта9Xч1;аHиG;б1к7L;г1к0;ач5ев,ин;нец0уб0ьG;к1миS;аш0рG;ин,яG;вц2ш0;л4ы9N;аSиPоп4BуIыHюG;к0чк0;л0м0с0;гLк0пJтGч68;иHоG;в,й;к0н;иGн0;н,ч;!л0;вGд;к0оG;в,ух0;вч9Mев83мн6DсG;ав1ноHоG;тк1;в,пG;ёр0;б07в04жу03з01лXмWнUпTрMсIт0чеCшG;еGк1;л2чк1;арIк0оHтGяк;ин,омBю90;м0р7Q;ев,ин;аблLен2жKнIоGтн2ч57яв8;в1л5тG;а2е2к8;еGил0;в,ев;ак0ев;ин,ёв;е97с0ц2;дGев,ин,н3ов9стантин,ьFяш0;ра0Rур0юр1;ар0з1иссBол0;есIлHоGу4Cьц0;бк0мн3н3Kс0;ер0;н3ов;аGл7Bыр2;к0рь;р0х0;алGр0ш0O;еGёв;в6н8G;зон,як0;еHимGок0;ов,уш1ц0;бле2пG;ак,ин;лессо,при8TрHсG;ел2лух1;е2илGк1Rс4ь8R;л0ов;ас0;бл6Tвер1д01заZлWмTндSпQрMсJтIч6CшG;ар1ирGн3у3C;ин,скE;а2ерино45ин;ат6GьG;янG;ен7Zов;аIба7Nг1еHи2наух0ры2ташGч45яв1;ов,ёв;в,тн3;ва2ндаш0ул8;ица,раGуст1;л0н0;ин6;енGк1;ев,кZсG;ких;аGг4ин1уг1яг1;г1шнG;ик59;к58нGрез0;ц2ьк0;н3ур1ц34;браг79вSгPжOзMлJноземц2паIсHшOщегG;ел0л0;а2мLтом1;ть2;ьHюG;х1ш17;ин,кун,юш1яс0;мGюм0;айл0;ут1;натGош1умн0;кGь2;ов5G;аGк1лее33олг1ч74;к1н24ш8;аOвNеф11иLлоб1оJуHыGюг4ём1;к8р7L;бGев,йк0;ар2к0ов;лGн0р1т0;ин,от0;мGнч6W;ин,к0нF;ер2яг1;болотн59вLгоро58дорKйц2кр0JпорожJруб1сIхаG;ев,рG;ов,ч6Rь1;лав6;ец;н0ожн54;раGьял0;жGз1;ин,нG;ов,ый;аOв3д4еKиIолд1уGён0;к46рGт0;авл5ов;гGдк0к1л8р0;л0ун0;гл0лезIрHстG;ок0;д2н35;к1н0;б1рG;к0ых1;вTгSдем6ж0лPмел6RнNрJсHфGшY;им0рем0;а6XиG;к0п0;е2MмHоGх0ш0ём1;фе2х1;ак0ил0олGуш1;oв,а2;галGин;ыч2;аг1еш2иHьG;ц8ч1;зBсе2;ор0;док5MсGтушеC;е2тигне2;а05ворн3еZмитри2оSрOуHыховичн48южеCятл0ёG;гт2м1;бJдIлHнаGр0;ев6;ьц2;ин,ко,н2P;инHоGрA;в,л42;ин,к1;агHесвян1й23угGяг1ём0;ан1ов;омGун0;ир0;брKлJмIроHстоG;в9ев6;фе2х8;аш5н1;гор40ж3;оGын1;люб0н33;гтяр5д0жн5лKмIниHрG;ж4Jн0;к1с0;енGид0;ок,ть2;ов,ян1;выдHйне53цG;иш1юк;к1ов;а0Bе0Aил5л07оUрKуG;б4л1н1рHсGщ1;ар0ев,ин,лFьк0;кAьG;ев,ян0;аOеNиJом0уGязн0;зHшG;ан1;д2ин6;бHгоGн1ш1;рь2;ан0к0оG;в,ед0;бенщ3к0шнoв;д6нк1ф0ч5;вяд4AлMнчBрG;бJеHносGох0шк0юн0;та2;в,л0мG;ык1;ач5унG;к0ов;оIуG;бGмбA;ев,к1ов,ц0;вGдя2лоб0;!аGин,к1;н0ха;аHеб0ин1оGух0;ба;гол2зк0;нк1рас3W;вриLгKзм4лIрGч2;ан1иG;н,ф4F;д1иаскBк1ыг1ёG;рк1;ар1ол1;к0лG;еCов;а06еXиTоKыIьялG;ицG;ын;рыGсот6;па2;дNлLроJскHтF;як0;обойн3ресG;ен6;бь5нG;ин,к0ов,ц0;ик0к0оGьв0D;д1сеCш1;овDян0;ноHтвNхр0ц1шнёG;ва;грGкур0;ад0;деMн1HрIсел24тG;оGр0;чк1;еHшG;ин1;н1JщG;аг1;нGрн3;е2ин;в08г1енOли2рLсHхG;руш2;иHнеG;в,ц0;лGн;ев6ь2;еHт4у2WфолоG;ме2;нн3;га;а1Eе0Rи0Pл0GоUрSуIыG;к0лGчк0;инк1;гаOдMзLк8лJн1рHтGхало;ус0ыл1;дукAк0мак1ов,ц0ый,як0;ов6;гGыг1;ак0;ин6ов;аGн3ыл1;ев,н0;ев,йч2Tк0;аGежн2усLызг9;в3г1нт0;бYгRдр0йQкPлLндарKрGчBяр0;е2зIис04оHтнGц0;ик;вк0д1;ил0;ев,ч2L;дIоHтоног0ьшG;ак0ов;тн3;ыр2;!ар5;к0ц0;аKд4оGр0ун;лHмG;аз0ол0;еп0юбG;ов,скE;тыр5ч5;ёв;к0рG;!иGов;к,н6;аKиIоGум;кGх1;!ов;знGн0;юк;гонIжHнтGт0;ер;ен0;рав0;лGрюк0;ан;б01зUлNнMрJсHхтG;ер2;п9с7фамильнW;ал0;еGия,ш0;жнGз1;ой;едикт0;евLиKоHяG;ев,к0;в,глPместнHрGус0чк1;ус0;ов,ых;к0н6;ич;борLобрKрHуклаG;дн3;оGук0;днG;ый;аз0;од0;н2ч17;бTгр0жSзQлаOрIск8тG;ищ2рG;утд0J;аIбол1ин0к0сHышG;ев,н3;ук0;нGтын6;овG;!скE;б4киGнд1ш0;н,р2;аGин;н0р0;ан0ен0;аHиGк1ур1ык1;к0ч2;ев,н1;б12в0Wг0Rдакс1зBк0Nл0Hм0GнYпXрPсLфJхHюG;ши2щегл0;мGрем0C;ед0;анасGон1;к1ь2;лаHпид0с7таG;нк0фь2х0;н0х4;ан0;ефь2замасц2истLсень2тKхангеHшG;ав1;ль6;скE;ий;ам7емь2ём0;аGов;рх0;алк0текарь;аUдрPиMкудLнJоIреп,тGущеC;ак0ип8он0J;ин,ов;с0х1шк1;еCик0;нк0;ин0;кHсGш1;им0;ан0ин;еIоGюх1;н3п0;ик0;ев,юG;шк1;нь2сG;енG;ко;али2ел1ин2;еIиGлилу2огр1ёх1;ев,стрD;ат0;ев,ксGн1х1;анGе2;др0;инфе2сGул0;ак0енчGён0;ук;ар0;аIеHлиG;улл1;йк1;п0ф7;он0;дIерGил0;ин,ьG;ян0;е2он1;ин;ев;акум0дIрамG;овG;!ич;ул0;ов"
+    "FemaleName": "true¦:!1:#$%&()*+-./<=>:ал,га,ле,ар,ор,им,ла,на,ки,ил,ев,ен,ми,ип;аCя0;#$,ег#еп,и1оз,ь0;вокс&п,*тан,рад,фаZ;!д8код7л6н3пм#7р1с0фос;атса+,иNк&п6;ам,е0от-в;-FлR;$,е1ис(ф3о0;)ре,рвB;г1ск;#0.,ю;ве;в#к,.;в#с(08г06д03за,-01л00мYнAр5с2т0фрBц.);#з,/азиTи0;лу,рагр9;и0с<и;&,л0р#,фY;а,исF;а3д+скFи1одо0;еф;к,=д#в,фа0;лг;врAм4;аKеJи7н4я1ёрт0;ам;!ь0;лу,т0;ат;а1и0он;!п;!ж,ои,сус;аф,гер,л7н6ппир5р3т0;в1нел0се%ц;ав;е*;а0бят9етаке,и;к,м;$;!отC;а2вап,егBо0ука;п,р0т>0;ак;!г;%;д,ж<с,л1с0;ко;сур,т/с;и0=р;тс>е,ф&ес;еж1)дюл,кёф,*,усру;%ж0н(/;+;а1<г(,иа0;низ,ри;>=1л,р;ни,ь0;ло;),я",
+    "LastName": "true¦!1:#$%&()*+-.<=>?@[]^_`~:ов,ин,ев,ак,ен,ан,ст,ар,ко,ик,ер,ол,ор,ел,нк,ск,он,ал,ом,ук,ме;0:MK;1:ME;2:MF;3:LO;4:L2;5:JA;6:L6;7:M9;8:LE;9:JS;A:IJ;B:M4;C:LH;D:LX;E:L7;F:HI;larin,аL8бISвHRгGNдFUеFEжF3зEKиE5кBKлAHм94н8Pо85п6Oр60с3Zт31у2Lф24х1Qц1Gч0Wш05щWэQюHёG;жиC3лк1;бк1г0дLмаKнJрIсуп0фK3ха7CшG;&0кG;ивы1#;ас0(2$,к0л0на2ь2;ге,%ич,к1;т0ш2;аHиG;н,цкE;ч5шк1;йбожLWк?ь,лJмD9нHп$г<,рGсс(,туш;д?и,и*0;гGт1;?ьг+дт,#D;емба2ьG;к1мпт;авNеHуGёBW;к1р0;гJдр8-ч3Fпк1рбHтG;$1к1;аG$а;к0тых;еKXл0=G;%,их1я2;еKVл2;аZвеYеVиPкуOлык0мNпMуG;бFBв9й6кKлHрGх0;уп0ш^1ыг1;ьGёв;гGдеш0ц;а,$;#,ш1;&,.9;аAS?5;рDт;б9гKк9н6рJхIшG;кGл0#;)0$,о;#,р4;$0к0м4ок0;а2$;в?5лHп#9рG;е~D1*0;аг1еп0_0яп1;д0рн.;бKкмHQляп1поJрH*1тGшл0;^0ун0;ап0оGш1;в,н0;в9шн3;^1уG;н1р0;аWеMиKк9мых0уG;бBг8Dд0жKFкре2мHIпGрк1ч4;аH#,рG;&0$,#;л0х1;грHEж3ла2*FчG;.0к4;бOкNлMм<ис,нд2п0DрGснDLх0;вFеKкаJнG;&0е6Q.0оHух1ыGяв6;х,ш5;бр#1в,мырд1;с0ш1;нч3п4;_ей,п4;м5JуJ;от5Iык1;аHд0з0йкGлый,па2рк0;а,#6;да2;аNвLеKиIуHыG;г4зHE;к4л`идзе;гл<,мм<м),=кAрGци4;$6к7Qю5H;йтл1л.Aрт?2х)1P;етGил0X;а2к0н0;пл1рG;ег>одц2ицын,ёв;аMво*Aигир,лLм?ьн0оJрIуG;дGрт1;#ек0як0;ам0ебт0_0ущ5;в93лIAмGрьк0хл8O;к2Dо65;ебAKоп5E;бKлIмидK3нHрG;ит7лам0мац;ип0ц2;ип0тG;ур1;аG(6;л0р0;аUеQиMл9QоJрHуGыны0ёдD2;к1рм4;)G=0;-,ц2;к1мGнвиз1роп7;еCиG;н,ч5;лGрс0;ат0еCиGьчеC;м7пG;#,п0;дGнJ7тис0;$,оGул0чеC;сGт0;е2#;де2нG;$,ыг1;вBгRд_,лPмOнNрLсHтёс0хGшFU;#,т_6;аI(-,ил0#,пERтG;иGюжDL;мB7н0;т0ч5;аGб)Aи54ус0;к0лец;г<н,кAтFX;)0[E;)0и50ьяG;н8ш1;лH=G;%,ьн3;иG#;цкEчES;а04в+дAе00иVкач7LоQрKсыыHAуGыEPюшнFё3K;м9UпIрGхачCA;б1гG#;(2;ицын,=2;аJеIиф7оHуGынд1;с0тн2ф4х1;фI6цкE;ди&AтьF;вGпезн3;к1н3;кJлHп>DBрG;оп0ш1;б4к74м74о-н6*оG;бр0й,-ж2;+2мEZ;моIтIUхG;в9SоG;мC2н9Kход;фе2шG;(-,к1;лDLмн3плIрGтFY;еGёш1;б0х0шк0щHY;#,яш1;бEPлаMмаL@0рJтGуш2;аGт+;рGур0;$68#;ас0кAнG;#е40;рк1х1;лGн0;их1;а13в9е0Tи0Mк0Jл0Iм0Dн0Bо04п02тRуIча*ли03ыGьI7ём1;со2тн3чG;к1ёв;бNв>MдлеCкLлт4нгатKпр58рJсIтKхGчк8;аGих,>G8;н0рн3;лFн1;.0к0н1;ул1;ач5$,лет1;$,к1#;бот1от1;аNеKрG;еGог4;к9лG;к0ьG;н3ц0;бл5жCYпG;аGн0;нC5ш1;л1рGтн.;.0оGц2;в7Uдуб5G;)0<6BраG;вц2;бLкKлGм0н1п0р35;дDоG;вь5дHмG;ах1$,]0;н3с8L;=0;аCW=%FKч&;а6XеG;гир5тк0;аг1еJирнIоG;лGтр0;$,янGD;ит6#;тB8х0шной;ав6епын1обожB7учAA;во2V>оHряб1уG;м1рD;богDхEZ;вD9гаLдA0з9BлIмHтн3янG;$,-,#H5;&1]0;а2иHьG;ве*р0н0;в4н;%,л0ч5;вNдLлKмJнIрGчE2;ге2ебрG#,пи7ябк$а,ёг1;#,як0;отрEEьк1;<3ян1ён0;езн5ив4;е1IоG;в,к#а;<Gо2W;$0ный,#,юх1;бRвOгаде2дNз7ит0й,лLмJнн3пHрн9FфGхBянAE;иGCр7;^5оGрAW;г0жн3;+1оGс7;йл0х1;аг1им0-,т4ьG;к0н3;#6ык0;ас1вHеCиGк1р70;@0ч2;атFG$;а0Uит0;аZеUж9CоOуLыIюр7GяG;бGх1;к8#,ц2;баHжGк0нд1чеC;)0.0к0#;к0лк1;баFEдHмя0Nн0сGчк1;а04н&,с76;ав1$,н3#;б>AгJдIжк0зH-ссAм4*#Gщ1;!ц2;)0#6;зян-,$,чFA;ач5оG;в,з1;вяJзнHм1Oп1тюнс6YшетG;ил0н3;иG#;к0чF4;г1к1;б$7CвCVзIмаз4сGтк1Fф3;к9пG[DIт>гу2;оп0ут1;$,ува2;а0Pе0Gи0Cл0AоVрQуIш(ичн3ы9OьGятос1;еха,янG;ых;гMдLзаKтIшG;кGной;+5$;иGят1;л8н;к0н0;$,о30;ач5$;азD0еJиIоG;ниG[уA2т5Wх86;н,ч2;был0в9гож1мBDходь-;ображABсьнF;гTдSж+6зднFкрAлLм?KнJпIртн0сох0тG;ап0ёG;мк1;#,ыр1;.B_Mч3;#,ьн3;иLнKоIтHуGяк0;н1ш1;)0>&;вц2теG;нц2;+5;в4щ`;а,шив9;од1ребн0;аGемяAMисе0C;кс1т7;в#BмBUроIчуHщаG;льн3;г1шк1;г0жк0;вц0лN@1рI*0тGчк1;рGух0;(-,#,ух1;в&,еHмG#,филь2;$0як0;вHжог1*>G;]1;^0<з2ё0S;%1ёв1;вл55люл1нKп4рJсHтA0улк1х_0шG;$,к0;тGх1;<н&,ух;ам7ши3H;+1$,кGфANькив;$,#,рD;бWве9LгSз4AкE8лRм?ьниQнPпOрNсGшуVщ# ;иKм9MоJтG;аHр#G;еCW[E;л74пюк;к1лодк1;нGп8U;!#,ц2;б&айте,л0;ок1;ег1ипчD7;цкE;(2ьхA;аIиH>оBHуG;рц0;%ич;рк0;нHоGразцо́ва;л8Rр1;из0;аTеPиLоHурG;и2маг_C0;вHздр3Hр1сG;ач5к0#;и2LоG;кш7с?6J;замBDкG;иHоGул1;ла2н0;т1ф68ш1;вз67жд4крHмцGн16пе1*3Gтреб-,ча2;%,#;ас0еG;*ьD4;бDзBс7ум40ч9;а0Dе07иTоOуIышHяG;гк0сн3тл2`1;?0к1;рJхG;аH$,оG;рт0;~тш1н0;аGог0;вь5т0;жа2исе2крив6лч4рIсGх0;^5$,кGяк0;^5в1;двBW(0оGяк0;з0шк1;гSлPнOрMс9тLхHшG;$,н5ут1;аGе2;йл0лG;ицGёв;$,ын;$,роф4ьк1;н4SоG[E;в,н0х1;а2е2$,к1ькA;оHюGёх1;к0т1;в,р7Tс4H;ун0;дKлIнHркуGсяц,х)3Rщ<F;л0ш2;ш.#/м(ьш3щ3;еG.0ьн3;д1х0щ`;вед9Rн3;гTйсSкPлMмLнKрIслHтве2хмуд0шG;+1ир;&,#;$Gк8тюш2ь1;!$,к1;$,т4Zяк1;$,]0ык1;ах0иHк1ыGюг1;х1ш2;к0н8;+0л83сG;имGуд0;#,уB6;&;<,_AA;а0Bе04и00оPуMыLьв0юJяHёG;вк1;гуш5Iд0люB1м1пG;$,ун0;бимGт6K;#,ц2;зл0тк1;бHжк0кG;ашAX$,#,ь2D;аш2;бNвз06г$9MктMмKпHсGщ7Z;%9Mкут1O;атGух0;$,киG;на;оGт2;вц2нос0;%,и7;аG#;н8AчG;%6ёв;д1л0м7п8сHхG;ач5;ицын,#,тG;рDун0;бедKв4Bд#с-й,лух,н1]JпIрм]т0сHт0ш2щG;(-,ёв;к0ничE;с,ёх1;ид0#,ти2;%,$Gь;[Eц2;врLгJз+2нц0пHри7*#ка,чG;$0к0;а2иGо7Fт2ун0;дус,н;ош1рGут0;)6;(24#;а1Dв1CеAAи18л14няз2о0BрTуG;бRва2дOзMим0клLлIпц0рH*0тG;еп0.0уз0як0;&1бDг4д1еп1ицын,о63пDта9Xч1;аHиG;б1к7L;г1к0;ач5%,$;нец0уб0ьG;к1миS;аш0рG;$,яG;вц2ш0;л4ы9N;аSиPоп4BуIыHюG;к0чк0;л0м0с0;гLк0пJтGч68;иHоG;в,й;к0н;иGн0;н,ч;!л0;вGд;к0оG;в,ух0;вч`,%83мн.,сG;ав1ноHоG;тк1;в,пG;ёр0;б07в04жу03з01лXмWнUпTрMсIт0чеCшG;еGк1;л2чк1;+Iк0оHтGяк;$,_Bю90;м0р7Q;%,$;аблL(2жKнIоGтн2ч57яв8;в1л5тG;а2е2к8;еGил0;в,%;&0%;$,ёв;е97с0ц2;дG%,$,н3#9*)т8HьFяш0;ра0Rур0юр1;+0з1иссB=0;есIлHоGу4Cьц0;бк0мн3н3Kс0;<0;н3#;аGл7Bыр2;к0рь;р0х0;^Gр0ш0O;еGёв;в6н-;з],як0;еHимGок0;#,уш1ц0;бле2пG;&,$;лессо,при8TрHсG;?2лух1;е2илGк1Rс4ь8R;л0#;ас0;бл6Tв<1д01заZлWмTндSпQрMсJтIч6CшG;+1ирGн3уба;$,[E;а2<$о45$;атый,ьG;янG;(-,#;аIба7Nг1еHи2наух0ры2ташGч45яв1;#,ёв;в,тн3;ва2ндаш0ул8;ица,раGу*1;л0н0;$6;(Gк1;%,кZсG;ких;аGг4$1уг1яг1;г1шнG;.59;к58нGрез0;ц2ьк0;н3ур1цын;браг79вSгPжOзMлJноземц2паIсHшOщегG;?0л0;а2мLт_1;ть2;ьHюG;х1ш17;$,кун,юш1яс0;мGюм0;айл0;ут1;натGош1умн0;кGь2;#ич;аGк1ле%а,=г1ч74;к1н24ш8;аOвNеф11иLлоб1оJуHыGюг4ём1;к8р7L;бG%,йк0;+2к0#;лGн0р1т0;$,от0;мGнч6W;$,к0нF;<2яг1;б=отный,вLг>о58д>Kйц2кр0Jп>ожJруб1сIхаG;%,рG;#,ч6Rь1;лав6;ец;н0ожный;раGьял0;жGз1;$,нG;#,ый;аOв3д4еKиI=д1уGён0;к46рGт0;авл5#;гGдк0к1л8р0;л0ун0;гл0лезIрH*G;ок0;д2н35;к1н0;б1рG;к0ых1;вTгSдем6ж0лPм?6RнNрJсHфGшY;им0рем0;а6XиG;к0п0;е2MмHоGх0ш0ём1;фе2х1;&0ил0=Gуш1;oв,а2;г^G$;ыч2;аг1еш2иHьG;ц8ч1;зBсе2;>0;док5MсGтушеC;е2тигне2;а05в>н3еZмитри2оSрOуHых#ичный,южеCятл0ёG;гт2м1;бJдIлHнаGр0;%6;ьц2;$,-,н.;$HоGрA;в,л42;$,к1;агHесвян1йга,угGяг1ём0;)1#;_Gун0;ир0;брKлJмIроH*оG;в9%6;фе2х8;аш5н1;г>40ж3;оGын1;люб0н33;гтяр5д0жн5лKмIниHрG;ж4Jн0;к1с0;(Gид0;ок,ть2;#,ян1;выдHйне-,цG;иш1юк;к1#;а0Bе0Aил5л07оUрKуG;б4л1н1рHсGщ1;+0%,$,лFьк0;кAьG;%,ян0;аOеNиJ_0уGязн0;зHшG;)1;д2$6;бHгоGн1ш1;рь2;)0к0оG;в,ед0;б(щ3к0шнoв;д6@1ф0ч5;вяд4AлMнчBрG;бJеHносGох0шк0юн0;та2;в,л0мG;ык1;ач5унG;к0#;оIуG;бGмбA;%,к1#,ц0;вGдя2лоб0;!аG$,к1;н0ха;аHеб0$1оGух0;ба;г=2зк0;@1рас3W;вриLгKзм4лIрGч2;)1иG;н,ф4F;д1иа[Bк1ыг1ёG;рк1;+1=1;к0лG;еC#;а06еXиTоKыIьялG;ицG;ын;рыGсот6;па2;дNлLроJ[HтF;як0;обойн3ресG;(6;бь5нG;$,к0#,ц0;.0к0оGьв0D;д1сеCш1;#Dян0;ноHтвNхр0ц1шнёG;ва;грGкур0;ад0;деMн1HрIс?24тG;оGр0;чк1;еHшG;$1;нич,щG;аг1;нGрн3;е2$;в08г1(Oли2рLсHхG;руш2;иHнеG;в,ц0;лGн;%6ь2;еHт4у2Wф=оG;~2;нн3;га;а1Eе0Rи0Pл0GоUрSуIыG;к0лGчк0;$к1;гаOдMзLк8лJн1рHтGх^о;ус0ыл1;д`Aк0м&1#,ц0ый,як0;#6;гGыг1;&0;$6#;аGн3ыл1;%,н0;%,йч`,к0;аGежн2усLызг9;в3г1нт0;бYгRдр0йQкPлLнд+KрGчBяр0;е2зIисюк,оHтнGц0;.;вк0д1;ил0;%,ч`;дIоHт]ог0ьшG;&0#;тн3;ыр2;!+5;к0ц0;аKд4оGр0ун;лHмG;аз0=0;еп0юбG;#,[E;тыр5ч5;ёв;к0рG;!иG#;к,н6;аKиIоGум;кGх1;!#;знGн0;юк;г]IжHнтGт0;<;(0;рав0;лGрюк0;);б01зUлNнMрJсHхтG;<2;п9с7фамильнW;^0;еGия,ш0;жнGз1;ой;ед.т0;%LиKоHяG;%,к0;в,глP~*нHрGус0чк1;ус0;#,ых;к0н6;ич;б>LобрKрH`лаG;дн3;оG`0;днG;ый;аз0;од0;н2ч`;бTгр0жSзQлаOрI[8тG;ищ2рG;утд0J;аIб=1$0к0сHышG;%,н3;`0;нGтын6;#G;![E;б4киGнд1ш0;н,р2;аG$;н0р0;)0(0;аHиGк1ур1ык1;к0ч2;%,н1;б12в0Wг0Rд&с1зBк0Nл0Hм0GнYпXрPсLфJхHюG;ши2щегл0;мGрем0C;ед0;)асG]1;к1ь2;лаHпид0с7таG;@0фь2х0;н0х4;)0;ефь2замасц2и*Lс(ь2тKх)геHшG;ав1;ль6;[E;ий;ам7емь2ём0;аG#;рх0;^к0тек+ь;аUдрPиMкудLнJоIреп,тGущеC;&0ип8]0J;$,#;с0х1шк1;еC.0;@0;$0;кHсGш1;им0;)0$;еIоGюх1;н3п0;.0;%,юG;шк1;нь2сG;(G;-;^и2?1$2;еIиGлилу2огр1ёх1;%,*рD;ат0;%,ксGн1х1;)Gе2;др0;$фе2сGул0;&0(чGён0;`;+0;аIеHлиG;улл1;йк1;п0ф7;]0;дI<Gил0;$,ьG;ян0;е2]1;$;%;&ум0дIрамG;#G;!ич;ул0;#"
   };
 
+  /* eslint-disable no-empty */
   const BASE = 36;
   const seq = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
@@ -8133,7 +9156,7 @@
     let range = BASE;
     let s = '';
     for (; n >= range; n -= range, places++, range *= BASE) {}
-    while (places--) {
+    for (; places > 0; places--) {
       const d = n % BASE;
       s = String.fromCharCode((d < 10 ? 48 : 55) + d) + s;
       n = (n - d) / BASE;
@@ -8166,65 +9189,135 @@
   };
 
   const symbols = function (t) {
-    //... process these lines
-    const reSymbol = new RegExp('([0-9A-Z]+):([0-9A-Z]+)');
+    const reSymbol = /^([0-9A-Z]+):([0-9A-Z]+)$/;
     for (let i = 0; i < t.nodes.length; i++) {
-      const m = reSymbol.exec(t.nodes[i]);
-      if (!m) {
-        t.symCount = i;
+      if (!t.nodes[i].includes(':')) {
         break
       }
-      t.syms[encoding.fromAlphaCode(m[1])] = encoding.fromAlphaCode(m[2]);
+      const m = reSymbol.exec(t.nodes[i]);
+      if (!m || m[0].length !== t.nodes[i].length || encoding.fromAlphaCode(m[1]) !== i) {
+        throw new SyntaxError('Invalid efrt packed data: symbol definition')
+      }
+      t.syms.push(encoding.fromAlphaCode(m[2]));
     }
-    //remove from main node list
-    t.nodes = t.nodes.slice(t.symCount, t.nodes.length);
+    t.symCount = t.syms.length;
+    t.nodes = t.nodes.slice(t.symCount);
+    if (t.nodes.length === 0 || t.syms.some((index) => !Number.isSafeInteger(index) || index >= t.nodes.length)) {
+      throw new SyntaxError('Invalid efrt packed data: symbol target')
+    }
+  };
+
+  const unescapeLabel = function (text) {
+    return text.replace(/\\([\s\S]|$)/g, (match, char) => {
+      if (char === '\\') {
+        return '\\'
+      }
+      if (char >= 'a' && char <= 'j') {
+        return String(char.charCodeAt(0) - 97)
+      }
+      throw new SyntaxError('Invalid efrt packed data: label escape')
+    })
+  };
+
+  const dictionary = function (trie) {
+    if (!trie.nodes[0].startsWith('!1:')) {
+      return
+    }
+    const header = trie.nodes.shift().split(':');
+    const tokens = Array.from(header[1]);
+    const fragments = (header[2] || '').split(',');
+    if (header.length !== 3 || tokens.length === 0 || tokens.length !== fragments.length ||
+      new Set(tokens).size !== tokens.length || trie.nodes.length === 0 ||
+      tokens.some((token) => token.length !== 1 || token.charCodeAt(0) < 33 ||
+        token.charCodeAt(0) > 126 || /[A-Za-z0-9,;!:|]/.test(token) ||
+        (trie.versioned && token === '\\')) ||
+      fragments.some((text) => !text || /[A-Z0-9,;!:|¦]/.test(text))) {
+      throw new SyntaxError('Invalid efrt packed data: fragment dictionary')
+    }
+    trie.dictionary = Object.create(null);
+    for (let i = 0; i < tokens.length; i++) {
+      trie.dictionary[tokens[i]] = trie.versioned ? unescapeLabel(fragments[i]) : fragments[i];
+    }
   };
 
   // References are either absolute (symbol) or relative (1 - based)
   const indexFromRef = function (trie, ref, index) {
     const dnode = encoding.fromAlphaCode(ref);
-    if (dnode < trie.symCount) {
-      return trie.syms[dnode]
+    const target = dnode < trie.symCount ? trie.syms[dnode] : index + dnode + 1 - trie.symCount;
+    // The encoder emits nodes in topological order. Every edge must point
+    // forward, which also rules out cycles before expansion starts.
+    if (!Number.isSafeInteger(target) || target <= index || target >= trie.nodes.length) {
+      throw new SyntaxError('Invalid efrt packed data: node reference')
     }
-    return index + dnode + 1 - trie.symCount
+    return target
+  };
+
+  const parseNodes = function (trie) {
+    return trie.nodes.map((node, index) => {
+      if (node === '' && trie.nodes.length !== 1) {
+        throw new SyntaxError('Invalid efrt packed data: empty node')
+      }
+      const terminal = node[0] === '!';
+      const body = terminal ? node.slice(1) : node;
+      const edges = [];
+      // Match only at the current offset. Searching later positions would
+      // repeatedly rescan a long malformed fragment before rejecting it.
+      const token = /([^A-Z0-9,;!:|¦]+)([A-Z0-9]+|,|$)/y;
+      for (let offset = 0; offset < body.length; offset = token.lastIndex) {
+        const match = token.exec(body);
+        if (!match || match.index !== offset || (match[2] === ',' && token.lastIndex === body.length)) {
+          throw new SyntaxError('Invalid efrt packed data: node syntax')
+        }
+        const ref = match[2];
+        const label = trie.versioned ? unescapeLabel(match[1]) : match[1];
+        const text = trie.dictionary ? Array.from(label,
+          (char) => trie.dictionary[char] || char).join('') : label;
+        edges.push({
+          text,
+          target: ref === '' || ref === ',' ? -1 : indexFromRef(trie, ref, index)
+        });
+      }
+      return { terminal, edges }
+    })
   };
 
   const toArray = function (trie) {
+    const nodes = parseNodes(trie);
     const all = [];
-    const crawl = (index, pref) => {
-      let node = trie.nodes[index];
-      if (node[0] === '!') {
-        all.push(pref);
-        node = node.slice(1); //ok, we tried. remove it.
-      }
-      const matches = node.split(/([A-Z0-9,]+)/g);
-      for (let i = 0; i < matches.length; i += 2) {
-        const str = matches[i];
-        const ref = matches[i + 1];
-        if (!str) {
-          continue
+    const stack = [{ index: 0, pref: '', edge: -1 }];
+    for (; stack.length > 0;) {
+      const frame = stack[stack.length - 1];
+      const node = nodes[frame.index];
+      if (frame.edge === -1) {
+        if (node.terminal) {
+          all.push(frame.pref);
         }
-        const have = pref + str;
-        //branch's end
-        if (ref === ',' || ref === undefined) {
-          all.push(have);
-          continue
-        }
-        const newIndex = indexFromRef(trie, ref, index);
-        crawl(newIndex, have);
+        frame.edge = 0;
       }
-    };
-    crawl(0, '');
+      if (frame.edge === node.edges.length) {
+        stack.pop();
+        continue
+      }
+      const edge = node.edges[frame.edge++];
+      const word = frame.pref + edge.text;
+      if (edge.target === -1) {
+        all.push(word);
+      } else {
+        stack.push({ index: edge.target, pref: word, edge: -1 });
+      }
+    }
     return all
   };
 
   //PackedTrie - Trie traversal of the Trie packed-string representation.
-  const unpack$1 = function (str) {
+  const unpack$1 = function (str, versioned = false) {
     const trie = {
       nodes: str.split(';'),
       syms: [],
-      symCount: 0
+      symCount: 0,
+      versioned
     };
+    dictionary(trie);
     //process symbols, if they have them
     if (str.match(':')) {
       symbols(trie);
@@ -8233,268 +9326,222 @@
   };
 
   const unpack = function (str) {
-    if (!str) {
+    if (str === '' || str === null || str === undefined) {
       return {}
+    }
+    if (typeof str !== 'string') {
+      throw new TypeError('efrt unpack expects a string')
     }
     //turn the weird string into a key-value object again
     const obj = str.split('|').reduce((h, s) => {
       const arr = s.split('¦');
+      if (arr.length !== 2 || Object.prototype.hasOwnProperty.call(h, arr[0])) {
+        throw new SyntaxError('Invalid efrt packed data: category separator or duplicate category')
+      }
       h[arr[0]] = arr[1];
       return h
-    }, {});
+    }, Object.create(null));
     const all = {};
     Object.keys(obj).forEach(function (cat) {
-      const arr = unpack$1(obj[cat]);
+      let data = obj[cat];
+      const versioned = data.startsWith('!2;');
+      if (versioned) {
+        data = data.slice(3);
+        if (!data || data === ':') {
+          throw new SyntaxError('Invalid efrt packed data: missing versioned trie')
+        }
+      }
+      const reversed = data[0] === ':';
+      const arr = unpack$1(reversed ? data.slice(1) : data, versioned);
       //special case, for botched-boolean
       if (cat === 'true') {
         cat = true;
       }
       for (let i = 0; i < arr.length; i++) {
-        const k = arr[i];
-        if (all.hasOwnProperty(k) === true) {
+        const k = reversed ? Array.from(arr[i]).reverse().join('') : arr[i];
+        if (Object.prototype.hasOwnProperty.call(all, k)) {
           if (Array.isArray(all[k]) === false) {
-            all[k] = [all[k], cat];
-          } else {
+            if (all[k] !== cat) {
+              all[k] = [all[k], cat];
+            }
+          } else if (!all[k].includes(cat)) {
             all[k].push(cat);
           }
         } else {
-          all[k] = cat;
+          Object.defineProperty(all, k, {
+            value: cat,
+            writable: true,
+            enumerable: true,
+            configurable: true
+          });
         }
       }
     });
     return all
   };
 
-  // 01- full-word exceptions
-  const checkEx = function (str, ex = {}) {
-    if (ex.hasOwnProperty(str)) {
+  // the four parts of a model, in the order they are packed
+  const sections = ['fwd', 'both', 'rev', 'ex'];
+
+  // characters with a meaning in the packed format - words containing these cannot be learned
+  const reserved = /[~|:,{}0-9]/;
+
+  const decodeVal = function (key, str) {
+    const m = str.match(/^[0-9]+/);
+    const n = m ? Number(m[0]) : 0;
+    const tail = m ? str.slice(m[0].length) : str;
+    return key.slice(0, key.length - n) + tail
+  };
+
+  // apply a model to one word:
+  //   1. whole-word exceptions
+  //   2. the longest suffix with a rule (a rule may match the entire word)
+  //   3. the '' rule, if any, as a fallback (a plain append)
+  //   4. otherwise, the word is returned unchanged
+  const convert = function (str = '', model = {}) {
+    const { ex = {}, fwd = {}, both = {} } = model;
+    if (Object.hasOwn(ex, str)) {
       return ex[str]
     }
-    return null
-  };
-
-  // 02- suffixes that pass our word through
-  const checkSame = function (str, same = []) {
-    for (let i = 0; i < same.length; i += 1) {
-      if (str.endsWith(same[i])) {
-        return str
+    for (let len = str.length; len >= 0; len -= 1) {
+      const suff = str.slice(str.length - len);
+      const stem = str.slice(0, str.length - len);
+      if (Object.hasOwn(fwd, suff)) {
+        return stem + fwd[suff]
+      }
+      if (Object.hasOwn(both, suff)) {
+        return stem + both[suff]
       }
     }
-    return null
+    return str
   };
 
-  // 03- check rules - longest first
-  const checkRules = function (str, fwd, both = {}) {
-    fwd = fwd || {};
-    let max = str.length - 1;
-    // look for a matching suffix
-    for (let i = max; i >= 1; i -= 1) {
-      let size = str.length - i;
-      let suff = str.substring(size, str.length);
-      // check fwd rules, first
-      if (fwd.hasOwnProperty(suff) === true) {
-        return str.slice(0, size) + fwd[suff]
-      }
-      // check shared rules
-      if (both.hasOwnProperty(suff) === true) {
-        return str.slice(0, size) + both[suff]
-      }
-    }
-    // try a fallback transform
-    if (fwd.hasOwnProperty('')) {
-      return str += fwd['']
-    }
-    if (both.hasOwnProperty('')) {
-      return str += both['']
-    }
-    return null
+  const flipObj = function (obj = {}) {
+    return Object.fromEntries(Object.entries(obj).map(([key, val]) => [val, key]))
   };
 
-  //sweep-through all suffixes
-  const convert = function (str = '', model = {}) {
-    // 01- check exceptions
-    let out = checkEx(str, model.ex);
-    // 02 - check same
-    out = out || checkSame(str, model.same);
-    // check forward and both rules
-    out = out || checkRules(str, model.fwd, model.both);
-    //return unchanged
-    out = out || str;
-    return out
-  };
-
-  const flipObj = function (obj) {
-    return Object.entries(obj).reduce((h, a) => {
-      h[a[1]] = a[0];
-      return h
-    }, {})
-  };
-
+  // swap the direction of a model
   const reverse = function (model = {}) {
     return {
       reversed: true,
-      // keep these two
+      // these two work both ways
       both: flipObj(model.both),
       ex: flipObj(model.ex),
-      // swap this one in
-      fwd: model.rev || {}
+      // and the one-way rules trade places
+      fwd: model.rev || {},
+      rev: model.fwd || {},
     }
   };
 
-  const prefix = /^([0-9]+)/;
+  const invalid = function () {
+    throw new Error('suffix-thumb: invalid packed model')
+  };
 
-  const toObject = function (txt) {
-    let obj = {};
-    txt.split('¦').forEach(str => {
-      let [key, vals] = str.split(':');
-      vals = (vals || '').split(',');
-      vals.forEach(val => {
-        obj[val] = key;
+  // suffix-trie → list of keys
+  const unpackKeys = function (str, suff = '', out = []) {
+    let i = 0;
+    do {
+      let chain = '';
+      while (i < str.length && str[i] !== ',' && str[i] !== '{') {
+        chain += str[i];
+        i += 1;
+      }
+      if (reserved.test(chain)) {
+        invalid();
+      }
+      if (str[i] === '{') {
+        // find the matching brace
+        let depth = 1;
+        let j = i + 1;
+        while (depth > 0 && j < str.length) {
+          if (str[j] === '{') {
+            depth += 1;
+          } else if (str[j] === '}') {
+            depth -= 1;
+          }
+          j += 1;
+        }
+        if (depth !== 0 || (j < str.length && str[j] !== ',')) {
+          invalid();
+        }
+        unpackKeys(str.slice(i + 1, j - 1), chain + suff, out);
+        i = j;
+      } else {
+        out.push(chain + suff);
+      }
+      i += 1; // step over the comma
+    } while (i <= str.length)
+    return out
+  };
+
+  const unpackSection = function (str = '') {
+    const obj = Object.create(null);
+    if (!str) {
+      return { ...obj }
+    }
+    str.split('|').forEach(group => {
+      const i = group.indexOf(':');
+      const val = group.slice(0, i);
+      const count = val.match(/^[0-9]+/);
+      if (i < 0 || !count || reserved.test(val.slice(count[0].length))) {
+        invalid();
+      }
+      unpackKeys(group.slice(i + 1)).forEach(k => {
+        if (Number(count[0]) > k.length) {
+          invalid();
+        }
+        obj[k] = decodeVal(k, val);
       });
     });
-    return obj
+    return { ...obj }
   };
 
-  const growObject = function (key = '', val = '') {
-    val = String(val);
-    let m = val.match(prefix);
-    if (m === null) {
-      return val
+  // one string → model
+  const uncompress = function (str = '') {
+    if (typeof str !== 'string' || str[0] === '{') {
+      throw new Error('suffix-thumb: uncompress expects a packed string. Models made before v6 must be learned again.')
     }
-    let num = Number(m[1]) || 0;
-    let pre = key.substring(0, num);
-    let full = pre + val.replace(prefix, '');
-    return full
-  };
-
-  const unpackOne = function (str) {
-    let obj = toObject(str);
-    return Object.keys(obj).reduce((h, k) => {
-      h[k] = growObject(k, obj[k]);
-      return h
-    }, {})
-  };
-
-  const uncompress = function (model = {}) {
-    if (typeof model === 'string') {
-      model = JSON.parse(model);
+    const parts = str.split('~');
+    // Preserve the empty/default input shorthand for an empty model.
+    if (str !== '' && parts.length !== sections.length) {
+      invalid();
     }
-    model.fwd = unpackOne(model.fwd || '');
-    model.both = unpackOne(model.both || '');
-    model.rev = unpackOne(model.rev || '');
-    model.ex = unpackOne(model.ex || '');
+    const model = {};
+    sections.forEach((s, i) => {
+      model[s] = unpackSection(parts[i]);
+    });
     return model
   };
 
   // generated in ./lib/models
   var model$1 = {
     "presentTense": {
-      "first": {
-        "fwd": "3:онуть,чнуть¦жу:дить,зить¦шу:сить,сеть¦жусь:диться,зиться,заться¦у:ить/научить¦ру:ереть¦оюсь:ыться¦щусь:ститься¦щу:стить,стеть¦юсь:оться¦шусь:ситься¦зовусь:озваться¦елю:олоть¦:цепляться¦1сь:уться¦1ю:рить,оять,авать,оить,лить,роть,аять,еить,еять¦1у:дти,жить,шить,зти,щить,зть¦1лю:пить,мить¦1жу:азать,ядеть,язать¦1усь:читься,житься,шиться,щиться¦1ою:рыть,выть¦1юсь:аваться,еяться,литься,ояться,оиться,риться¦1щу:искать,итить¦1ду:ехать¦1чусь:етиться,отиться¦1чу:ететь,ртить,ятать,ртеть¦1шу:ахать,есать¦1жусь:идеться,ядеться¦1шусь:исаться¦1люсь:баться¦1беру:зобрать¦1нусь:ясться¦2у:ачить,ржать,очить,ечить,онать,рчать¦2ю:ореть,дуть¦2ту:очесть¦2юсь:меться¦2лю:ипеть,еметь,ипать¦2еру:збрать¦2чу:катить,рутить,хотать,какать¦2люсь:емиться¦2усь:ржаться¦3у:лежать,ручить",
-        "both": "3:унуть,юнуть,пнуть,снуть,ынуть,тнуть,бнуть,гнуть,внуть,хнуть,инуть,януть,кнуть,рнуть¦4:ызнуть,ьзнуть,езнуть,мануть¦5ю:зревать,лкивать,ырезать,тревать,акивать,ережать,скивать,трезать,окидать,счезать,орожать,зрезать,овожать,спевать,поздать,растать,олевать¦5люсь:роявиться,надобиться¦5м:ередать¦5у:остучать,одождать¦5юсь:ороваться¦4ну:дстать,естать,остать¦4ю:аскать,ведать,иучать,пивать,мевать,рясать,висать,худеть,лезать,ручать,щивать,лотать,хивать,долеть,гивать,божать,бучать,тожать,ускать,вивать,ладеть,шеветь,нивать,потеть,лодать,аивать,живать,бивать,зучать,ножать,ливать,кучать,девать,росать,ривать,чивать,ракать,бедать,оедать,лавать,шивать,лучать,ботать¦4мся:аздаться,оздаться¦4м:ридать,аздать,подать¦4юсь:упляться,астаться,качаться,четаться,росаться,олжаться,тараться,лижаться¦4нусь:остаться¦4у:опадать,расти¦4чу:асветить¦4лю:требить¦3юсь:адаться,уляться,ужаться,еляться,идаться,знаться,ажаться,ираться,юдаться,ждаться,ючаться,ытаться,аляться,бляться,асаться,учаться,итаться,ататься,вляться,мляться,ичаться,иваться,ываться,ечаться,еваться,нчаться,инаться¦3ю:сметь,утать,зреть,ытать,гчать,ькать,икать,яжать,аветь,ареть,усать,алеть,вдать,ичать,лтать,ркать,ицать,ужать,юдать,слеть,орать,юхать,нчать,екать,ждать,асать,спеть,ажать,атать,рзать,ыкать,лкать,зжать,болеть,ылать,етать,чтать,лжать,ючать,ыхать,ирать,адать,ачать,ывать,ечать,грать,итать,инать,елать¦3у:иучить,сосать,бучить,зучить,пасти,дышать,вучать,лышать,ыучить,нести,лучить¦3ью:робить¦3мся:едаться,одаться¦3усь:лышаться,нестись¦3щу:братить,вратить,кратить,претить¦3лю:собить,рабить,лабить¦3ну:трять¦3ву:ыжить,ежить¦3мусь:рижаться¦3му:рижать¦3даю:опасть¦3люсь:ямиться¦3жу:орезать¦3чу:тратить,третить,ахотеть¦3м:тдать¦2ью:ыбить,ышить,ибить,ыпить¦2чусь:ватиться,катиться,рутиться¦2юсь:неться,хаться,треться,ряться,латься,каться,няться,шаться,паться,гаться,щаться,маться¦2ту:лести,мести,рести¦2юю:оревать¦2усь:рваться,мчаться,ястись,астись¦2щу:вятить,мутить,сетить,щутить¦2у:гчить,рвать,жрать,лгать,ясти,врать,нчить,ичить,лчать,ючить¦2щусь:щутиться,ратиться¦2еру:ебрать,абрать,ыбрать¦2ову:извать,ызвать,азвать¦2мусь:риняться¦2мся:аесться¦2люсь:упиться,юбиться,омиться,опиться¦2ьюсь:апиться¦2лю:апеть,рбить,рпеть,спать,юбить¦2чу:ротить,мотать,пятить,метить,ватить,шутить,латить¦2ю:неть,бать,иять,щать,лять,рять,нять,пать,гать,шать,треть,мать¦2ку:сечь,лечь,течь¦2жу:гудеть¦2гу:речь,бежать¦2иму:бнять¦2дусь:ойтись,айтись,вестись¦2му:ринять¦2м:ъесть,оесть¦2еюсь:бриться¦2ду:вести¦2овусь:азваться¦2шу:писать¦1обью:дбить,збить¦1зову:тозвать¦1ую:шевать,жевать,чевать,цевать¦1дусь:асться,ийтись¦1яду:сесть¦1ольюсь:злиться¦1ядусь:сесться¦1гусь:ячься¦1щу:ыскать¦1беру:тобрать,добрать¦1щусь:ититься¦1чу:птать¦1чусь:ятаться,ртиться¦1берусь:зобраться¦1овью:звить¦1овьюсь:звиться¦1обьюсь:збиться¦1гу:ичь,очь¦1оню:гнать¦1ерусь:браться,драться¦1кусь:ечься¦1ду:юсти,асть,ийти,йти¦1юю:оевать¦1юсь:ниться¦1ою:мыть¦1уду:быть¦1лю:вить¦1люсь:виться¦1ю:нить¦1жу:идеть¦озьмусь:зяться¦омну:мять¦ёрзну:ерзнуть¦ёркиваю:еркивать¦уюсь:оваться¦шлю:слать¦озьму:зять¦ую:овать",
-        "rev": "нять:йму¦няться:ймусь¦есть:яду¦чь:ку¦ечь:ягу¦шить:ошью¦жечь:ожгу¦переться:бопрусь¦евать:юю¦ергать:ёргаю¦литься:ольюсь¦1ть:иву,ам,ыву,ену¦1сить:ошу,ашу¦1еть:пою¦1ять:ниму¦1ереть:мру,пру¦1ться:енусь,анусь,амся¦1иться:реюсь¦1дить:зжу¦1ститься:ощусь¦1ситься:ашусь,ошусь¦1ать:жму¦1зить:ьжу¦1титься:ачусь¦1сти:ету¦1ить:блю¦1озваться:тзовусь¦1диться:ежусь¦1стить:мщу¦1олоть:мелю¦1яться:нимусь¦2ти:есу,лзу¦2зать:кажу,вяжу,мажу¦2ть:мею,тану,тею,жаю,дею,ызу¦2ять:тою,сею¦2тить:вечу,рачу,щищу,лощу¦2дить:хожу,бужу,лажу,сужу,бежу,сажу,нужу,ряжу,гожу¦2ить:уплю,арю,лжу,ерю,урю,рмлю,алью,ьшу,бщу,кою,алю,омлю,чшу,ушу,длю,ршу,слю,ирю,абью,брю,оплю,улю,еплю,дрю,злю,щрю,илю,ымлю¦2аться:ачнусь,ждусь,еблюсь¦2ыть:крою,звою¦2диться:хожусь,вожусь,оржусь,тужусь,лажусь,бужусь,сажусь,гожусь¦2скать:оищу¦2хать:оеду,ыеду,ъеду,аеду,пашу¦2и:сту¦2зиться:лижусь,ражусь,нижусь¦2иться:ичусь,лжусь,коюсь,длюсь,орюсь,ешусь,алюсь,елюсь,олюсь,ршусь,ючусь,ирюсь,ылюсь,урюсь,ушусь,ерюсь¦2стить:чищу,рощу,гощу,пущу,мещу¦2ыться:кроюсь,ороюсь¦2яться:деюсь,тоюсь¦2деть:ляжу¦2вать:озову¦2заться:кажусь,вяжусь¦2ститься:пущусь¦2зить:ражу¦2сить:вышу,вешу,кушу¦2тать:рячу¦2титься:вечусь,бочусь,хочусь,мечусь¦2стеть:лещу¦2ться:жаюсь¦2ситься:вышусь¦2саться:пишусь¦2деться:вижусь¦2обрать:азберу¦2ереть:ытру¦2ать:осу,жду¦2сать:чешу¦2сться:лянусь¦2еть:еву¦3ться:рнусь,инусь,гнусь,кнусь¦3иться:ыучусь,ончусь,лучусь,аучусь,ньшусь,силюсь,бучусь,удшусь,ремлюсь,ложусь,лечусь,троюсь,мочусь¦3ить:ложу,начу,торю,трою,делю,ножу,солю,пешу,ворю,волю,клею,озрю,лужу,молю,тащу,свою,тешу,релю,корю,кочу,зумлю,щемлю¦3дить:ивожу,овожу,звожу,прежу,стужу,слежу,двожу,обожу,ережу,врежу,вержу,ывожу,авожу¦3ать:ричу,щиплю¦3теть:олечу,ылечу¦3хать:риеду,рееду¦3есть:рочту,почту¦3вать:знаю¦3яться:смеюсь¦3диться:тружусь,сержусь¦3ти:везу¦3сеть:авишу¦3зить:рможу,гружу¦3еть:ремлю,горю¦3ть:лезу¦3тить:кручу,свещу,окачу,черчу¦3тать:охочу¦3стить:ыращу,авещу,звещу,овещу,крещу¦3деться:гляжусь¦3кать:скачу¦3зиться:гружусь¦3ваться:здаюсь¦4титься:стречусь¦4вать:родаю,подаю,редаю,остаю,естаю,тстаю,аздаю,ридаю,дстаю¦4ить:зрешу,спечу,кружу,дражу,чтожу,еребью,оручу,оречу,грешу,алечу¦4теть:рилечу¦4ть:жидаю,истаю,целею,рону¦4ать:длежу,держу,стону¦4тить:спорчу,оглочу¦4дить:агражу,горожу¦4аться:держусь¦4ться:тянусь¦4иться:ообщусь,оточусь,аружусь¦4диться:вобожусь¦5дить:еревожу¦5иться:иземлюсь¦5ить:оспорю,наружу,таможу,достою¦5оть:аспорю",
-        "ex": "1:вцепляться¦3:пнуть¦4:тонуть¦5:качнуть,утонуть¦есть:быть¦3у:нести,лежать,дышать,сосать,реветь,решить,мочить,лезть,везти,лишить¦3ю:знать,иметь,уметь,греть,велеть,сметь,гореть,делить,солить,бороть,клеить,сдавать,пороть¦2чу:хотеть,шутить,катить,лететь¦2ву:жить¦2йму:понять,занять,нанять¦2шу:писать,висеть,весить,махать,чесать¦2м:дать¦3ну:начать,стать,одеть,пожать,зажать¦2у:ждать,орать,врать,рвать,лгать,жрать,срать,идти,учить/научить¦2ймусь:заняться¦4чу:ответить,взлететь¦2лю:спать¦1еру:брать¦1ду:ехать¦1ью:пить,бить,лить,шить¦1яду:сесть¦2гу:бежать¦1м:есть¦3нусь:начаться,одеться¦1ою:петь,мыть,выть,рыть,ныть¦2ою:спеть¦2иму:снять¦4ю:болеть,кидать,суметь,кивать,потеть,рыдать,худеть,ведать,задавать,вставать,отдавать,уставать,выдавать,подавать,спорить,издавать,подуть,удвоить¦4м:задать,выдать,подать,издать¦5нусь:раздеться¦2еюсь:бриться¦4нусь:остаться¦2ду:вести,уехать¦1щу:искать,мстить¦4у:расти,кричать,научить,стучать,дрожать,жаждать,держать,дружить,стонать,вручить,торчать,грешить¦3ью:побить,налить,залить,забить,полить,набить¦5м:продать,создать,предать¦4ну:встать,надеть,устать,задеть¦3чу:тратить,светить,улететь,портить,вертеть,скатить,крутить,чертить¦2ку:течь¦3ву:плыть¦2жу:резать,гудеть,ходить,родить,водить,будить,судить,вязать,мазать¦2еру:убрать¦1отру:стереть¦5ю:ожидать,снижать,обижать,листать,уцелеть,создавать,наставать,растаять,заставать,оспорить¦1ову:звать¦3ову:позвать¦3еру:собрать,избрать¦2ью:убить¦1ягу:лечь¦5ву:прожить¦1ерусь:драться,браться¦5юсь:обижаться,снижаться¦5ну:отстать,настать,застать¦3лю:шуметь,рубить,кипеть¦3му:нажать¦1ую:жевать¦1ошью:сшить¦3гу:зажечь¦6чу:проглотить¦2ту:учесть¦3мся:удаться,сдаться¦3м:сдать¦6ю:угрожать¦3ьюсь:добиться¦1очту:счесть¦2усь:рваться,мчаться,учиться¦4усь:дождаться,держаться,кружиться¦4щу:осветить¦1ожну:сжать¦2ю:дуть,давать,лаять,таять,злить,сеять¦2чусь:катиться,метаться¦3ту:цвести¦1ьюсь:литься,биться¦5щу:поглотить¦1обью:сбить¦5ью:перебить¦1ожгу:сжечь¦1онюсь:гнаться¦1бопрусь:опереться¦5мся:поддаться¦2имусь:сняться¦2юю:плевать¦2русь:упереться¦1гу:жечь¦1ёргаю:дергать¦2нусь:деться¦4ву:дожить¦1олью:слить¦1ну:мять¦2мся:даться¦1оню:гнать¦1ольюсь:слиться¦2жусь:родиться,садиться,казаться,видеться,годиться,водиться¦2оюсь:умыться¦4юсь:оставаться¦3юсь:смеяться,иметься,бороться¦3усь:ложиться,лечиться,мочиться,лишиться¦3жусь:трудиться,обидеться¦2щу:чистить,пустить¦4жу:отводить,породить¦2юсь:бояться,длиться¦3жу:увозить,следить,грозить,снизить,вредить,ввозить,бродить,сводить,грузить¦4сь:тянуться,очнуться¦2шусь:писаться¦3щу:свистеть,крестить¦1ру:тереть,переть¦3ру:потереть¦1елю:молоть¦6у:тревожить¦8у:потревожить¦4жусь:повозиться¦5у:дорожить¦1оюсь:рыться"
-      },
-      "second": {
-        "fwd": "шь:ть/научить¦ешься:оться¦зовёшься:озваться¦:цепляться¦1ёшь:дти¦1ишь:оять,сеть¦1ишься:ояться¦1ешь:роть,аять,еять¦1берёшь:зобрать¦2чешь:хотеть,хотать¦2шь:оесть,жить,оить,мить¦2ишь:ореть,ететь,стеть,еметь,ртеть¦2ешь:онуть,ануть,дуть,онать¦2ерёшь:збрать¦2тёшь:очесть¦2ёшь:чнуть¦2рёшь:отереть¦2шься:аесться",
-        "both": "5ешь:зревать,лкивать,ыпивать,ырезать,хрипнуть,тревать,оручать,акивать,ережать,вергать,скивать,трезать,грожать,звивать,орожать,ыдохнуть,зрезать,овожать,поздать,растать,олевать¦5шь:риучить,корбить,требить,еподать,олучить¦5ёшь:арасти,зрасти,одождать,тдохнуть¦5ешься:ороваться¦4нешь:дстать,естать,остать¦4ешь:аскать,ведать,хивать,иучать,лькать,мевать,рясать,певать,висать,худеть,лезать,ывезти,тареть,рогнуть,щивать,лотать,бивать,бижать,долеть,гивать,божать,бучать,тожать,кидать,ускать,чезать,ладеть,тигнуть,шеветь,нивать,потеть,лодать,аивать,ытечь,живать,зучать,ножать,ливать,выкнуть,олкать,кучать,девать,росать,ривать,чивать,ракать,бедать,оедать,лавать,шивать,лучать,ботать¦4ёшь:имкнуть,отечь,стечь,опадать¦4шь:ридать,ручить,рабить,лабить,аздать,редать¦4ешься:упляться,астаться,качаться,четаться,нижаться,росаться,бижаться,олжаться,лижаться¦4нешься:остаться¦4ишь:аболеть,слышать¦3ёшь:ткнуть,рпнуть,етнуть,опнуть,ервать,екнуть,ькнуть,яхнуть,сечь,ьзнуть,скнуть,лечь,пасти,лкнуть,аснуть,нести¦3шь:гчить,евить,опить,очить,убить,твить,епить,ивить,явить,нчить,ичить,ечить,тдать,авить,овить,ючить,ачить,упить,юбить¦3ешься:ырваться,адаться,ататься,ужаться,идаться,еляться,знаться,ажаться,ираться,юдаться,ючаться,ытаться,аляться,бляться,асаться,итаться,ждаться,иваться,вляться,араться,мляться,ичаться,ечаться,учаться,еваться,нчаться,инаться,ываться¦3ешь:сметь,зреть,ыкать,гчать,ухнуть,яжать,аветь,спеть,сосать,иснуть,ызнуть,ужать,знать,стнуть,усать,ыхнуть,алеть,ргнуть,вдать,утать,лтать,ркать,езнуть,икать,ибать,ыхать,слеть,орать,юхать,игать,агать,нчать,екать,юдать,асать,ждать,ытать,атать,адать,рзать,зжать,ичать,угать,ыгать,ажать,ылать,етать,чтать,икнуть,лжать,ючать,егать,ирать,ывать,ачать,огать,ечать,грать,итать,инать,елать¦3ёшься:орваться,ерваться,нестись,лечься¦3ьёшь:робить¦3ишься:лышаться¦3шься:едаться,одаться,здаться¦3дешь:ывести,ыпасть¦3ишь:орчать,гудеть,тучать,дышать,вучать¦3нешь:трять¦3вешь:ыжить¦3мёшься:рижаться¦3дёшь:апасть¦3вёшь:ежить¦3даешь:опасть¦3жешь:орезать¦3нешься:здеться¦2лешь:ипать¦2ьешь:ыбить,ышить,ыпить¦2ёшь:ызть,жрать,ясти,врать,внуть,рнуть¦2ешься:неться,хаться,гнуться,януться,латься,инуться,ряться,каться,няться,меться,деяться,шаться,паться,гаться,щаться,маться¦2тёшь:лести,мести,рести¦2юешь:оревать¦2ешь:унуть,юнуть,неть,бнуть,цать,иять,щать,ынуть,инуть,януть,нять,лять,рять,мать,пать,шать¦2ерёшь:ебрать,абрать¦2чешь:какать,мотать,лакать¦2ишься:треться,мчаться,ядеться,идеться,ржаться¦2уёшься:сноваться¦2ёшься:кнуться,ястись,астись,рнуться,меяться¦2овёшь:извать,азвать¦2мешься:риняться¦2ьёшься:апиться¦2ишь:апеть,ипеть,рпеть,ядеть,спать,лчать,ржать,ежать,треть,идеть¦2дёшь:расть,ласть,вести¦2ерёшься:абраться¦2решь:ытереть¦2ерешься:ыбраться¦2жёшь:речь,ажечь¦2дёшься:ойтись,айтись,вестись¦2ьёшь:ибить¦2шь:еить,щить,шить,зить,лить,ъесть,дить,сить,тить,нить,рить¦2мешь:ринять¦2вёшь:лыть¦2овешь:ызвать¦2еешься:бриться¦2ерешь:ыбрать¦2овёшься:азваться¦2шешь:писать¦1обьёшь:дбить,збить¦1зовёшь:тозвать¦1уешь:шевать,чевать,цевать¦1дёшься:асться,ийтись¦1шлешь:ыслать¦1ядешь:сесть¦1оешь:выть,мыть,рыть¦1нёшься:ясться¦1ольёшься:злиться¦1шешь:есать,ахать¦1ядешься:сесться¦1жёшься:ячься¦1щешь:ыскать,искать¦1берёшь:тобрать,добрать¦1жёшь:лгать,ичь¦1лешься:баться¦1чешь:птать,ятать¦1чешься:ятаться¦1берёшься:зобраться¦1ешь:зть¦1овьёшь:звить¦1овьёшься:звиться¦1жешь:язать,азать,очь¦1обьёшься:збиться¦1шешься:исаться¦1онишь:гнать¦1уёшь:жевать¦1ерёшься:драться¦1дёшь:юсти,ийти,йти¦1юешь:оевать¦1рёшь:переть,мереть¦1ёшь:зти,авать¦1шлёшь:ислать,ослать¦1дешь:ехать¦1ёшься:аваться¦1удешь:быть¦1шься:иться¦озьмёшься:зяться¦омнёшь:мять¦елешь:олоть¦ёрзнешь:ерзнуть¦ёркиваешь:еркивать¦жешься:заться¦уешься:оваться¦озьмёшь:зять¦оешься:ыться¦уешь:овать",
-        "rev": "нять:ймёшь¦няться:ймёшься¦есть:ядешь¦еть:оёшь¦скать:щешь¦шить:ошьёшь¦жечь:ожжёшь¦переться:бопрёшься¦евать:юёшь¦ергать:ёргаешь¦таться:чешься¦литься:ольёшься¦1ть:еешь,ивёшь,ашь,анешь,енешь¦1ти:йдешь¦1ять:нимешь¦1ться:енешься,ашься,яешься¦1сти:едёшь,етёшь¦1ь:чёшь¦1зать:ежешь¦1и:тешь¦1ать:жмёшь¦1озваться:тзовёшься¦1овать:нуёшь¦1яться:нимешься¦2ти:есёшь¦2ять:тоишь,сеешь¦2аться:ачнёшься,ждёшься¦2ться:танешься¦2ать:ышишь,осёшь,ажнёшь,ждешь,рвёшь¦2и:стёшь¦2еть:исишь,евёшь¦2ить:альёшь,абьёшь,ебьёшь¦2вать:озовёшь¦2оться:орешься¦2рать:оберёшь¦2уть:хнешь,хнёшь,гнёшь,кнешь,кнёшь¦2раться:оберёшься¦2ть:жаешь,чаешь,бишь¦2обрать:азберёшь¦2оть:орешь¦3ть:ожишь,лжишь,роишь,рмишь,ужишь,идаешь,омишь,ажишь,ыдаешь,воишь,ымишь,едаешь¦3теть:ахочешь¦3еть:летишь,ремишь,горишь¦3яться:стоишься¦3уть:ронешь,манешь¦3сть:доешь,впадёшь¦3есть:почтёшь¦3тать:охочешь¦3ать:ырвешь¦4ть:ыучишь,аучишь,зучишь,окоишь,бучишь,истаешь,зумишь,щемишь¦4еть:лестишь,вистишь¦4ать:стонешь",
-        "ex": "1:вцепляться¦есть:быть¦3ёшь:нести,течь,сосать,реветь¦3ешь:знать,иметь,уметь,греть,сметь,тонуть¦2чешь:хотеть¦2вёшь:жить¦2ймёшь:понять,занять,нанять¦2шешь:писать¦2шь:дать¦3нёшь:начать,пожать,зажать¦2ёшь:ждать,орать,врать,рвать,жрать,срать,пнуть,идти¦2ймёшься:заняться¦3дешь:выйти¦2ишь:спать¦1ерёшь:брать¦1дешь:ехать¦1ьёшь:пить,бить,лить,шить¦1ядешь:сесть¦1шь:есть¦3нёшься:начаться¦1оёшь:петь¦2оёшь:спеть¦2дёшь:пасть,вести¦2имешь:снять¦4ешь:болеть,кидать,суметь,пахнуть,кивать,потеть,рыдать,худеть,вырвать,жаждать,ведать,подуть,утонуть,стонать¦4шь:задать,выдать,подать,издать¦1оешь:мыть,выть,рыть,ныть¦3нешься:одеться¦2еешься:бриться¦5шь:выучить,продать,научить,создать,изучить,обучить¦3нешь:стать,одеть¦4нешься:остаться¦4ишь:слышать,кричать,дрожать,вертеть¦1щешь:искать¦4ёшь:расти,махнуть,шагнуть,согнуть,мигнуть,порвать,качнуть¦3дёшь:упасть,впасть¦3ьёшь:побить,налить,залить,забить,полить,набить¦4нешь:встать,надеть,устать,задеть¦3ишь:дышать,шуметь,гудеть,велеть,лететь,гореть¦2жешь:резать¦2ерёшь:убрать¦1отрёшь:стереть¦6ешь:вырасти¦5ешь:ожидать,снижать,вручать,листать,уцелеть,сдохнуть,растаять¦1овёшь:звать¦3овёшь:позвать¦3ерёшь:собрать,избрать¦2ьёшь:убить¦1яжешь:лечь¦5вёшь:прожить¦8ёшь:подчеркнуть¦1ерёшься:драться,браться¦5нешь:отстать,настать,застать¦3мёшь:нажать¦1уёшь:жевать,совать¦1ошьёшь:сшить¦3ерёшься:добраться,собраться¦5ёшь:вдохнуть¦7ешь:вычеркнуть¦2тёшь:учесть¦3шься:удаться,сдаться,наесться¦3шь:сдать,учить/научить,поесть¦5дёшь:совпасть¦3ьёшься:добиться¦1очтёшь:счесть¦6ёшь:сверкнуть,вздохнуть¦2ёшься:рваться¦4ёшься:дождаться¦3имешь:обнять¦1ожнёшь:сжать¦2ешь:дуть,лаять,таять,сеять¦4мёшь:прижать¦3тёшь:цвести¦1жёшь:лгать,жечь¦1ьёшься:литься,биться¦1обьёшь:сбить¦5ьёшь:перебить¦1ожжёшь:сжечь¦1рёшь:тереть,переть¦1онишься:гнаться¦3уёшь:основать¦10шь:приспособить¦1бопрёшься:опереться¦5шься:поддаться¦2имешься:сняться¦2юёшь:плевать¦3ёшься:очнуться¦2ишься:мчаться,бояться¦2рёшься:упереться¦1ёргаешь:дергать¦2нешься:деться¦7ешься:прогуляться¦4вёшь:дожить¦1ольёшь:слить¦1нёшь:мять¦2шься:даться¦1онишь:гнать¦2чешься:метаться¦1ольёшься:слиться¦4тёшь:прочесть¦3рёшь:потереть¦7шь:удостоить"
-      },
-      "third": {
-        "fwd": "3:оить,мить,жить¦:ь/научить¦ется:оться¦зовётся:озваться¦1ёт:дти¦1ит:оять,сеть¦1ится:ояться¦1ет:роть,аять,еять¦1берёт:зобрать¦2чет:хотеть,хотать¦2ит:ететь,ореть,стеть,еметь,ртеть¦2тёт:очесть¦2ет:онуть,ануть,дуть,онать¦2ерёт:збрать¦2ёт:чнуть¦2рёт:отереть¦3ся:житься,оиться",
-        "both": "3:еить,щить,зить,лить,тить,нить,дить,сить,рить¦4:опить,евить,гчить,ишить,очить,епить,убить,ршить,явить,ушить,чшить,ивить,нчить,ьшить,ичить,ешить,ечить,ъесть,оесть,овить,ючить,ачить,авить,упить,юбить¦5:иучить,собить,ручить,рабить,орбить,бучить,ствить,лабить,зучить,ыучить,лучить¦5нет:едстать¦5ет:зревать,лкивать,ыпивать,ырезать,умевать,хрипнуть,тревать,акивать,ережать,вергать,скивать,чтожать,трезать,грожать,счезать,орожать,спотеть,зрезать,поздать,растать,олевать¦5ся:мириться,добиться,силиться¦5ёт:арасти,зрасти,одождать,тдохнуть¦5ст:еподать¦5ется:ороваться¦4ет:аскать,ведать,хивать,иучать,девать,лькать,певать,висать,худеть,ручать,лезать,аивать,ывезти,рогнуть,щивать,лотать,бивать,бижать,долеть,ничать,гивать,божать,ускать,кидать,вивать,ладеть,тигнуть,шеветь,нивать,оедать,лодать,вожать,ытечь,живать,зучать,шивать,ливать,выкнуть,личать,кучать,росать,ривать,чивать,ракать,бедать,лавать,лучать,ботать¦4ся:ериться,уриться,аесться,ылиться,алиться,елиться,олиться,явиться,юбиться,ориться,длиться,ивиться,млиться,опиться,овиться,авиться¦4ёт:отечь,стечь,опадать¦4стся:оддаться¦4ст:ридать,аздать,редать¦4ется:астаться,четаться,изнаться,бижаться,олжаться,лижаться¦4нется:остаться¦4вёт:режить¦4нет:тстать,естать,остать¦3ёт:ткнуть,етнуть,рпнуть,лкнуть,опнуть,ервать,екнуть,ькнуть,яхнуть,сечь,ьзнуть,скнуть,лечь,агнуть,пасти,аснуть,нести¦3ется:ырваться,адаться,ужаться,идаться,осаться,ажаться,ираться,юдаться,ючаться,ытаться,асаться,итаться,ататься,ждаться,араться,ичаться,иваться,ечаться,учаться,еваться,нчаться,инаться,ываться¦3ет:сметь,зреть,ырвать,гчать,икнуть,ясать,яжать,аветь,сосать,иснуть,ызнуть,стнуть,ареть,усать,ыхнуть,ргнуть,вдать,утать,лтать,ркать,ужать,езнуть,знать,икать,слеть,орать,юхать,егать,ыхать,игать,ачать,нчать,екать,юдать,асать,спеть,алеть,ждать,ытать,атать,адать,рзать,ыкать,угать,ыгать,ажать,ылать,етать,чтать,агать,лжать,ючать,ирать,зжать,огать,ечать,грать,ывать,итать,инать,елать¦3ётся:орваться,ерваться,нестись¦3ьёт:робить¦3стся:едаться,одаться,здаться¦3ится:лышаться¦3дет:ывести,ыпасть¦3ит:орчать,гудеть,тучать,болеть,дышать,вучать,ричать,лышать¦3нет:трять¦3вет:ыжить¦3мётся:рижаться¦3ся:щиться,шиться,ситься,ниться,титься,миться,зиться,диться,читься¦3дёт:апасть¦3дает:опасть¦3жет:орезать¦3нется:здеться¦2лет:ипать¦2ьет:ыбить,ышить,ыпить¦2ёт:ызть,жрать,ясти,врать,внуть,рнуть¦2ется:неться,хаться,гнуться,януться,латься,ряться,каться,инуться,меться,деяться,няться,шаться,паться,гаться,ляться,щаться,маться¦2тёт:лести,мести,рести¦2юет:оревать¦2ет:унуть,юнуть,неть,бнуть,цать,иять,бать,щать,ынуть,инуть,януть,нять,лять,рять,мать,пать,шать¦2ерёт:ебрать,абрать¦2чет:какать,мотать,лакать¦2ится:треться,мчаться,ядеться,идеться,ржаться¦2уётся:сноваться¦2ётся:кнуться,ястись,астись,ечься,рнуться,меяться¦2овёт:извать,азвать¦2мется:риняться¦2ьётся:апиться¦2ит:апеть,ипеть,рпеть,ядеть,спать,лчать,ржать,ежать,треть,идеть¦2дёт:расть,ласть,вести¦2ерётся:абраться¦2рет:ытереть¦2ерется:ыбраться¦2жёт:речь,ажечь¦2дётся:ойтись,айтись,вестись¦2ьёт:ибить¦2мет:ринять¦2вёт:лыть¦2овет:ызвать¦2еется:бриться¦2ерет:ыбрать¦2овётся:азваться¦2дет:ыйти¦2шет:писать¦1обьёт:дбить,збить¦1зовёт:тозвать¦1ует:шевать,чевать,цевать¦1дётся:асться,ийтись¦1шлет:ыслать¦1ядет:сесть¦1оет:выть,мыть,рыть¦1нётся:ясться¦1ольётся:злиться¦1шет:есать,ахать¦1ядется:сесться¦1жётся:ячься¦1щет:ыскать,искать¦1берёт:тобрать,добрать¦1жёт:лгать,ичь¦1лется:баться¦1чет:птать,ятать¦1чется:ятаться¦1берётся:зобраться¦1ет:зть¦1овьёт:звить¦1овьётся:звиться¦1жет:язать,азать,очь¦1обьётся:збиться¦1шется:исаться¦1онит:гнать¦1уёт:жевать¦1ерётся:драться¦1дёт:юсти,ийти,йти¦1юет:оевать¦1рёт:переть,мереть¦1ёт:зти,авать¦1шлёт:ислать,ослать¦1дет:ехать¦1ётся:аваться¦1удет:быть¦озьмётся:зяться¦омнёт:мять¦елет:олоть¦ёрзнет:ерзнуть¦ёркивает:еркивать¦жется:заться¦уется:оваться¦озьмёт:зять¦оется:ыться¦ует:овать",
-        "rev": "нять:ймёт¦няться:ймётся¦есть:ядет¦еть:оёт¦ыть:оет¦скать:щет¦шить:ошьёт¦жечь:ожжёт¦переться:бопрётся¦евать:юёт¦ергать:ёргает¦таться:чется¦литься:ольётся¦1ть:еет,ивёт,аст,анет,енет¦1ять:нимет¦1ться:енется,астся,ается¦1сти:едёт,етёт¦1ь:чёт¦1зать:ежет¦1и:тет¦1ать:жмёт¦1озваться:тзовётся¦1овать:нуёт¦1яться:нимется¦2ти:есёт¦2ять:тоит,сеет¦2аться:ачнётся¦2ться:танется¦2и:стёт¦2еть:исит,евёт¦2ть:кает,жает,чает¦2ить:альёт,абьёт,ебьёт¦2вать:озовёт¦2оться:орется¦2рать:оберёт¦2уть:хнет,кнёт,хнёт,гнёт¦2раться:оберётся¦2обрать:азберёт¦2ать:осёт,ажнёт,ждет,рвёт¦2оть:орет¦3теть:ахочет¦3еть:летит,ремит,горит¦3есть:рочтёт,почтёт¦3ть:идает,ыдает,едает¦3ься:вится,лится,пится¦3яться:стоится¦3ь:бит¦3уть:манет,ронет¦3сть:впадёт¦3аться:ождётся¦3тать:охочет¦4ь:ожит,лжит,роит,рмит,ужит,коит,омит,ажит,воит,ымит¦4ься:ожится,лжится,коится,роится,ирится,ужится¦4еть:лестит,вистит¦4уть:еркнет¦4ать:стонет¦5ь:аучит,зумит,щемит",
-        "ex": "3:есть¦4:учить/научить¦6:научить¦8:потребить,удостоить¦9:употребить¦12:злоупотребить¦есть:быть¦3ёт:нести,течь,сосать,реветь¦3ет:знать,иметь,уметь,греть,сметь,тонуть¦2чет:хотеть¦2вёт:жить¦2ймёт:понять,занять,нанять¦2шет:писать¦2ст:дать¦3нёт:начать,пожать,зажать¦2ёт:ждать,орать,врать,рвать,жрать,срать,пнуть,идти¦2ймётся:заняться¦2ит:спать¦1ерёт:брать¦1дет:ехать¦1ьёт:пить,бить,лить,шить¦1ядет:сесть¦3нётся:начаться¦1оёт:петь¦2оёт:спеть¦2дёт:пасть,вести¦2имет:снять¦4ет:болеть,кидать,суметь,пахнуть,кивать,потеть,рыдать,худеть,рухнуть,жаждать,ведать,подуть,утонуть,стонать¦4ст:задать,отдать,выдать,подать,издать¦1оет:мыть,выть,рыть,ныть¦3нется:одеться¦2еется:бриться¦3нет:стать,одеть¦4нется:остаться¦1щет:искать¦4ёт:расти,махнуть,согнуть,мигнуть,порвать,качнуть¦3дёт:упасть,впасть¦3ьёт:побить,налить,залить,забить,полить,набить¦5ст:продать,создать¦4нет:встать,надеть,устать,задеть¦3ит:дышать,шуметь,гудеть,велеть,лететь,гореть¦2жет:резать¦2ерёт:убрать¦5ет:толкать,ожидать,обучать,снижать,листать,уцелеть,сдохнуть,растаять¦1отрёт:стереть¦6ет:вырасти,умножать,выдохнуть¦4ся:явиться,длиться¦1овёт:звать¦3овёт:позвать¦3ерёт:собрать,избрать¦2ьёт:убить¦1яжет:лечь¦5вёт:прожить¦8ёт:подчеркнуть¦1ерётся:драться,браться¦3мёт:нажать¦1уёт:жевать,совать¦1ошьёт:сшить¦3ерётся:добраться,собраться¦5ёт:вдохнуть¦7ет:вычеркнуть¦5нет:настать,застать¦2тёт:учесть¦3стся:удаться,сдаться¦10ся:осуществиться¦4ит:дрожать,вертеть¦3ст:сдать¦5дёт:совпасть¦3ьётся:добиться¦1очтёт:счесть¦6ёт:сверкнуть,вздохнуть,примкнуть¦2ётся:рваться¦4ётся:дождаться¦3имет:обнять¦1ожнёт:сжать¦2ет:дуть,лаять,таять,сеять¦5ется:снижаться¦4мёт:прижать¦3тёт:цвести¦1жёт:лгать,жечь¦1ьётся:литься,биться¦1обьёт:сбить¦5ьёт:перебить¦1ожжёт:сжечь¦1рёт:тереть,переть¦5ся:мириться¦7ется:раскачаться¦1онится:гнаться¦3уёт:основать¦9ся:совокупиться¦1бопрётся:опереться¦2имется:сняться¦2юёт:плевать¦3ётся:очнуться¦2ится:мчаться,бояться¦2рётся:упереться¦1ёргает:дергать¦2нется:деться¦4вёт:дожить¦1ольёт:слить¦1нёт:мять¦2стся:даться¦1онит:гнать¦2чется:метаться¦1ольётся:слиться¦3рёт:потереть"
-      },
-      "firstPlural": {
-        "fwd": "м:ть/научить¦емся:оться¦зовёмся:озваться¦:цепляться¦1им:теть,оять,сеть¦1ём:дти¦1имся:ояться¦1ем:роть,аять,еять¦1берём:зобрать¦2м:дить,жить,оить,мить¦2ем:онуть,ануть,дуть,онать¦2им:еметь,ореть¦2ерём:збрать¦2тём:очесть¦2ём:чнуть¦2рём:отереть",
-        "both": "5ем:зревать,лкивать,ыпивать,ырезать,хрипнуть,тревать,оручать,акивать,ережать,вергать,скивать,трезать,грожать,звивать,орожать,ыдохнуть,зрезать,овожать,поздать,растать,олевать¦5м:риучить,корбить,требить,олучить¦5ём:арасти,зрасти,одождать,тдохнуть¦5дим:еподать¦5емся:ороваться¦4нем:дстать,естать,остать¦4ем:аскать,ведать,хивать,иучать,лькать,мевать,рясать,певать,висать,худеть,лезать,ывезти,тареть,рогнуть,щивать,лотать,бивать,бижать,долеть,гивать,божать,бучать,тожать,кидать,ускать,чезать,ладеть,тигнуть,шеветь,нивать,потеть,лодать,аивать,ытечь,живать,зучать,ножать,ливать,выкнуть,олкать,кучать,девать,росать,ривать,чивать,ракать,бедать,оедать,лавать,шивать,лучать,ботать¦4ём:имкнуть,отечь,стечь,опадать¦4дим:ридать,аздать,редать¦4емся:упляться,астаться,качаться,четаться,нижаться,росаться,бижаться,олжаться,лижаться¦4м:ручить,рабить,лабить¦4немся:остаться¦4им:аболеть,слышать¦3ём:ткнуть,рпнуть,етнуть,опнуть,ервать,екнуть,ькнуть,яхнуть,сечь,ьзнуть,скнуть,лечь,пасти,лкнуть,аснуть,нести¦3м:гчить,евить,опить,очить,убить,твить,епить,ивить,явить,нчить,ичить,ечить,авить,овить,ючить,ачить,упить,юбить¦3емся:ырваться,адаться,ататься,ужаться,идаться,еляться,знаться,ажаться,ираться,юдаться,ючаться,ытаться,аляться,бляться,асаться,итаться,ждаться,иваться,вляться,араться,мляться,ичаться,ечаться,учаться,еваться,нчаться,инаться,ываться¦3ем:сметь,зреть,ыкать,гчать,ухнуть,яжать,аветь,спеть,сосать,иснуть,ызнуть,ужать,знать,стнуть,усать,ыхнуть,алеть,ргнуть,вдать,утать,лтать,ркать,езнуть,икать,ибать,ыхать,слеть,орать,юхать,игать,агать,нчать,екать,юдать,асать,ждать,ытать,атать,адать,рзать,зжать,ичать,угать,ыгать,ажать,ылать,етать,чтать,икнуть,лжать,ючать,егать,ирать,ывать,ачать,огать,ечать,грать,итать,инать,елать¦3ёмся:орваться,ерваться,нестись,лечься¦3ьём:робить¦3имся:лышаться¦3димся:едаться,одаться,здаться¦3дем:ывести,ыпасть¦3им:орчать,гудеть,тучать,дышать,вучать¦3нем:трять¦3вем:ыжить¦3мёмся:рижаться¦3дём:апасть¦3вём:ежить¦3даем:опасть¦3жем:орезать¦3дим:тдать¦3немся:здеться¦2лем:ипать¦2ьем:ыбить,ышить,ыпить¦2ём:ызть,жрать,ясти,врать,внуть,рнуть¦2емся:неться,хаться,гнуться,януться,латься,инуться,ряться,каться,няться,меться,деяться,шаться,паться,гаться,щаться,маться¦2тём:лести,мести,рести¦2юем:оревать¦2ем:унуть,юнуть,неть,бнуть,цать,иять,щать,ынуть,инуть,януть,нять,лять,рять,мать,пать,шать¦2ерём:ебрать,абрать¦2чем:какать,хотать,мотать,лакать¦2имся:треться,мчаться,ядеться,идеться,ржаться¦2уёмся:сноваться¦2ёмся:кнуться,ястись,астись,рнуться,меяться¦2овём:извать,азвать¦2мемся:риняться¦2димся:аесться¦2ьёмся:апиться¦2им:апеть,ипеть,рпеть,ядеть,спать,лчать,ржать,ежать,треть,идеть¦2дём:расть,ласть,вести¦2ерёмся:абраться¦2рем:ытереть¦2еремся:ыбраться¦2жём:речь,ажечь¦2дёмся:ойтись,айтись,вестись¦2ьём:ибить¦2м:еить,щить,шить,зить,лить,сить,тить,нить,рить¦2мем:ринять¦2вём:лыть¦2дим:ъесть,оесть¦2овем:ызвать¦2еемся:бриться¦2ерем:ыбрать¦2овёмся:азваться¦2шем:писать¦1обьём:дбить,збить¦1зовём:тозвать¦1уем:шевать,чевать,цевать¦1дёмся:асться,ийтись¦1шлем:ыслать¦1ядем:сесть¦1оем:выть,мыть,рыть¦1нёмся:ясться¦1ольёмся:злиться¦1шем:есать,ахать¦1ядемся:сесться¦1жёмся:ячься¦1щем:ыскать,искать¦1берём:тобрать,добрать¦1жём:лгать,ичь¦1лемся:баться¦1чем:птать,ятать¦1чемся:ятаться¦1берёмся:зобраться¦1ем:зть¦1овьём:звить¦1овьёмся:звиться¦1жем:язать,азать,очь¦1обьёмся:збиться¦1шемся:исаться¦1оним:гнать¦1уём:жевать¦1ерёмся:драться¦1дём:юсти,ийти,йти¦1юем:оевать¦1рём:переть,мереть¦1ём:зти,авать¦1шлём:ислать,ослать¦1дем:ехать¦1ёмся:аваться¦1удем:быть¦1мся:иться¦озьмёмся:зяться¦омнём:мять¦елем:олоть¦ёрзнем:ерзнуть¦ёркиваем:еркивать¦жемся:заться¦уемся:оваться¦озьмём:зять¦оемся:ыться¦уем:овать",
-        "rev": "нять:ймём¦няться:ймёмся¦есть:ядем¦еть:оём¦ыть:оем¦скать:щем¦шить:ошьём¦жечь:ожжём¦переться:бопрёмся¦евать:юём¦ергать:ёргаем¦таться:чемся¦литься:ольёмся¦1ть:еем,ивём,анем,енем¦1ти:йдем¦1ять:нимем¦1ться:енемся,яемся¦1сти:едём,етём¦1ь:чём¦1и:тем¦1ать:жмём¦1озваться:тзовёмся¦1овать:нуём¦1яться:нимемся¦2ти:есём¦2ять:тоим,сеем¦2аться:ачнёмся,ждёмся¦2ть:дадим,жаем,чаем,бим¦2ться:танемся,дадимся¦2ать:ышим,осём,ажнём,ждем,рвём¦2и:стём¦2еть:исим,евём¦2ить:альём,абьём,ебьём¦2вать:озовём¦2оться:оремся¦2рать:оберём¦2уть:хнем,хнём,гнём,кнем,кнём¦2раться:оберёмся¦2обрать:азберём¦2оть:орем¦3ть:одим,ожим,лжим,роим,рмим,ужим,идаем,коим,омим,рдим,ажим,ыдаем,воим,ымим,едаем¦3еть:хотим,летим,ремим,горим¦3яться:стоимся¦3уть:ронем,манем¦3есть:почтём¦3сть:впадём¦3ать:ырвем¦4ть:ыучим,аучим,ладим,зучим,редим,ездим,бедим,радим,ледим,садим,бучим,судим,нудим,истаем,рядим,зумим,будим¦4еть:лестим¦4ать:стонем¦5ть:студим,ищемим",
-        "ex": "1:вцепляться¦есть:быть¦3ём:нести,течь,сосать,реветь¦3ем:знать,иметь,уметь,греть,сметь,тонуть¦2вём:жить¦2ймём:понять,занять,нанять¦2шем:писать¦2дим:дать¦3нём:начать,пожать,зажать¦2ём:ждать,орать,врать,рвать,жрать,срать,пнуть,идти¦2ймёмся:заняться¦3дем:выйти¦2им:спать¦1ерём:брать¦1дем:ехать¦1ьём:пить,бить,лить,шить¦1ядем:сесть¦1дим:есть¦3нёмся:начаться¦1оём:петь¦2оём:спеть¦2дём:пасть,вести¦2имем:снять¦4ем:болеть,кидать,суметь,пахнуть,кивать,потеть,рыдать,худеть,вырвать,жаждать,ведать,подуть,утонуть,стонать¦4дим:задать,выдать,подать,издать¦1оем:мыть,выть,рыть,ныть¦3немся:одеться¦2еемся:бриться¦5м:выучить,научить,изучить,обучить¦3нем:стать,одеть¦4немся:остаться¦4им:слышать,кричать,дрожать,вертеть¦1щем:искать¦4ём:расти,махнуть,шагнуть,согнуть,мигнуть,порвать,качнуть¦3дём:упасть,впасть¦3ьём:побить,налить,залить,забить,полить,набить¦5дим:продать,создать¦4нем:встать,надеть,устать,задеть¦3им:дышать,шуметь,гудеть,велеть,хотеть,лететь,гореть¦2жем:резать¦2ерём:убрать¦1отрём:стереть¦6ем:вырасти¦5ем:ожидать,снижать,вручать,листать,уцелеть,сдохнуть,растаять¦1овём:звать¦3овём:позвать¦3ерём:собрать,избрать¦2ьём:убить¦1яжем:лечь¦5вём:прожить¦8ём:подчеркнуть¦1ерёмся:драться,браться¦5нем:отстать,настать,застать¦3мём:нажать¦1уём:жевать,совать¦1ошьём:сшить¦3ерёмся:добраться,собраться¦5ём:вдохнуть¦7ем:вычеркнуть¦2тём:учесть¦3димся:удаться,сдаться¦3дим:сдать¦5дём:совпасть¦3ьёмся:добиться¦1очтём:счесть¦6ём:сверкнуть,вздохнуть¦2ёмся:рваться¦4ёмся:дождаться¦3имем:обнять¦1ожнём:сжать¦2ем:дуть,лаять,таять,сеять¦4мём:прижать¦3тём:цвести¦1жём:лгать,жечь¦1ьёмся:литься,биться¦1обьём:сбить¦5ьём:перебить¦1ожжём:сжечь¦1рём:тереть,переть¦1онимся:гнаться¦3уём:основать¦10м:приспособить¦1бопрёмся:опереться¦5димся:поддаться¦2имемся:сняться¦2юём:плевать¦3ёмся:очнуться¦2имся:мчаться,бояться¦2рёмся:упереться¦1ёргаем:дергать¦2немся:деться¦7емся:прогуляться¦4вём:дожить¦1ольём:слить¦1нём:мять¦2димся:даться¦1оним:гнать¦2чемся:метаться¦1ольёмся:слиться¦3м:учить/научить¦4м:ездить,будить,судить¦4тём:прочесть¦5им:свистеть¦3рём:потереть¦7м:удостоить"
-      },
-      "secondPlural": {
-        "fwd": "е:ь/научить¦етесь:оться¦зовётесь:озваться¦:цепляться¦1ите:теть,оять,сеть¦1ёте:дти¦1итесь:ояться¦1ете:роть,аять,еять¦1берёте:зобрать¦2ите:ореть,еметь¦2тёте:очесть¦2ете:онуть,ануть,дуть,онать¦2ерёте:збрать¦2ёте:чнуть¦2рёте:отереть¦3е:дить,оить,мить,жить¦3есь:диться,житься,оиться",
-        "both": "5ете:зревать,лкивать,ыпивать,ырезать,умевать,хрипнуть,тревать,оручать,акивать,ережать,вергать,скивать,чтожать,трезать,грожать,счезать,орожать,спотеть,зрезать,поздать,растать,олевать¦5е:иучить,собить,ручить,рабить,орбить,бучить,ствить,лабить,зучить,ыучить,лучить¦5есь:мириться,добиться,силиться¦5ёте:арасти,зрасти,одождать,тдохнуть¦5дите:еподать¦5етесь:ороваться¦4нете:дстать,тстать,естать,остать¦4ете:аскать,ведать,хивать,иучать,девать,лькать,певать,висать,худеть,лезать,аивать,ывезти,рогнуть,щивать,лотать,бивать,бижать,долеть,ничать,гивать,божать,ускать,кидать,вивать,ладеть,тигнуть,шеветь,нивать,лодать,вожать,ытечь,живать,зучать,шивать,ливать,выкнуть,личать,кучать,росать,ривать,чивать,ракать,бедать,оедать,лавать,лучать,ботать¦4е:евить,гчить,ишить,опить,епить,убить,ршить,явить,ушить,очить,чшить,ивить,ьшить,ичить,ешить,нчить,ечить,овить,ючить,ачить,авить,упить,юбить¦4есь:ериться,уриться,упиться,ылиться,алиться,елиться,олиться,явиться,юбиться,ориться,длиться,ивиться,млиться,опиться,овиться,авиться¦4ёте:отечь,стечь,опадать¦4дитесь:оддаться¦4дите:ридать,аздать,редать¦4етесь:астаться,четаться,изнаться,бижаться,олжаться,лижаться¦4нетесь:остаться¦4вёте:режить¦3ёте:ткнуть,етнуть,рпнуть,лкнуть,опнуть,ервать,екнуть,ькнуть,яхнуть,сечь,ьзнуть,скнуть,лечь,агнуть,пасти,аснуть,нести¦3етесь:ырваться,адаться,уляться,ужаться,идаться,еляться,осаться,ажаться,ираться,юдаться,ючаться,ытаться,аляться,бляться,асаться,итаться,ататься,ждаться,араться,мляться,ичаться,иваться,вляться,ечаться,учаться,еваться,нчаться,инаться,ываться¦3ете:сметь,зреть,ырвать,гчать,икнуть,ясать,яжать,аветь,сосать,иснуть,ызнуть,стнуть,ареть,усать,ыхнуть,ргнуть,вдать,утать,лтать,ркать,ужать,езнуть,знать,икать,слеть,орать,юхать,егать,ыхать,игать,ачать,нчать,екать,юдать,асать,спеть,алеть,ждать,ытать,атать,адать,рзать,ыкать,угать,ыгать,ажать,ылать,етать,чтать,агать,лжать,ючать,ирать,зжать,огать,ечать,грать,ывать,итать,инать,елать¦3ётесь:орваться,ерваться,нестись¦3ьёте:робить¦3дитесь:едаться,одаться,здаться¦3итесь:лышаться¦3дете:ывести,ыпасть¦3ите:орчать,гудеть,тучать,болеть,дышать,вучать,ричать,лышать¦3нете:трять¦3вете:ыжить¦3мётесь:рижаться¦3есь:щиться,шиться,ситься,ниться,титься,миться,зиться,читься¦3дёте:апасть¦3даете:опасть¦3е:еить,щить,зить,лить,тить,нить,сить,рить¦3жете:орезать¦3нетесь:здеться¦2лете:ипать¦2ьете:ыбить,ышить,ыпить¦2ёте:ызть,жрать,ясти,врать,внуть,рнуть¦2етесь:неться,хаться,гнуться,януться,латься,ряться,каться,инуться,меться,деяться,няться,шаться,паться,гаться,щаться,маться¦2тёте:лести,мести,рести¦2юете:оревать¦2ете:унуть,юнуть,неть,бнуть,цать,иять,бать,щать,ынуть,инуть,януть,нять,лять,рять,мать,пать,шать¦2ерёте:ебрать,абрать¦2чете:какать,хотать,мотать,лакать¦2итесь:треться,мчаться,ядеться,идеться,ржаться¦2уётесь:сноваться¦2ётесь:кнуться,ястись,астись,ечься,рнуться,меяться¦2овёте:извать,азвать¦2метесь:риняться¦2дитесь:аесться¦2ьётесь:апиться¦2ите:апеть,ипеть,рпеть,ядеть,спать,лчать,ржать,ежать,треть,идеть¦2дёте:расть,ласть,вести¦2ерётесь:абраться¦2рете:ытереть¦2еретесь:ыбраться¦2жёте:речь,ажечь¦2дётесь:ойтись,айтись,вестись¦2ьёте:ибить¦2мете:ринять¦2вёте:лыть¦2дите:ъесть,оесть¦2овете:ызвать¦2еетесь:бриться¦2ерете:ыбрать¦2овётесь:азваться¦2дете:ыйти¦2шете:писать¦1обьёте:дбить,збить¦1зовёте:тозвать¦1уете:шевать,чевать,цевать¦1дётесь:асться,ийтись¦1шлете:ыслать¦1ядете:сесть¦1оете:выть,мыть,рыть¦1нётесь:ясться¦1ольётесь:злиться¦1шете:есать,ахать¦1ядетесь:сесться¦1жётесь:ячься¦1щете:ыскать,искать¦1берёте:тобрать,добрать¦1жёте:лгать,ичь¦1летесь:баться¦1чете:птать,ятать¦1четесь:ятаться¦1берётесь:зобраться¦1ете:зть¦1овьёте:звить¦1овьётесь:звиться¦1жете:язать,азать,очь¦1обьётесь:збиться¦1шетесь:исаться¦1оните:гнать¦1уёте:жевать¦1ерётесь:драться¦1дёте:юсти,ийти,йти¦1юете:оевать¦1рёте:переть,мереть¦1ёте:зти,авать¦1шлёте:ислать,ослать¦1дете:ехать¦1ётесь:аваться¦1удете:быть¦озьмётесь:зяться¦омнёте:мять¦елете:олоть¦ёрзнете:ерзнуть¦ёркиваете:еркивать¦жетесь:заться¦уетесь:оваться¦озьмёте:зять¦оетесь:ыться¦уете:овать",
-        "rev": "нять:ймёте¦няться:ймётесь¦есть:ядете¦еть:оёте¦ыть:оете¦скать:щете¦шить:ошьёте¦жечь:ожжёте¦переться:бопрётесь¦евать:юёте¦ергать:ёргаете¦таться:четесь¦литься:ольётесь¦1ть:еете,ивёте,анете,енете¦1ять:нимете¦1ться:енетесь,аетесь,яетесь¦1сти:едёте,етёте¦1ь:чёте¦1и:тете¦1ать:жмёте¦1озваться:тзовётесь¦1овать:нуёте¦1яться:ниметесь¦2ти:есёте¦2ять:тоите,сеете¦2аться:ачнётесь,ждётесь¦2ть:дадите,каете,жаете,чаете¦2ться:танетесь,дадитесь¦2и:стёте¦2еть:исите,евёте¦2ить:альёте,абьёте,ебьёте¦2вать:озовёте¦2оться:оретесь¦2рать:оберёте¦2уть:хнете,кнёте,хнёте,гнёте¦2раться:оберётесь¦2обрать:азберёте¦2ать:осёте,ажнёте,ждете,рвёте¦2оть:орете¦3еть:хотите,летите,ремите,горите¦3есть:рочтёте,почтёте¦3ть:идаете,ыдаете,едаете¦3ься:витесь,литесь¦3яться:стоитесь¦3уть:ронете,манете,ркнете¦3сть:впадёте¦3ь:бите¦4ь:одите,ожите,лжите,роите,здите,рмите,ужите,коите,омите,рдите,ажите,воите,ымите¦4ься:одитесь,ожитесь,удитесь,лжитесь,коитесь,рдитесь,роитесь,иритесь,ужитесь¦4еть:лестите,вистите¦4ать:стонете¦5ь:аучите,ладите,судите,редите,бедите,радите,ледите,садите,будите,нудите,рядите,зумите,щемите¦5ься:ладитесь",
-        "ex": "1:вцепляться¦есть:быть¦3ёте:нести,течь,сосать,реветь¦3ете:знать,иметь,уметь,греть,сметь,тонуть¦2вёте:жить¦2ймёте:понять,занять,нанять¦2шете:писать¦2дите:дать¦3нёте:начать,пожать,зажать¦2ёте:ждать,орать,врать,рвать,жрать,срать,пнуть,идти¦2ймётесь:заняться¦2ите:спать¦1ерёте:брать¦1дете:ехать¦1ьёте:пить,бить,лить,шить¦1ядете:сесть¦1дите:есть¦3нётесь:начаться¦1оёте:петь¦2оёте:спеть¦2дёте:пасть,вести¦2имете:снять¦4ете:болеть,кидать,суметь,пахнуть,кивать,потеть,рыдать,худеть,рухнуть,жаждать,ведать,подуть,утонуть,стонать¦4дите:задать,отдать,выдать,подать,издать¦1оете:мыть,выть,рыть,ныть¦3нетесь:одеться¦2еетесь:бриться¦3нете:стать,одеть¦4нетесь:остаться¦1щете:искать¦4ёте:расти,махнуть,согнуть,мигнуть,порвать,качнуть¦3дёте:упасть,впасть¦3ьёте:побить,налить,залить,забить,полить,набить¦5дите:продать,создать¦4нете:встать,надеть,устать,задеть¦3ите:дышать,шуметь,гудеть,велеть,хотеть,лететь,гореть¦6е:научить¦2жете:резать¦2ерёте:убрать¦5ете:толкать,ожидать,обучать,снижать,вручать,листать,уцелеть,сдохнуть,растаять¦1отрёте:стереть¦6ете:вырасти,умножать,выдохнуть¦4есь:явиться,длиться¦1овёте:звать¦3овёте:позвать¦3ерёте:собрать,избрать¦2ьёте:убить¦1яжете:лечь¦5вёте:прожить¦8ёте:подчеркнуть¦9е:употребить¦1ерётесь:драться,браться¦3мёте:нажать¦1уёте:жевать,совать¦1ошьёте:сшить¦3ерётесь:добраться,собраться¦5ёте:вдохнуть¦7ете:вычеркнуть¦5нете:настать,застать¦2тёте:учесть¦3дитесь:удаться,сдаться¦10есь:осуществиться¦4ите:дрожать,вертеть¦3дите:сдать¦5дёте:совпасть¦3ьётесь:добиться¦1очтёте:счесть¦6ёте:сверкнуть,вздохнуть,примкнуть¦2ётесь:рваться¦4ётесь:дождаться¦3имете:обнять¦1ожнёте:сжать¦2ете:дуть,лаять,таять,сеять¦5етесь:снижаться¦4мёте:прижать¦3тёте:цвести¦1жёте:лгать,жечь¦1ьётесь:литься,биться¦8е:потребить,удостоить¦1обьёте:сбить¦5ьёте:перебить¦1ожжёте:сжечь¦1рёте:тереть,переть¦5есь:мириться,садиться¦7етесь:раскачаться¦1онитесь:гнаться¦12е:злоупотребить¦3уёте:основать¦9етесь:совокупляться¦1бопрётесь:опереться¦2иметесь:сняться¦2юёте:плевать¦3ётесь:очнуться¦2итесь:мчаться,бояться¦2рётесь:упереться¦1ёргаете:дергать¦2нетесь:деться¦4вёте:дожить¦1ольёте:слить¦1нёте:мять¦2дитесь:даться¦1оните:гнать¦2четесь:метаться¦1ольётесь:слиться¦4е:учить/научить¦5е:будить,судить¦7е:остудить¦6есь:убедиться¦3рёте:потереть¦7есь:высадиться"
-      },
-      "thirdPlural": {
-        "fwd": "3:оять¦4:онуть¦5:ачнуть¦ат:ить/научить¦рут:ереть¦ются:оться¦зовутся:озваться¦1ят:теть,пить,оить,сеть,мить¦1ут:дти,зти,зть¦1ют:авать,аять,еять¦1ат:жить¦1дут:асть,ехать¦1ются:аваться,еяться¦1атся:житься¦1ятся:оиться¦1берут:зобрать¦1нутся:ясться¦1дутся:асться¦2ся:уться¦2тут:очесть¦2ят:еметь,ореть¦2ерут:збрать¦2ют:дуть¦2ут:онать¦3ся:ояться",
-        "both": "4:унуть,юнуть,рчать,пнуть,тнуть,бнуть,гнуть,внуть,ынуть,инуть,януть,лчать,кнуть,ржать,снуть,хнуть,рнуть¦5:ызнуть,ьзнуть,езнуть,мануть,лежать,тучать,дышать,вучать,ричать,лышать¦5ют:зревать,лкивать,ыпивать,ырезать,акивать,ережать,скивать,олевать,трезать,окидать,звивать,орожать,зрезать,спевать,поздать,растать¦5ся:лышаться¦5ются:скачаться,должаться,ороваться¦5ятся:надобиться¦5дут:ередать¦5ут:одождать¦4нут:дстать,естать¦4ют:аскать,ведать,иучать,целеть,висать,худеть,лезать,истать,ручать,щивать,лотать,хивать,долеть,гивать,божать,бучать,тожать,ускать,нивать,ладеть,шеветь,потеть,лодать,аивать,вожать,ливать,живать,бивать,зучать,жидать,ножать,кучать,девать,росать,ривать,чивать,ракать,бедать,оедать,шивать,лучать,ботать¦4дутся:аздаться,оддаться,оздаться¦4ся:мчаться,ржаться¦4ются:астаться,четаться,нижаться,росаться,бижаться¦4ят:требить¦4нутся:остаться¦4ут:опадать,расти¦4дут:аздать,подать¦3ются:адаться,ататься,ужаться,идаться,знаться,ажаться,ираться,юдаться,ждаться,ючаться,ытаться,ываться,асаться,итаться,араться,ичаться,иваться,ечаться,учаться,еваться,нчаться,инаться¦3ют:сметь,зреть,ыкать,гчать,ькать,ясать,яжать,аветь,ареть,усать,вдать,утать,ичать,лтать,ркать,ицать,ужать,икать,слеть,орать,юхать,нчать,екать,ждать,юдать,асать,спеть,алеть,ытать,атать,рзать,ылать,лкать,зжать,ажать,етать,чтать,лжать,ючать,ыхать,ирать,адать,ачать,ывать,ечать,грать,итать,инать,елать¦3ат:иучить,ручить,бучить,зучить,ыучить,лучить¦3ьют:робить¦3дутся:едаться,одаться¦3ят:собить,рабить,гудеть,лабить,болеть¦3ут:сосать,пасти,нести¦3нут:трять¦3вут:ыжить,ежить¦3мутся:рижаться¦3мут:рижать¦3утся:нестись¦3дают:опасть¦3жут:орезать¦3дут:тдать¦3нутся:здеться¦2лют:ипать¦2ьют:ыбить,ышить,ибить,ыпить¦2ются:неться,хаться,ряться,латься,каться,няться,шаться,паться,гаться,ляться,щаться,маться¦2тут:лести,мести,рести¦2юют:оревать¦2утся:рваться,ястись,астись¦2ат:гчить,очить,нчить,ичить,ечить,ючить,ачить¦2ут:рвать,жрать,лгать,ясти,врать¦2ерут:ебрать,абрать,ыбрать¦2чут:какать,хотать,мотать,лакать¦2ятся:треться,ядеться,упиться,юбиться,идеться,опиться¦2овут:извать,ызвать,азвать¦2мутся:риняться¦2дятся:аесться¦2ьются:апиться¦2ят:апеть,рбить,убить,ипеть,рпеть,ядеть,спать,юбить,треть,идеть¦2ют:неть,иять,бать,щать,нять,лять,рять,мать,пать,гать,шать¦2кут:сечь,лечь,течь¦2гут:речь,бежать¦2имут:бнять¦2дутся:ойтись,айтись,вестись¦2мут:ринять¦2дят:ъесть,оесть¦2еются:бриться¦2дут:вести¦2овутся:азваться¦2шут:писать¦1обьют:дбить,збить¦1зовут:тозвать¦1уют:шевать,жевать,чевать,цевать¦1ядут:сесть¦1оют:выть,мыть,рыть¦1ольются:злиться¦1шут:есать,ахать¦1ядутся:сесться¦1гутся:ячься¦1щут:ыскать,искать¦1берут:тобрать,добрать¦1атся:щиться,шиться,читься¦1лются:баться¦1чут:птать,ятать¦1чутся:ятаться¦1берутся:зобраться¦1овьют:звить¦1овьются:звиться¦1дутся:ийтись¦1ят:еить,зить,лить,рить,вить,сить,тить,дить,нить¦1жут:язать,азать¦1обьются:збиться¦1гут:ичь,очь¦1шутся:исаться¦1онят:гнать¦1ерутся:браться,драться¦1ятся:риться,ситься,литься,ниться,миться,зиться,титься,диться,виться¦1кутся:ечься¦1дут:юсти,ийти,йти¦1юют:оевать¦1ат:щить,шить¦1ют:роть¦1удут:быть¦озьмутся:зяться¦омнут:мять¦елют:олоть¦ёрзнут:ерзнуть¦ёркивают:еркивать¦жутся:заться¦уются:оваться¦шлют:слать¦озьмут:зять¦оются:ыться¦уют:овать",
-        "rev": "нять:ймут¦няться:ймутся¦есть:ядут¦скать:щут¦чь:кут¦зать:жут¦ечь:ягут¦шить:ошьют¦жечь:ожгут¦переться:бопрутся¦евать:юют¦ергать:ёргают¦таться:чутся¦литься:ольются¦1ть:ивут,ывут,енут¦1еть:поют¦1ять:нимут¦1ереть:мрут,прут¦1ться:енутся,анутся¦1оться:рются¦1ать:жмут¦1сти:етут¦1озваться:тзовутся¦1яться:нимутся¦2ти:есут,лзут¦2ть:меют,леют,дадут,танут,реют,теют,зают,жают,деют,ызут¦2ить:упят,ожат,лжат,роят,рмят,ужат,альют,коят,омят,ажат,воят,ебьют,опят,ымят,абьют¦2аться:ачнутся,ждутся¦2и:стут¦2хать:иедут,оедут,ъедут,аедут¦2еть:исят,евут¦2ться:жаются,дадутся¦2иться:ожатся,лжатся,коятся,роятся,ужатся¦2яться:деются¦2вать:озовут¦2ечь:ажгут¦2обрать:азберут¦2ереть:ытрут¦2ать:осут,ждут¦2сть:радут¦2сться:лянутся,падутся¦2ять:сеют¦3еть:хотят,летят,ремят,горят¦3ть:авают,лезут,евают¦3вать:тдают,знают¦3есть:рочтут,почтут¦3ти:везут¦3хать:реедут¦3сть:ыпадут,впадут,ападут¦3ить:репят,зумят,щемят¦3ваться:здаются¦4ься:рнутся,инутся,гнутся,кнутся¦4ь:тоят,ежат,ышат¦4вать:родают,подают,редают,остают,тстают,аздают,дстают¦4яться:асмеются¦4еть:лестят,вистят¦4ать:стонут¦5ься:стоятся,тянутся¦5вать:рестают¦5ь:ронут¦5ить:достоят",
-        "ex": "4:пнуть¦5:лежать,дышать,тонуть¦6:дрожать,качнуть,утонуть¦есть:быть¦3ут:нести,сосать,реветь,лезть,везти¦3ют:знать,иметь,уметь,греть,сметь,сдавать¦2вут:жить¦2ймут:понять,занять,нанять¦2шут:писать¦2дут:дать,вести,пасть,уехать¦3нут:начать,стать,одеть,пожать,зажать¦2ут:ждать,орать,врать,рвать,лгать,жрать,срать,идти¦2ймутся:заняться¦2ят:спать¦1ерут:брать¦1дут:ехать¦1ьют:пить,бить,лить,шить¦1ядут:сесть¦2гут:бежать¦1дят:есть¦3нутся:начаться,одеться¦1оют:петь,мыть,выть,рыть,ныть¦2оют:спеть¦2имут:снять¦4ют:болеть,кидать,суметь,кивать,потеть,рыдать,худеть,ведать,задавать,вставать,уставать,выдавать,подавать,издавать,подуть¦4дут:задать,выдать,подать,издать¦5ют:плавать,снижать,обижать,создавать,наставать,растаять,заставать,придавать¦2еются:бриться¦4нутся:остаться¦1щут:искать¦4ут:расти,жаждать,стонать¦3ьют:побить,налить,залить,забить,полить,набить¦5дут:продать,создать,предать,придать¦4нут:встать,надеть,устать,задеть¦8ются:приближаться¦4ат:научить¦2кут:течь¦3вут:плыть¦2жут:резать¦2ерут:убрать¦1отрут:стереть¦3ются:иметься,смеяться¦1овут:звать¦3овут:позвать¦3ерут:собрать,избрать¦2ьют:убить¦1ягут:лечь¦5вут:прожить¦5нут:достать,отстать,настать,застать¦1ерутся:драться,браться¦3ят:шуметь,гудеть,велеть,хотеть,лететь,гореть¦3мут:нажать¦1уют:жевать¦1ошьют:сшить¦3гут:зажечь¦2тут:учесть¦3дутся:удаться,сдаться¦6ют:исчезать,угрожать¦3дут:сдать,класть,упасть,выехать,впасть¦3ьются:добиться¦1очтут:счесть¦2утся:рваться¦4утся:дождаться¦1ожнут:сжать¦2ют:дуть,давать,лаять,таять,сеять¦3тут:цвести¦1ьются:литься,биться¦1обьют:сбить¦5ьют:перебить¦1ожгут:сжечь¦1онятся:гнаться¦8ют:застревать¦1бопрутся:опереться¦11ют:подразумевать¦2имутся:сняться¦2юют:плевать¦4ся:мчаться,бояться¦2рутся:упереться¦1гут:жечь¦1ёргают:дергать¦2нутся:деться¦4вут:дожить¦1ольют:слить¦1нут:мять¦2дутся:даться¦1онят:гнать¦2чутся:метаться¦1ольются:слиться¦2ат:учить/научить¦4ются:оставаться¦4ят:вертеть¦5ся:тянуться,очнуться¦1рут:тереть,переть¦3рут:потереть"
-      }
+      "first": "2ю:ть{,а{лав,гр,ир,гор,выш,рак},е{пот,лад,худ,сп},раня}|2ву:ть{лы,жи{про,до,е,ы}}|4жу:ть{аза,яза,зи,де}|3у:ть{а{он,дожд,жажд,рч,рж},жи,щи}|4чу:ть{хота,ака,ти,трати,те}|4шу:ть{еса,аха,си,се}|4ю:авать|2м:дать{за,ре,о,т,ри,з,вы,с}|6беру:обрать|4еру:собрать|3ью:ить{б,ып,нал,зал,ыш}|4щу:итить|11у:ить/научить|5щу:стеть|3лю:еть{ем,п}|5ру:ереть|3ю:ть{оре,оя,ая,ея,о}|3иму:бнять|5елю:олоть|2у:зть,нести|2гу:речь|4усь:тись|3ту:цвести|6овусь:зваться|4юсь:ороваться|6юсь:аваться|6чусь:ться{мета,ти}|5усь:ться{ржа,жи,щи}|6жусь:ться{за,зи}|5люсь:ться{ба,и}|5юсь:ться{оя,ои,ре,о}|5ьюсь:апиться|6шусь:ситься~9:цепляться|4сь:уться|5нусь:ться{нача,яс}|4нусь:ться{де,оста}|6ймусь:заняться|5мусь:рижаться|6мусь:риняться|6озьмусь:зяться|5усь:ться{чи,ши,а{мч,рв,лыш,дожд}}|6чусь:ятаться|8зовусь:озваться|6жусь:ться{ди,иде,яде}|7щусь:ститься|6щусь:титься{ра,щу,и}|6шусь:исаться|5дусь:тись{вес,ий},асться|4дусь:йтись|6ядусь:сесться|7русь:ереться|6ерусь:раться{д,б}|8берусь:зобраться|8бопрусь:опереться|4кусь:чься|4гусь:ячься|4юсь:ться{,да{ж,ю,и,а}}|5юсь:ться{ли,ни,ри,ея}|4люсь:иться{ям,рояв}|5оюсь:ыться|5еюсь:бриться|6онюсь:гнаться|7уюсь:оваться|6обьюсь:збиться|6овьюсь:звиться|6ольюсь:литься{з,с}|2у:ти|2гу:чь|4гу:бежать|3гу:жечь|4ожгу:сжечь|3у:ть{а{лг,сос,леж,дрож,ч{ву,ту,ри,л},опад,рв,ыш,р},чи,ши,реве}|2:нуть|2ну:ть{ста,тря,аде,оде}|3ну:жать{по,за}|4ожну:сжать|7ёрзну:ерзнуть|4омну:мять|4жу:дить,орезать|4чу:тать{мо,я,п}|3ду:ти{ий,вес,юс},асть|2ду:йти|4ду:ехать|4яду:сесть|3уду:быть|4ову:звать|6зову:тозвать|4йму:нять{по,а}|4му:ринять|4озьму:зять|3му:жать{на,ри}|4шу:писать|4еру:брать|6отру:стереть|5щу:ть{сти,ска{и,ы}}|4щу:тить{пре,се,осве,погло,ра,щу,му,вя}|1у:расти|4ту:честь|5очту:счесть|3ту:ести|2ку:ечь|3ю:ть{и,тре,аболе,веле}|2ю:ать{раст,ист,лод,позд}|3даю:опасть|8ёркиваю:еркивать|6ёргаю:дергать|3лю:ть{и{б{ю,тре,ла,ра,ру,р,со},п,в,м},спа,ипа,шуме}|5шлю:слать|3ою:ыть|4оню:гнать|4обью:бить{з,с,д}|3ью:полить|4ошью:сшить|4овью:звить|5ую:вать{о,е{ц,ч,ж,ш}}|5юю:евать{о,пл,ор}|3м:сть|5мся:сться|4мся:даться~4быть:есть|2ться:тянусь|5яться:имусь|4титься:чусь{ру,е,р,бо,хо,а}|3иться:сь{у{леч,ж{ло,кру,ару,л},бщ,лиш},землю,трою,кою}|5ваться:азовусь|4зиться:жусь{пово,ра,ли,ни,гру}|4заться:жусь{ка,вя}|3аться:держусь|4ситься:шусь{а,ы,о}|3тись:сусь|3ваться:аюсь{ост,д}|4иться:юсь{л{в,п,м,б},ь}|4аться:еблюсь|3яться:оюсь{б,т}|3ться:еюсь{им,н}|3оться:борюсь|3еться:трюсь|3ечь:ягу|2ать:начну|1ать:у{стон,держ,торч,д}|2ять:мну|2зать:жу{ка,ма,вя}|2зить:жу{ра,ни,о{гр,ув,вв,м},гру,ь}|2дить:гражу,слежу|1ить:у{ж{дра,о{л,дор,трев,н,ам,т},л,ру,лу},ч{ко,але,оре,пе,на},бщ,ащ},ю{кле,о{дост,тр,к,св,дв}}|2деть:жу{и,гу,ля}|2тить:у{ч{о,е,шу,кру,а,р,пя},щищ}|2теть:чу{хо,ле,вер}|2тать:охочу|2кать:оскачу|2ть:ву|3ять:иму|2сеть:вишу|2сить:шу{о,а,вы,ве,ку}|2хать:ашу{м,п}|2сать:чешу|4обрать:беру{аз,д,т}|2ереть:ру{м,т,п}|2стеть:лещу,вищу|2стить:чищу,ыращу|1ть:лезу,ызу,ю{а,е,поду,я},ам|1еть:горю|1оть:орю{б,асп}|1вать:аю{зн,ст,д{за,ре,о,т,ри,з,вы,с}}|1ять:сею,тою|2еть:ю{л{рп,кип,ап,рем},по}|3олоть:мелю|2ить:ью|4лить:олью~4есть:быть|2ю:знать,дуть|2у:идти|2ву:жить|4ю:давать|2м:дать|3ну:начать,мять|3у:ждать,мочить|3ью:ить{п,л,ш}|3ою:петь{,с}|3иму:снять|11у:учить/научить|4жу:резать|3ягу:лечь|3ю:ть{ая{л,т,раст},поро}|5ьюсь:иться{б,доб,л}|5имусь:сняться|4олью:слить|6чусь:метаться",
+      "second": "1ёшь:ь|2вёшь:ть{лы,жи{про,до,е}}|3ешь:ть{ну{дох{ы,с},ик,ык,ычерк,ип},она,ая,ея,о}|4жешь:зать{а,оре,я}|4чешь:хотать|2ешь:ть{а{раст,ист,лав,позд,гр,ир,гор,реж,выш,рак},е{пот,лад,худ,сп},раня}|3ёшь:дождать|2шь:ть{да{за,ре,ро,по,т,ри,з,вы,с},и{,б{ю,со,ру,тре,ла,ра,р}}}|6берёшь:обрать|4ерёшь:собрать|3ьёшь:ить{б,нал,зал}|10шь:ть/научить|3ишь:ть{е{т,д,ор,с},оя}|5рёшь:ереть|3имешь:бнять|3шь:сть|4ёшься:тись|2ёшь:нести|3тёшь:цвести|3ёшься:ься|6овёшься:зваться|4ешься:аться{оров,д{ж,ю,и,а}}|5ьёшься:апиться|5ишься:реться|5ешься:оться|5шься:сться~9:цепляться|2ешь:ть,ывезти|2жешь:очь|8ёркиваешь:еркивать|6ёргаешь:дергать|3даешь:опасть|4чешь:ть{оте,а{мот,ят,пт,ак}}|1ешь:ытечь,ырасти|4шешь:ать{пис,ес,ах}|2дешь:ыйти|4дешь:ехать|3дешь:ывести,ыпасть|4ядешь:сесть|3удешь:быть|3ешь:ть{жажда,ырва,соса,ну}|3ьешь:ить{ып,ыш,ыб}|3оешь:ыть|4мешь:ринять|5уешь:вать{о,це,че,ше}|4ерешь:ыбрать|5решь:ытереть|2нешь:ть{ста,тря,аде,оде}|7ёрзнешь:ерзнуть|5щешь:скать{и,ы}|4овешь:ызвать|2вешь:ыжить|5юешь:евать{о,ор}|5елешь:олоть|5шлешь:ыслать|3лешь:ипать|2ёшь:ти,ызть|3ёшь:ть{ну{р,ч,ох,мах,ях,ас,к,в,аг,сог,миг,ьз,п,ет},опада,рва,ра,реве}|3нёшь:жать{по,за}|4ожнёшь:сжать|4омнёшь:мять|3дёшь:ти{ий,вес,юс},асть|2дёшь:йти|4овёшь:звать|6зовёшь:тозвать|4ймёшь:нять{по,а}|4озьмёшь:зять|3мёшь:жать{на,ри}|4ёшь:авать|4ерёшь:брать|6отрёшь:стереть|4обьёшь:бить{з,с,д}|3ьёшь:полить|4ошьёшь:сшить|4овьёшь:звить|1ёшь:расти|4тёшь:честь|5очтёшь:счесть|3тёшь:ести|5шлёшь:слать|5уёшь:жевать|3жёшь:жечь|4ожжёшь:сжечь|2жёшь:ичь,речь|4жёшь:лгать|5юёшь:плевать|3ишь:ть{е{тр,п,шум,ем,абол,вел},а{еж,дрож,рж,ч{ву,ту,ри,л,р},сп,ыш}}|4онишь:гнать|5ёшься:ться{у,рва,дожда,ея}|5нёшься:ться{нача,яс}|6ймёшься:заняться|5мёшься:рижаться|6озьмёшься:зяться|8зовёшься:озваться|6ёшься:аваться|5дёшься:тись{вес,ий},асться|4дёшься:йтись|7рёшься:ереться|6ерёшься:раться{д,б}|8берёшься:зобраться|8бопрёшься:опереться|6обьёшься:збиться|6овьёшься:звиться|6ольёшься:литься{з,с}|4жёшься:ячься|7уёшься:сноваться|4ешься:ться|4нешься:ться{де,оста}|5ешься:ться{ну{и,я,г},дея,ырва}|5оешься:ыться|5еешься:бриться|7уешься:оваться|6ерешься:ыбраться|6жешься:заться|6шешься:исаться|6чешься:таться{я,ме}|5лешься:баться|6ядешься:сесться|6мешься:риняться|4шься:ться{и,да}|5ишься:ться{мча,ржа,лыша,иде,яде,оя}|6онишься:гнаться~4быть:есть|2ть:шь{,и{досто,уп,еп,оп,щем}}|4зать:жешь|5ечь:ляжешь|4тать:охочешь|3ять:сеешь,тоишь|2сть:ешь{по,до,ъ}|5ять:имешь|3ть:подуешь|3оть:решь|3ать:шь{стоне,осё,дё}|4ять:нёшь|4ать:начнёшь|4ть:вёшь|6обрать:берёшь{аз,д,т}|4ереть:рёшь{м,т,п}|4ить:ьёшь|6лить:ольёшь|4еть:оёшь|3ь:чёшь|4овать:уёшь|3еть:ишь{гор,ид,гуд,ляд,т{ле,вис,лес,вер},ис}|7ваться:азовёшься|5ься:чёшься|5тись:сёшься|6иться:ьёшься|5оться:решься|7яться:имешься|4ться:оишься{к,р}|5еться:тришься~4есть:быть|2ёшь:идти|2вёшь:жить|2шь:дать|3нёшь:начать,мять|3ёшь:ать{жд,сос}|3ьёшь:ить{п,л,ш}|3шь:есть|3оёшь:петь{,с}|3имешь:снять|10шь:учить/научить|4жешь:резать|3яжешь:лечь|3ешь:аять{л,т,раст}|5ьёшься:иться{б,доб,л}|2ешь:дуть|5уёшь:овать{осн,с}|5шься:наесться|5имешься:сняться|4ольёшь:слить",
+      "third": "1ёт:ь|2вёт:ть{лы,жи{про,до,е}}|3ет:ть{ну{дох{ы,с},ик,ык,ычерк,ип},она,ая,ея,о}|4жет:зать{а,оре,я}|4чет:хотать|2ет:ть{а{раст,ист,лав,лод,позд,гр,ир,гор,реж,выш,рак},е{пот,лад,худ,сп},раня}|3ёт:дождать|2ст:дать{за,ре,о,т,ри,з,вы,с}|6берёт:обрать|4ерёт:собрать|3ьёт:ить{б,нал,зал}|1:бить{ю,со,ру,тре,ла,ра,р}|9:ь/научить|3ит:ть{е{т,д,ор,с},оя}|5рёт:ереть|3имет:бнять|4ётся:тись|2ёт:нести|3тёт:цвести|3ётся:ься|6овётся:зваться|4ется:аться{оров,д{ж,ю,и,а}}|5ьётся:апиться|5ится:реться|5ется:оться~2ет:ть,ывезти|2жет:очь|8ёркивает:еркивать|6ёргает:дергать|3дает:опасть|4чет:ть{оте,а{мот,ят,пт,ак}}|1ет:ытечь,ырасти|4шет:ать{пис,ес,ах}|2дет:ыйти|4дет:ехать|3дет:ывести,ыпасть|4ядет:сесть|3удет:быть|3ет:ть{жажда,ырва,соса,ну}|3ьет:ить{ып,ыш,ыб}|3оет:ыть|4мет:ринять|5ует:вать{о,це,че,ше}|4ерет:ыбрать|5рет:ытереть|2нет:ть{ста,тря,аде,оде}|7ёрзнет:ерзнуть|5щет:скать{и,ы}|4овет:ызвать|2вет:ыжить|5юет:евать{о,ор}|5елет:олоть|5шлет:ыслать|3лет:ипать|2ёт:ти,ызть|3ёт:ть{ну{р,ч,ох,мах,ях,ас,к,в,аг,сог,миг,ьз,п,ет},опада,рва,ра,реве}|3нёт:жать{по,за}|4ожнёт:сжать|4омнёт:мять|3дёт:ти{ий,вес,юс},асть|2дёт:йти|4овёт:звать|6зовёт:тозвать|4ймёт:нять{по,а}|4озьмёт:зять|3мёт:жать{на,ри}|4ёт:авать|4ерёт:брать|6отрёт:стереть|4обьёт:бить{з,с,д}|3ьёт:полить|4ошьёт:сшить|4овьёт:звить|1ёт:расти|4тёт:честь|5очтёт:счесть|3тёт:ести|5шлёт:слать|5уёт:жевать|3жёт:жечь|4ожжёт:сжечь|2жёт:ичь,речь|4жёт:лгать|5юёт:плевать|1:ить,сть|3ит:ть{е{тр,п,шум,ем,абол,вел},а{еж,дрож,рж,ч{ву,ту,ри,л,р},сп,ыш}}|4онит:гнать|5ётся:ться{у,рва,дожда,ея}|5нётся:ться{нача,яс}|6ймётся:заняться|5мётся:рижаться|6озьмётся:зяться|8зовётся:озваться|6ётся:аваться|5дётся:тись{вес,ий},асться|4дётся:йтись|7рётся:ереться|6ерётся:раться{д,б}|8берётся:зобраться|8бопрётся:опереться|6обьётся:збиться|6овьётся:звиться|6ольётся:литься{з,с}|4жётся:ячься|7уётся:сноваться|4ется:ться|4нется:ться{де,оста}|5ется:ться{ну{и,я,г},дея,ырва}|5оется:ыться|5еется:бриться|7уется:оваться|6ерется:ыбраться|6жется:заться|6шется:исаться|6чется:таться{я,ме}|5лется:баться|6ядется:сесться|6мется:риняться|3ся:ться{и,с}|5ится:ться{мча,ржа,лыша,иде,яде,оя}|6онится:гнаться|4стся:даться~4быть:есть|3зать:жет|4ечь:ляжет|3тать:охочет|2ять:сеет,тоит|4ять:имет|2ть:подует,аст|2оть:рет|2ать:стонет,осёт,дёт|3ять:нёт|3ать:начнёт|3ть:вёт|5обрать:берёт{аз,д,т}|3ереть:рёт{м,т,п}|3ить:ьёт|5лить:ольёт|3еть:оёт|2ь:чёт|3овать:уёт|2еть:ит{гор,ид,гуд,ляд,т{ле,вис,лес,вер},ис}|0ь:ит{досто,уп,еп,оп,щем}|6ваться:азовётся|4ься:чётся|4тись:сётся|5иться:ьётся|4оться:рется|6яться:имется|2ься:оится{к,р}|4еться:трится~4есть:быть|2ёт:идти|2вёт:жить|2ст:дать|3нёт:начать,мять|3ёт:ать{жд,сос}|3ьёт:ить{п,л,ш}|3оёт:петь{,с}|3имет:снять|9:учить/научить|4жет:резать|3яжет:лечь|3ет:аять{л,т,раст}|5ьётся:иться{б,доб,л}|2ет:дуть|5уёт:овать{осн,с}|5имется:сняться|4ольёт:слить",
+      "firstPlural": "1ём:ь|2вём:ть{лы,жи{про,до,е}}|3ем:ть{ну{дох{ы,с},ик,ык,ычерк,ип},она,ая,ея,о}|4жем:зать{а,оре,я}|2ем:ть{а{раст,ист,лав,лод,позд,гр,ир,гор,реж,выш,рак},е{пот,лад,худ,сп},раня}|3ём:дождать|2дим:дать{за,ре,о,т,ри,з,вы,с}|6берём:обрать|4ерём:собрать|3ьём:ить{б,нал,зал}|2м:бить{ю,со,ру,тре,ла,ра,р}|10м:ть/научить|3им:ть{е{т,д,ор,с},оя}|5рём:ереть|3имем:бнять|3дим:сть|4ёмся:тись|2ём:нести|3тём:цвести|3ёмся:ься|6овёмся:зваться|4емся:аться{оров,д{ж,ю,и,а}}|5ьёмся:апиться|5имся:реться|5емся:оться|5димся:сться~9:цепляться|2ем:ть,ывезти|2жем:очь|8ёркиваем:еркивать|6ёргаем:дергать|3даем:опасть|4шем:ать{пис,ес,ах}|2дем:ыйти|4дем:ехать|3дем:ывести,ыпасть|4ядем:сесть|3удем:быть|3ем:ть{жажда,ырва,соса,ну}|3ьем:ить{ып,ыш,ыб}|3оем:ыть|4мем:ринять|5уем:вать{о,це,че,ше}|4ерем:ыбрать|5рем:ытереть|2нем:ть{ста,тря,аде,оде}|7ёрзнем:ерзнуть|5щем:скать{и,ы}|4овем:ызвать|2вем:ыжить|4чем:ать{ак,т{я,п,мо,хо}}|1ем:ытечь,ырасти|5юем:евать{о,ор}|5елем:олоть|5шлем:ыслать|3лем:ипать|2ём:ти,ызть|3ём:ть{ну{р,ч,ох,мах,ях,ас,к,в,аг,сог,миг,ьз,п,ет},опада,рва,ра,реве}|3нём:жать{по,за}|4ожнём:сжать|4омнём:мять|3дём:ти{ий,вес,юс},асть|2дём:йти|4овём:звать|6зовём:тозвать|4ймём:нять{по,а}|4озьмём:зять|3мём:жать{на,ри}|4ём:авать|4ерём:брать|6отрём:стереть|4обьём:бить{з,с,д}|3ьём:полить|4ошьём:сшить|4овьём:звить|1ём:расти|4тём:честь|5очтём:счесть|3тём:ести|5шлём:слать|5уём:жевать|3жём:жечь|4ожжём:сжечь|2жём:ичь,речь|4жём:лгать|5юём:плевать|2м:ить|3им:ть{е{тр,п,шум,ем,абол,вел},а{еж,дрож,рж,ч{ву,ту,ри,л,р},сп,ыш}}|4оним:гнать|5ёмся:ться{у,рва,дожда,ея}|5нёмся:ться{нача,яс}|6ймёмся:заняться|5мёмся:рижаться|6озьмёмся:зяться|8зовёмся:озваться|6ёмся:аваться|5дёмся:тись{вес,ий},асться|4дёмся:йтись|7рёмся:ереться|6ерёмся:раться{д,б}|8берёмся:зобраться|8бопрёмся:опереться|6обьёмся:збиться|6овьёмся:звиться|6ольёмся:литься{з,с}|4жёмся:ячься|7уёмся:сноваться|4емся:ться|4немся:ться{де,оста}|5емся:ться{ну{и,я,г},дея,ырва}|5оемся:ыться|5еемся:бриться|7уемся:оваться|6еремся:ыбраться|6жемся:заться|6шемся:исаться|6чемся:таться{я,ме}|5лемся:баться|6ядемся:сесться|6мемся:риняться|4мся:иться|5имся:ться{мча,ржа,лыша,иде,яде,оя}|4димся:даться|6онимся:гнаться~4быть:есть|3зать:жем|4ечь:ляжем|2ять:сеем,тоим|4ять:имем|2ть:подуем|2оть:рем|2ать:стонем,осём,дём|3ять:нём|3ать:начнём|3ть:вём,дадим|5обрать:берём{аз,д,т}|3ереть:рём{м,т,п}|3ить:ьём|5лить:ольём|3еть:оём|2ь:чём|3овать:уём|2еть:им{гор,т{хо,ле,вис,лес,вер},ид,гуд,ляд,ис}|3сть:едим{о,ъ}|1ть:им{досто,уп,еп,оп,щем}|6ваться:азовёмся|4ься:чёмся|4тись:сёмся|5иться:ьёмся|4оться:ремся|6яться:имемся|5сться:аедимся|3ться:оимся{к,р}|4еться:тримся~4есть:быть|2ём:идти|2вём:жить|2дим:дать|3нём:начать,мять|3ём:ать{жд,сос}|3ьём:ить{п,л,ш}|3дим:есть|3оём:петь{,с}|3имем:снять|10м:учить/научить|4жем:резать|3яжем:лечь|3ем:аять{л,т,раст}|5ьёмся:иться{б,доб,л}|2ем:дуть|5уём:овать{осн,с}|5имемся:сняться|4ольём:слить",
+      "secondPlural": "1ёте:ь|2вёте:ть{лы,жи{про,до,е}}|3ете:ть{ну{дох{ы,с},ик,ык,ычерк,ип},она,ая,ея,о}|4жете:зать{а,оре,я}|2ете:ть{а{раст,ист,лав,лод,позд,гр,ир,гор,реж,выш,рак},е{пот,лад,худ,сп},раня}|3ёте:дождать|2дите:дать{за,ре,о,т,ри,з,вы,с}|6берёте:обрать|4ерёте:собрать|3ьёте:ить{б,нал,зал}|1е:бить{ю,со,ру,тре,ла,ра,р}|9е:ь/научить|3ите:ть{е{т,д,ор,с},оя}|5рёте:ереть|3имете:бнять|3дите:сть|4ётесь:тись|2ёте:нести|3тёте:цвести|3ётесь:ься|6овётесь:зваться|4етесь:аться{оров,д{ж,ю,и,а}}|5ьётесь:апиться|5итесь:реться|5етесь:оться|5дитесь:сться~9:цепляться|5ётесь:ться{у,рва,дожда,ея}|5нётесь:ться{нача,яс}|6ймётесь:заняться|5мётесь:рижаться|6озьмётесь:зяться|8зовётесь:озваться|6ётесь:аваться|5дётесь:тись{вес,ий},асться|4дётесь:йтись|7рётесь:ереться|6ерётесь:раться{д,б}|8берётесь:зобраться|8бопрётесь:опереться|6обьётесь:збиться|6овьётесь:звиться|6ольётесь:литься{з,с}|4жётесь:ячься|7уётесь:сноваться|4етесь:ться|4нетесь:ться{де,оста}|5етесь:ться{ну{и,я,г},дея,ырва}|5оетесь:ыться|5еетесь:бриться|7уетесь:оваться|6еретесь:ыбраться|6жетесь:заться|6шетесь:исаться|6четесь:таться{я,ме}|5летесь:баться|6ядетесь:сесться|6метесь:риняться|3есь:иться|5итесь:ться{мча,ржа,лыша,иде,яде,оя}|4дитесь:даться|6онитесь:гнаться|2ете:ть,ывезти|2жете:очь|8ёркиваете:еркивать|6ёргаете:дергать|3даете:опасть|4шете:ать{пис,ес,ах}|2дете:ыйти|4дете:ехать|3дете:ывести,ыпасть|4ядете:сесть|3удете:быть|3ете:ть{жажда,ырва,соса,ну}|3ьете:ить{ып,ыш,ыб}|3оете:ыть|4мете:ринять|5уете:вать{о,це,че,ше}|4ерете:ыбрать|5рете:ытереть|2нете:ть{ста,тря,аде,оде}|7ёрзнете:ерзнуть|5щете:скать{и,ы}|4овете:ызвать|2вете:ыжить|4чете:ать{ак,т{я,п,мо,хо}}|1ете:ытечь,ырасти|5юете:евать{о,ор}|5елете:олоть|5шлете:ыслать|3лете:ипать|2ёте:ти,ызть|3ёте:ть{ну{р,ч,ох,мах,ях,ас,к,в,аг,сог,миг,ьз,п,ет},опада,рва,ра,реве}|3нёте:жать{по,за}|4ожнёте:сжать|4омнёте:мять|3дёте:ти{ий,вес,юс},асть|2дёте:йти|4овёте:звать|6зовёте:тозвать|4ймёте:нять{по,а}|4озьмёте:зять|3мёте:жать{на,ри}|4ёте:авать|4ерёте:брать|6отрёте:стереть|4обьёте:бить{з,с,д}|3ьёте:полить|4ошьёте:сшить|4овьёте:звить|1ёте:расти|4тёте:честь|5очтёте:счесть|3тёте:ести|5шлёте:слать|5уёте:жевать|3жёте:жечь|4ожжёте:сжечь|2жёте:ичь,речь|4жёте:лгать|5юёте:плевать|1е:ить|3ите:ть{е{тр,п,шум,ем,абол,вел},а{еж,дрож,рж,ч{ву,ту,ри,л,р},сп,ыш}}|4оните:гнать~4быть:есть|7ваться:азовётесь|5ься:чётесь|5тись:сётесь|6иться:ьётесь|5оться:ретесь|7яться:иметесь|6сться:аедитесь|3ься:оитесь{к,р}|5еться:тритесь|4зать:жете|5ечь:ляжете|3ять:сеете,тоите|5ять:имете|3ть:подуете|3оть:рете|3ать:те{стоне,осё,дё}|4ять:нёте|4ать:начнёте|4ть:вёте,дадите|6обрать:берёте{аз,д,т}|4ереть:рёте{м,т,п}|4ить:ьёте|6лить:ольёте|4еть:оёте|3ь:чёте|4овать:уёте|3еть:ите{гор,т{хо,ле,вис,лес,вер},ид,гуд,ляд,ис}|4сть:едите{о,ъ}|1ь:ите{досто,уп,еп,оп,щем}~4есть:быть|2ёте:идти|2вёте:жить|2дите:дать|3нёте:начать,мять|3ёте:ать{жд,сос}|3ьёте:ить{п,л,ш}|3дите:есть|3оёте:петь{,с}|3имете:снять|9е:учить/научить|4жете:резать|3яжете:лечь|3ете:аять{л,т,раст}|5ьётесь:иться{б,доб,л}|2ете:дуть|5уёте:овать{осн,с}|5иметесь:сняться|4ольёте:слить",
+      "thirdPlural": "2вут:ть{лы,жи{про,до,е,ы}}|4жут:зать{а,оре,я}|3ут:ать{он,дожд,жажд}|4ют:авать|2ют:ть{а{лав,гр,ир,гор,рак},е{пот,лад,худ,сп},раня}|2дут:дать{за,ре,о,т,ри,з,вы,с}|6берут:обрать|4ерут:собрать|3ьют:ить{б,ып,нал,зал,ыш}|3ят:ть{би{ю,со,ру,тре,ла,ра,р},е{т,ем,д,ор,п,с}}|11ат:ить/научить|5рут:ереть|3имут:бнять|1:оять|3ют:ть{ая,ея,о}|3дят:сть|2ут:зть,нести|2гут:речь|3тут:цвести|3ся:ться{у,оя}|6овутся:зваться|4ются:ороваться|6ются:аваться|5ьются:апиться|5ятся:реться|5ются:оться|5дятся:сться~2ут:ти|2гут:чь|4гут:бежать|3гут:жечь|4ожгут:сжечь|3ут:ть{а{лг,сос,опад,рв,р},реве}|1:ть{ну,а{леж,дрож,рж,ч{ву,ту,ри,л,р},лыш,дыш}}|2нут:ть{ста,тря,аде,оде}|3нут:жать{по,за}|4ожнут:сжать|7ёрзнут:ерзнуть|4омнут:мять|3дут:ти{ий,вес,юс},асть|2дут:йти|4дут:ехать|4ядут:сесть|3удут:быть|4овут:звать|6зовут:тозвать|4ймут:нять{по,а}|4мут:ринять|4озьмут:зять|3мут:жать{на,ри}|4шут:ать{пис,ес,ах}|4ерут:брать|6отрут:стереть|5щут:скать{и,ы}|1ут:расти|4тут:честь|5очтут:счесть|3тут:ести|4чут:ать{ак,т{я,п,мо,хо}}|2кут:ечь|3ят:ть{и,е{тр,шум,абол,вел},спа}|4онят:гнать|2ют:ть{,а{раст,ист,лод,позд}}|3дают:опасть|8ёркивают:еркивать|6ёргают:дергать|4обьют:бить{з,с,д}|3ьют:полить|4ошьют:сшить|4овьют:звить|3оют:ыть|5уют:вать{о,е{ц,ч,ж,ш}}|5шлют:слать|5елют:олоть|3лют:ипать|5юют:евать{о,пл,ор}|3ат:ить{ж,ч,ш,щ}|4утся:тись|5нутся:ться{нача,яс}|4нутся:ться{де,оста}|6ймутся:заняться|5мутся:рижаться|6мутся:риняться|6озьмутся:зяться|8зовутся:озваться|5утся:аться{рв,дожд}|5дутся:тись{вес,ий},асться|4дутся:даться,йтись|6ядутся:сесться|6жутся:заться|7рутся:ереться|6ерутся:раться{д,б}|8берутся:зобраться|8бопрутся:опереться|4кутся:чься|6шутся:исаться|6чутся:таться{я,ме}|4гутся:ячься|4ются:ться{,да{ж,ю,и,а}}|5оются:ыться|5ются:еяться|5еются:бриться|7уются:оваться|6обьются:збиться|6овьются:звиться|6ольются:литься{з,с}|5лются:баться|5ятся:ться{и,иде,яде}|6онятся:гнаться|5атся:иться{ч,ж,ш,щ}|3ся:аться{мч,рж,лыш}~4быть:есть|4ечь:ягут|3ать:начнут|2ать:стонут,дут|3ять:мнут|3зать:жут|3ть:дадут,вут|4ять:имут|5обрать:берут{аз,д,т}|3ереть:рут{м,т,п}|2ть:лезут,ызут,подуют|2еть:ят{гор,т{хо,ле,вис,лес,вер},ид,гуд,ляд,ис,рп,ип,ап,рем}|3сть:едят{о,ъ}|0ь:тоят|2ить:достоят|2вать:ают{зн,ст,д{за,ре,о,т,ри,з,вы,с}}|2ять:сеют|3ить:ьют|5лить:ольют|3еть:поют|2оть:рют|2ься:тся{ну,тяну,боя,тоя}|6яться:имутся|6ваться:азовутся|4ваться:аются{ост,д}|4ться:еются{им,н}|4оться:рются|5иться:ьются|5сться:аедятся|4еться:трятся~4есть:быть|2ют:знать,дуть|2ут:идти|2вут:жить|4ют:давать|2дут:дать|3нут:начать,мять|3ут:ждать|3ьют:ить{п,л,ш}|3дят:есть|3оют:петь{,с}|3имут:снять|11ат:учить/научить|4жут:резать|3ягут:лечь|3ют:аять{л,т,раст}|5ьются:иться{б,доб,л}|5имутся:сняться|4ольют:слить"
     },
     "pastTense": {
-      "masc": {
-        "fwd": "1:зть¦2:езнуть¦л:сть¦лся:сться¦1г:ичь",
-        "both": "1:бнуть¦2:ясти,лзти,ыкнуть¦3:никнуть,тигнуть,переть,мереть¦4:ывезти¦4ёк:ересечь¦3ёл:обрести,рочесть¦3ся:рястись¦3к:ытечь¦2ёл:плести¦2ёк:отечь,стечь¦2ёр:отереть¦2ся:астись¦1ёг:речь,лечь,жечь¦1ёсся:нестись¦1ёл:мести,вести¦1гся:ячься¦1ос:расти¦1л:юсти¦1ёлся:вестись¦1ёс:нести¦1шел:ыйти¦1г:очь¦шёлся:йтись¦ёгся:ечься¦ёз:езти¦шёл:йти¦лся:ться¦л:ть",
-        "rev": "ести:ёс¦асти:ос¦ечь:ёк,ёг¦ереть:ёр¦1есть:чёл¦1еться:рся¦1ести:рёл¦2сть:оел,ъел,чел¦2чь:риг¦2еть:ер¦2сться:селся,аелся¦2ть:ыз¦3ти:пас¦3нуть:чез¦3ть:лез¦3сть:апал,крал¦3сться:клялся,опался¦4сть:овпал,рисел",
-        "ex": "3:переть,лезть¦4:спасти¦5:вытереть¦шёл:идти¦1ёс:нести¦1ёл:вести¦1ос:расти¦1ёк:течь¦2ёр:стереть¦1ёг:лечь,жечь¦2ёл:счесть¦1ёр:тереть¦4ся:опереться,упереться¦4л:вывести,выпасть,попасть¦3ёл:обрести¦2л:сесть,пасть¦1л:есть¦3л:класть,упасть,впасть,красть¦3лся:клясться"
-      },
-      "fem": {
-        "fwd": "ла:сть¦лась:сться¦1ла:зти¦1гла:ичь¦2ла:вести,езнуть,рести,мести,лести",
-        "both": "4ла:ытереть,стигнуть¦3ла:мереть,никнуть,переть,рочесть,нести¦3лась:нестись¦2лась:ереться,астись,вестись¦2гла:лечь,речь¦2кла:сечь,течь¦2ла:ясти,ыкнуть¦1ла:бнуть,юсти¦1осла:расти¦1гла:очь¦шлась:йтись¦глась:чься¦шла:йти¦лась:ться¦ла:ть",
-        "rev": "асти:осла¦ереть:ёрла¦жечь:ожгла¦1чь:екла,егла¦1тись:слась¦2ти:есла,асла,лзла¦2сть:оела,ъела,чела¦2ечь:ажгла¦2чь:ригла¦2сться:селась,аелась¦2еть:ерла¦3сти:ивела,звела,овела,дмела,ывела,плела,брела¦3ти:везла¦3нуть:чезла¦3сть:апала,крала¦3сться:клялась¦4сти:ревела¦4сть:овпала,рисела",
-        "ex": "шла:идти¦3ла:нести,переть,класть,упасть,увести,впасть,цвести,красть,везти,ввести,свести¦2ла:вести,сесть,пасть¦1осла:расти¦2кла:течь¦2ёрла:стереть¦4ла:спасти,отвести,выпасть,попасть,завести,навести¦2гла:лечь¦3гла:зажечь¦1очла:счесть¦4лась:трястись,попасться¦1ожгла:сжечь¦1ёрла:тереть¦3ёрла:потереть¦1гла:жечь¦1ла:есть¦5ла:подвести¦3лась:клясться"
-      },
-      "neut": {
-        "fwd": "ло:сть¦лось:сться¦1ло:зти¦1гло:ичь¦2ло:вести,езнуть,рести,мести,лести",
-        "both": "4ло:ытереть,стигнуть¦3ло:мереть,никнуть,переть,рочесть,нести¦3лось:нестись¦2лось:ереться,астись,вестись¦2гло:лечь,речь¦2кло:сечь,течь¦2ло:ясти,ыкнуть¦1ло:бнуть,юсти¦1осло:расти¦1гло:очь¦шлось:йтись¦глось:чься¦шло:йти¦лось:ться¦ло:ть",
-        "rev": "асти:осло¦ереть:ёрло¦жечь:ожгло¦1чь:екло,егло¦1тись:слось¦2ти:есло,асло,лзло¦2сть:оело,ъело,чело¦2ечь:ажгло¦2чь:ригло¦2сться:селось,аелось¦2еть:ерло¦3сти:ивело,звело,овело,дмело,ывело,плело,брело¦3ти:везло¦3нуть:чезло¦3сть:апало,крало¦3сться:клялось¦4сти:ревело¦4сть:овпало,рисело",
-        "ex": "шло:идти¦3ло:нести,переть,класть,упасть,увести,впасть,цвести,красть,везти,ввести,свести¦2ло:вести,сесть,пасть¦1осло:расти¦2кло:течь¦2ёрло:стереть¦4ло:спасти,отвести,выпасть,попасть,завести,навести¦2гло:лечь¦3гло:зажечь¦1очло:счесть¦4лось:трястись,попасться¦1ожгло:сжечь¦1ёрло:тереть¦3ёрло:потереть¦1гло:жечь¦1ло:есть¦5ло:подвести¦3лось:клясться"
-      },
-      "plural": {
-        "fwd": "ли:сть¦лись:сться¦1ли:зти¦1гли:ичь¦2ли:вести,езнуть,рести,мести,лести",
-        "both": "4ли:ытереть,стигнуть¦3ли:мереть,никнуть,переть,рочесть,нести¦3лись:нестись¦2лись:ереться,астись,вестись¦2гли:лечь,речь¦2кли:сечь,течь¦2ли:ясти,ыкнуть¦1ли:бнуть,юсти¦1осли:расти¦1гли:очь¦шлись:йтись¦глись:чься¦шли:йти¦лись:ться¦ли:ть",
-        "rev": "асти:осли¦ереть:ёрли¦жечь:ожгли¦1чь:екли,егли¦1тись:слись¦2ти:если,асли,лзли¦2сть:оели,ъели,чели¦2ечь:ажгли¦2чь:ригли¦2сться:селись,аелись¦2еть:ерли¦3сти:ивели,звели,овели,дмели,ывели,плели,брели¦3ти:везли¦3нуть:чезли¦3сть:апали,крали¦3сться:клялись¦4сти:ревели¦4сть:овпали,рисели",
-        "ex": "шли:идти¦3ли:нести,переть,класть,упасть,увести,впасть,цвести,красть,везти,ввести,свести¦2ли:вести,сесть,пасть¦1осли:расти¦2кли:течь¦2ёрли:стереть¦4ли:спасти,отвести,выпасть,попасть,завести,навести¦2гли:лечь¦3гли:зажечь¦1очли:счесть¦4лись:трястись,попасться¦1ожгли:сжечь¦1ёрли:тереть¦3ёрли:потереть¦1гли:жечь¦1ли:есть¦5ли:подвести¦3лись:клясться"
-      }
+      "masc": "3:ытереть|3л:сть|2:зть|4шёл:идти|5лся:сться~2:ти,ывезти|2л:ть|3шел:ыйти|3л:сти{ыве,ю}|4ёл:ести,честь{ро,с}|3шёл:йти|2г:чь|3ёг:ечь|4:нуть{тиг,ык,ник,ез,б}|4ёс:нести|4ос:расти|4ся:тись|4лся:ться|6ёлся:естись|5шёлся:йтись|4гся:чься|5ёгся:ечься|6ёсся:нестись|5ся:ереться|3:ереть|5ёр:тереть|3ёк:ечь{т,с}|2к:ытечь|4ёз:езти~1сть:л{а{кл,кр,п{вы,по,в,а}},е{с,о,ъ,ч}}|1ть:висел|3сться:лся{опа,кля,се,ае}|0ть:лез,ыз~4шёл:идти|3л:сть{е,па,упа}",
+      "fem": "3ла:ытереть,сть,ести|4лась:тись|2ла:ти,нести|4шла:идти|5лась:сться~2ла:ть|2гла:чь|3гла:жечь|4ожгла:сжечь|4ла:ть{ну{тиг,ык,ник,ез,б},рочес}|4осла:расти|3шла:йти|3ла:ереть,юсти|5ёрла:тереть|5очла:счесть|2кла:ечь{т,с}|4лась:ться|5лась:вестись,ереться|4глась:чься|5шлась:йтись~2ти:ла{с,вез,лз}|2сть:ла{а{кл,кр,п{вы,по,в,а}},е{с,о,ъ,ч}}|2сти:ела{дм,бр,в,пл}|2ть:ла{висе,шеве,жаве,лез}|4сться:лась{опа,кля,се,ае}|4тись:слась~4шла:идти|3ла:сть{е,па,упа}|2ла:реветь",
+      "neut": "3ло:ытереть,сть,ести|4лось:тись|2ло:ти,нести|4шло:идти|5лось:сться~2ло:ть|2гло:чь|3гло:жечь|4ожгло:сжечь|4ло:ть{ну{тиг,ык,ник,ез,б},рочес}|4осло:расти|3шло:йти|3ло:ереть,юсти|5ёрло:тереть|5очло:счесть|2кло:ечь{т,с}|4лось:ться|5лось:вестись,ереться|4глось:чься|5шлось:йтись~2ти:ло{с,вез,лз}|2сть:ло{а{кл,кр,п{вы,по,в,а}},е{с,о,ъ,ч}}|2сти:ело{дм,бр,в,пл}|2ть:ло{висе,шеве,жаве,лез}|4сться:лось{опа,кля,се,ае}|4тись:слось~4шло:идти|3ло:сть{е,па,упа}|2ло:реветь",
+      "plural": "3ли:ытереть,сть,ести|4лись:тись|2ли:ти,нести|4шли:идти|5лись:сться~2ли:ть|2гли:чь|3гли:жечь|4ожгли:сжечь|4ли:ть{ну{тиг,ык,ник,ез,б},рочес}|4осли:расти|3шли:йти|3ли:ереть,юсти|5ёрли:тереть|5очли:счесть|2кли:ечь{т,с}|4лись:ться|5лись:вестись,ереться|4глись:чься|5шлись:йтись~2ти:ли{с,вез,лз}|2сть:ли{а{кл,кр,п{вы,по,в,а}},е{с,о,ъ,ч}}|2сти:ели{дм,бр,в,пл}|2ть:ли{висе,шеве,жаве,лез}|4сться:лись{опа,кля,се,ае}|4тись:слись~4шли:идти|3ли:сть{е,па,упа}|2ли:реветь"
     },
     "imperative": {
-      "second": {
-        "fwd": "2:нить,дить,пить,тить,зить,щить¦3:елить,ешить,ивить,ажить,очить,ишить,умить,емить¦:ть/научить¦ри:ереть¦и:уть¦ойся:ыться¦ись:оться¦жись:заться¦зовись:озваться¦ели:олоть¦омни:мять¦1и:дти,теть,зти,роть¦1й:оять,оить,аять,еить,еять¦1ди:асть¦1ой:рыть,выть¦1нься:аваться¦1йся:еяться,ояться,оиться¦1зжай:ехать¦1шись:исаться¦1бери:зобрать¦1ши:есать¦1нись:ясться¦1дись:асться¦2и:треть,ореть,еметь,онать¦2ь:ачить¦2сь:диться,ниться,житься¦2ись:астись,януться¦2ери:збрать¦2ти:очесть,рести,лести¦2й:дуть¦3й:зжать,алеть¦3сь:ериться,ишиться",
-        "both": "3:гчить,ымить,щрить,злить,дрить,улить,рбить,слить,зрить,ршить,лжить,брить,ьшить,явить,ужить,нчить,рмить,ючить,осить,юбить¦4:тушить,ручить,душить,далить,нушить,молить,кусить,сушить,гасить,учшить,валить,новить,давить,солить,варить,курить,ласить,торить,ложить,лучить,ворить¦5:окорить,орожить,риучить,требить,расти,ествить,родлить,зличить,олечить,одарить¦5й:таскать,зревать,лкивать,ыпивать,трясать,тревать,оручать,акивать,скивать,грожать,счезать,орожать,овожать,множать,растать,олевать,олучать¦5ь:таможить¦5сь:окупиться,гласиться,еньшиться¦5ься:ротивиться¦5йся:скачаться,ороваться¦5нь:рестать¦4нь:дстать,тстать,остать¦4сь:вориться,селиться,рузиться,велиться,делиться,разиться,ториться,молиться,ветиться,дивиться,новиться¦4ь:алечить,словить,бросить,скорить,инудить,оранить,ависеть,еличить,тратить,третить,тветить¦4й:иучать,целеть,мевать,хивать,висать,худеть,лезать,аивать,тареть,режать,щивать,лотать,долеть,ничать,нижать,бучать,тожать,ускать,вивать,ладеть,шеветь,потеть,гивать,нивать,певать,живать,бивать,зучать,ерзать,ливать,олкать,личать,кучать,девать,росать,ривать,чивать,ракать,шивать,ботать¦4ься:аружиться,третиться¦4йся:астаться,четаться,бижаться,лижаться¦4нься:остаться,аздеться¦4и:опадать,дождать¦3йся:учаться,ужаться,ываться,знаться,осаться,ажаться,ираться,ючаться,ытаться,асаться,итаться,ататься,лжаться,араться,ичаться,упаться,иваться,ечаться,еваться,нчаться,инаться¦3й:рпать,сметь,зреть,гчать,ькать,яжать,аветь,ужать,усать,опать,утать,лтать,ркать,екать,икать,слеть,орать,юхать,нчать,асать,спеть,ытать,атать,ыкать,знать,ажать,ылать,етать,чтать,лжать,ючать,ыхать,ирать,упать,ачать,ывать,ечать,грать,итать,инать,авать,елать¦3сь:озиться,ылиться,ириться,ршиться,ититься,утиться,оситься,емиться,явиться,алиться,ямиться,дшиться,юбиться,ешиться,длиться,атиться,млиться,ститься,опиться¦3ь:конить,вожить,речить,собить,жалить,тешить,рабить,ширить,бидеть,ничить,тожить,порить,печить,волить,лабить,журить,силить,расить,ронуть,рушить,метить,ножить,жарить,ладить,лышать,видеть,товить¦3ься:целиться,метиться,раситься,точиться,сориться,выситься,товиться¦3ей:робить¦3ись:нестись¦3жи:ырезать¦3и:орчать,сосать,рапеть,гудеть,нести,лежать,тучать,дышать,вучать,ричать¦3нь:трять¦3ви:ыжить,ежить¦3чи:охотать¦3дай:опасть¦3жь:зрезать,орезать¦2ей:дбить,ыбить,ышить,звить,ибить,збить,ыпить¦2ли:ипать¦2и:ызть,рвать,жрать,лгать,ясти,врать,ржать,ипеть,рпеть,ядеть,спать,лчать¦2йся:неться,хаться,латься,ряться,даться,каться,няться,шаться,гаться,ляться,маться,щаться¦2юй:оревать¦2ись:рваться,треться,мчаться,ядеться,кнуться,ястись,гнуться,рнуться,ржаться¦2ься:ушиться,уриться,ыпаться,отиться,илиться,идеться,инуться,омиться,ичиться,изиться,авиться¦2ь:унуть,юнуть,изить,езть,омить,ысить,есить,ынуть,инуть,ерить,ыпать,авить¦2ери:ебрать,абрать,ыбрать¦2чи:какать,мотать¦2ови:извать,ызвать,азвать¦2мись:риняться¦2шься:аесться¦2ти:мести¦2ейся:злиться,апиться,обиться,звиться,збиться,бриться¦2жь:мазать¦2й:неть,цать,иять,бать,щать,лять,дать,рять,нять,гать,шать,мать¦2ки:сечь,лечь,течь¦2сь:щиться,читься¦2ги:речь,ажечь,бежать¦2ими:бнять¦2ми:ринять¦2дись:вестись¦2шь:ъесть,оесть¦2чь:лакать¦2ди:вести¦2ши:писать¦1зови:тозвать¦1уй:шевать,жевать,чевать,цевать¦1ши:ахать¦1ядь:сесть¦1ядься:сесться¦1гись:ячься¦1щи:ыскать,искать¦1бери:тобрать,добрать¦1лись:баться¦1чи:птать¦1чься:ятаться¦1берись:зобраться¦1дись:йтись¦1жи:язать,азать¦1ги:ичь,очь¦1они:гнать¦1ерись:браться,драться¦1кись:ечься¦1чь:ятать¦1ди:юсти,йти¦1юй:оевать¦1ой:мыть¦1удь:быть¦озьмись:зяться¦ёрзни:ерзнуть¦ёркивай:еркивать¦уйся:оваться¦шли:слать¦озьми:зять¦уй:овать",
-        "rev": "4:асти¦нять:йми¦няться:ймись¦есть:ядь¦чь:ки¦ечь:яг¦жечь:ожги¦переться:бопрись¦евать:юй¦ергать:ёргай¦1еть:пой¦1ять:ними¦1ереть:мри,при¦1ться:енься,айся¦1ыться:мойся¦1ить:бей,ть,рь,шей¦1ть:ыви,ень¦1заться:ажись,яжись¦1ать:жми¦1являться:о¦1иться:сься,лься,лейся¦1озваться:тзовись¦1аться:жмись¦1зать:ажь¦1олоть:мели¦1яться:нимись¦1мять:зомни¦2ть:най,мей,тань,ои,жай,живи,рей,тей,би,чай,дей,кай¦2еть:иди¦2аться:ачнись,ждись¦2ыть:крой,звой¦2уть:хни,кни,яни,рни,гни,бни,тни,пни¦2ить:ось,кой,аль,ужь,ушь¦2ать:ыши,ажни,жди¦2ыться:кройся,оройся¦2хать:оезжай¦2ти:ези,лзи¦2яться:дейся¦2вать:озови¦2рать:обери¦2иться:койся¦2саться:пишись¦2зать:режь¦2обрать:азбери¦2ереть:ытри¦2сать:чеши¦2сться:лянись,падись¦2ять:сей¦3ть:оди,упи,ати,лни,ини,ури,ути,ози,бщи,ази,ани,ави,зди,уши,епи,яти,ити,ени,рди,ьзи,ащи,опи,узи,ари,дни,или,али¦3ить:начь,трой,клей,свой,двой¦3ться:одись,ожись,удись,инись,мнись,рдись,анись,енись,снись,твись,олись,лнись,ужись¦3еть:хоти,лети,реми¦3уть:асни,мани,ызни,исни¦3есть:рочти¦3ти:паси¦3сть:ыпади,впади,апади,кради¦3тись:пасись¦3уться:тянись¦3иться:тройся¦3сти:брети,плети¦3оть:пори¦4еть:мотри,лести,агори,висти¦4ть:вони,ясни,ыучи,аучи,дели,реши,личи,зучи,пеши,ости,авни,диви,лоти,чери,леди,усти,ражи,бучи,суди,рели,жалей,очни,реди,кочи,рони,истай,мсти,ряди,лони,буди¦4яться:асмейся¦4ться:олжись,лонись,ладись,терись,садись¦4есть:дпочти¦4уть:чезни¦4ать:стони¦5ть:прети,помни,свети,обеди,гради,студи,осади,осети,мести,ороти,вести,разни,черти,рести,ушеви¦5уть:ользни¦5ить:достой",
-        "ex": "2:появляться¦3:злить,учить/научить¦4:дарить,курить,лечить,варить,солить,давить,гасить,сушить,ловить,рубить,душить,тушить,царить,пилить,валить,делить,будить,решить,мочить,судить,мстить,лишить¦5:выучить,расти,строить,научить,изучить,обучить,уловить,помнить,светить,убедить,казнить,чертить,изумить¦6:отличить,вынудить¦7:удочерить,прищемить¦9:воодушевить¦-:переехать¦1удь:быть¦3й:знать,иметь,уметь,греть,сметь,стоять,клеить¦2ви:жить¦2йми:понять,занять,нанять¦2ши:писать,чесать¦3и:сидеть,лежать,висеть,дышать,шуметь,гудеть,сосать,реветь,велеть,лететь,гореть,бороть,тонуть,пороть¦2й:дать,дуть,лаять,таять,сеять¦3ни:начать,пожать,зажать¦2и:ждать,спать,орать,врать,рвать,лгать,жрать,срать,идти,пнуть¦2ймись:заняться¦1ери:брать¦1ей:пить,бить,лить,шить¦1ядь:сесть¦3овись:назваться¦2ги:бежать¦1шь:есть¦3нись:начаться¦1ой:петь,выть,рыть,ныть¦2ой:спеть¦2ими:снять¦4й:болеть,суметь,кивать,потеть,худеть,жалеть,подуть¦3нься:одеться¦2ейся:бриться,слиться¦3нь:стать,одеть¦2ди:вести,пасть¦1щи:искать¦3ей:побить,налить,залить,забить,полить,набить¦4нь:встать,надеть,устать,задеть¦4ь:бросить,тратить,ударить¦2ки:течь¦3ви:плыть¦5и:заболеть¦2жь:резать,мазать¦2ери:убрать¦1отри:стереть¦3ь:жарить,ранить,жалить,рушить¦3сь:явиться,длиться,сниться¦3йся:иметься,смеяться¦1ови:звать¦3ови:позвать¦4и:спасти,дрожать,жаждать,кивнуть,вертеть,сгореть,качнуть,утонуть,стонать¦3ери:собрать,избрать¦2ей:убить,сшить,сбить,слить¦1яг:лечь¦5ви:прожить¦1ерись:драться,браться¦3ми:нажать¦1уй:жевать¦5нь:настать,застать¦2ти:учесть¦9сь:осуществиться¦4сь:делиться,молиться,садиться,лишиться¦4ься:броситься,уволиться¦4жь:отрезать¦1очти:счесть¦2ись:рваться,мчаться¦4ись:дождаться¦5й:обожать,обижать,вручать,листать,таскать,растаять,постоять¦1ожни:сжать¦5йся:снижаться¦4ми:прижать¦3ти:цвести¦1ейся:литься,биться¦5ей:перебить¦1ожги:сжечь¦4мись:прижаться¦1онись:гнаться¦1бопрись:опереться¦7ь:обнаружить¦2имись:сняться¦2юй:плевать¦3ись:очнуться,бороться,тянуться¦2рись:упереться¦1ги:жечь¦1ёргай:дергать¦2нься:деться¦3ься:целиться¦4ви:дожить¦1ни:мять¦2йся:даться,бояться¦1они:гнать¦2чись:метаться¦2зжай:уехать¦3ди:класть,упасть,впасть,красть¦4нься:оставаться¦2шись:писаться¦5сь:убедиться¦1ри:тереть,переть¦3ри:потереть¦1ели:молоть¦1ойся:рыться"
-      },
-      "secondPlural": {
-        "fwd": "е:ь/научить¦рите:ереть¦ите:уть¦ойтесь:ыться¦итесь:оться¦житесь:заться¦зовитесь:озваться¦елите:олоть¦омните:мять¦1ите:дти,теть,зти,роть¦1йте:оять,оить,аять,еить,еять¦1дите:асть¦1ойте:рыть,выть¦1ньтесь:аваться¦1йтесь:еяться,ояться,оиться¦1зжайте:ехать¦1шитесь:исаться¦1берите:зобрать¦1шите:есать¦1нитесь:ясться¦1дитесь:асться¦2ите:треть,ореть,еметь,онать¦2ьте:ачить¦2тите:очесть,рести,лести¦2итесь:астись,януться¦2ерите:збрать¦2йте:дуть¦3е:дить,нить,тить,щить¦3есь:диться,ниться,житься¦3йте:зжать,алеть¦4е:елить,ешить,ивить,очить,ажить,ишить,евить,емить¦4есь:ечиться,ериться,ишиться",
-        "both": "5есь:вориться,селиться,велиться,купиться,мочиться,делиться,ершиться,хититься,ториться,молиться,любиться,ветиться,ласиться,дивиться,емлиться,новиться¦5йте:зревать,лкивать,тревать,акивать,скивать,грожать,счезать,ешеветь,орожать,растать,олевать,олучать¦5е:иучить,озлить,тушить,ручить,душить,далить,орбить,молить,ершить,кусить,сушить,гасить,валить,новить,давить,зучить,солить,варить,курить,ыучить,ласить,торить,ложить,ворить¦5ьтесь:наружиться¦5ьте:наружить¦5те:расти¦5йтесь:ороваться¦4ньте:дстать,тстать,естать¦4есь:озиться,ириться,узиться,ылиться,ючиться,алиться,утиться,оситься,азиться,твиться,емиться,явиться,ямиться,ешиться,длиться,атиться,ьшиться,ститься,опиться,нчиться,учиться¦4йте:аскать,иучать,пивать,мевать,рясать,певать,висать,худеть,лезать,истать,аивать,ручать,режать,щивать,лотать,хивать,бижать,долеть,ничать,нижать,бучать,тожать,ускать,вивать,ладеть,нивать,живать,потеть,шивать,гивать,вожать,ливать,бивать,зучать,ножать,ерзать,личать,кучать,девать,росать,ривать,чивать,ракать,ботать¦4ьте:алечить,словить,бросить,скорить,инудить,оранить,еличить,тратить,третить,тветить¦4е:ымить,гчить,щрить,дрить,узить,опить,епить,убить,ьзить,слить,зрить,брить,длить,чшить,нчить,явить,азить,ьшить,озить,ужить,рмить,лжить,ючить,упить,осить,юбить¦4йтесь:астаться,четаться,нижаться,бижаться,олжаться,лижаться¦4ньтесь:остаться¦4ите:опадать,дождать¦4ьтесь:третиться¦3йтесь:учаться,ужаться,знаться,осаться,ажаться,ираться,ючаться,ытаться,асаться,итаться,ататься,араться,ичаться,ываться,упаться,иваться,ечаться,еваться,нчаться,инаться¦3йте:рпать,сметь,зреть,ыкать,гчать,ькать,яжать,аветь,ужать,ареть,усать,опать,утать,лтать,ркать,екать,икать,слеть,орать,юхать,нчать,атать,асать,спеть,ечать,ытать,лкать,знать,ажать,ылать,етать,чтать,упать,лжать,ючать,ыхать,ирать,ачать,грать,ывать,итать,инать,авать,елать¦3ьте:конить,вожить,речить,собить,жалить,рабить,ширить,бидеть,ничить,тожить,порить,печить,волить,лабить,журить,силить,расить,ронуть,рушить,метить,висеть,ножить,жарить,ладить,лышать,видеть,товить¦3ьтесь:целиться,метиться,раситься,волиться,точиться,тивиться,сориться,выситься,товиться¦3ейте:робить¦3ите:орчать,сосать,гудеть,лежать,болеть,тучать,дышать,вучать,ричать,нести¦3ньте:трять¦3вите:ыжить,ежить¦3митесь:рижаться¦3мите:рижать¦3есь:щиться¦3итесь:нестись¦3дайте:опасть¦3ньтесь:здеться¦2ейте:дбить,ыбить,ышить,звить,ибить,збить,ыпить¦2лите:ипать¦2ите:ызть,рвать,апеть,жрать,лгать,ясти,врать,ржать,ипеть,рпеть,ядеть,спать,лчать¦2йтесь:неться,хаться,латься,ряться,даться,каться,няться,шаться,гаться,ляться,маться,щаться¦2юйте:оревать¦2итесь:рваться,треться,мчаться,ядеться,кнуться,ястись,гнуться,рнуться,ржаться¦2ьтесь:ушиться,уриться,ыпаться,отиться,илиться,идеться,инуться,омиться,ичиться,изиться,авиться¦2ьте:унуть,юнуть,изить,езть,омить,ысить,есить,ынуть,инуть,ерить,ыпать,авить¦2ерите:ебрать,абрать,ыбрать¦2чите:какать,хотать,мотать¦2овите:извать,ызвать,азвать¦2митесь:риняться¦2шьтесь:аесться¦2тите:мести¦2ейтесь:злиться,апиться,обиться,звиться,збиться,бриться¦2жьте:мазать,резать¦2йте:неть,цать,иять,бать,щать,лять,дать,рять,нять,гать,шать,мать¦2ките:сечь,лечь,течь¦2гите:речь,ажечь,бежать¦2имите:бнять¦2мите:ринять¦2дитесь:вестись¦2вите:лыть¦2шьте:ъесть,оесть¦2чьте:лакать¦2дите:вести¦2шите:писать¦1зовите:тозвать¦1уйте:шевать,жевать,чевать,цевать¦1шите:ахать¦1ядьте:сесть¦1ядьтесь:сесться¦1гитесь:ячься¦1щите:ыскать,искать¦1берите:тобрать,добрать¦1литесь:баться¦1чите:птать¦1чьтесь:ятаться¦1беритесь:зобраться¦1дитесь:йтись¦1жите:язать,азать¦1гите:ичь,очь¦1оните:гнать¦1еритесь:браться,драться¦1китесь:ечься¦1чьте:ятать¦1дите:юсти,йти¦1юйте:оевать¦1ойте:мыть¦1удьте:быть¦озьмитесь:зяться¦ёрзните:ерзнуть¦ёркивайте:еркивать¦уйтесь:оваться¦шлите:слать¦озьмите:зять¦уйте:овать",
-        "rev": "4:астите¦нять:ймите¦няться:ймитесь¦есть:ядьте¦чь:ките¦ечь:ягте¦жечь:ожгите¦переться:бопритесь¦евать:юйте¦ергать:ёргайте¦1еть:пойте¦1ять:нимите¦1ереть:мрите,прите¦1ться:еньтесь,айтесь¦1ыться:мойтесь¦1ить:бейте,тьте,рьте,шейте,льте¦1ть:еньте¦1заться:ажитесь,яжитесь¦1ать:жмите¦1являться:о¦1иться:сьтесь,льтесь,лейтесь¦1озваться:тзовитесь¦1зать:ажьте¦1олоть:мелите¦1яться:нимитесь¦1мять:зомните¦2ть:найте,мейте,таньте,жайте,живите,рейте,тейте,дейте¦2еть:идите¦2ать:ежите,ышите,ажните,ждите¦2аться:ачнитесь,ждитесь¦2ыть:кройте,звойте¦2уть:хните,кните,яните,рните,гните,бните,тните,пните¦2ить:осьте,койте,ушьте,ожьте¦2ыться:кройтесь,оройтесь¦2хать:оезжайте¦2ти:езите,лзите¦2яться:дейтесь¦2вать:озовите¦2рать:оберите¦2иться:койтесь¦2саться:пишитесь¦2обрать:азберите¦2ереть:ытрите¦2сать:чешите¦2сться:лянитесь,падитесь¦2ять:сейте¦3ить:начьте,клейте,свойте,тешьте,тройте,двойте¦3еть:хотите,летите,ремите,горите,истите¦3уть:асните,ивните,езните,ьзните,ызните,исните¦3ь:оите,бите¦3есть:рочтите,почтите¦3яться:смейтесь¦3ти:пасите¦3сть:ыпадите,впадите,ападите,крадите¦3тись:паситесь¦3сти:бретите,плетите¦3уться:тянитесь¦3иться:тройтесь¦3оть:порите¦3ть:елейте¦4еть:мотрите¦4ь:одите,атите,арите,ините,урите,ечите,бщите,аните,авите,лните,здите,ените,ушите,ятите,итите,твите,рдите,утите,ащите,улите,дните,илите,алите¦4ься:одитесь,ожитесь,удитесь,инитесь,лжитесь,мнитесь,енитесь,рдитесь,анитесь,снитесь,дшитесь,олитесь,лнитесь,очитесь,ужитесь¦4уть:бманите¦4ть:жалейте¦4ать:стоните¦5ь:лучите,воните,ясните,аучите,делите,решите,личите,судите,остите,авните,дивите,лотите,черите,ледите,садите,устите,ражите,бучите,релите,азните,естите,очните,редите,нудите,роните,мстите,рядите,кочите,лоните,будите¦5ься:лонитесь,ладитесь,лечитесь,теритесь,садитесь",
-        "ex": "2:появляться¦-:переехать¦1удьте:быть¦3йте:знать,иметь,уметь,греть,сметь,стоять,клеить¦2вите:жить¦2ймите:понять,занять,нанять¦2шите:писать,чесать¦3ите:сидеть,лежать,висеть,дышать,шуметь,гудеть,сосать,реветь,велеть,лететь,гореть,бороть,тонуть,пороть¦2йте:дать,дуть,лаять,таять,сеять¦3ните:начать,пожать,зажать¦2ите:ждать,спать,орать,врать,рвать,лгать,жрать,срать,идти,пнуть¦2ймитесь:заняться¦7е:получить,подарить,полечить,отличить,дорожить,покорить,победить,остудить,посетить,осветить¦1ерите:брать¦1ейте:пить,бить,лить,шить¦4есь:учиться,явиться,длиться,сниться¦1ядьте:сесть¦3овитесь:назваться¦2гите:бежать¦1шьте:есть¦3нитесь:начаться¦1ойте:петь,выть,рыть,ныть¦2ойте:спеть¦2имите:снять¦4йте:болеть,суметь,кивать,потеть,худеть,жалеть,подуть¦5е:дарить,курить,лечить,варить,солить,давить,гасить,сушить,ловить,душить,рулить,тушить,царить,пилить,валить,делить,будить,решить,мочить,судить,мстить,лишить¦3ньтесь:одеться¦2ейтесь:бриться,слиться¦3ньте:стать,одеть¦2дите:вести,пасть¦1щите:искать¦5те:расти¦3ейте:побить,налить,залить,забить,полить,набить¦6е:строить,научить,обучить,внушить,уловить,изумить,помнить,спешить,светить,убедить,чертить¦4ньте:встать,надеть,устать,задеть¦4ьте:бросить,тратить,ударить,утешить¦10е:благодарить,осуществить,воодушевить¦2ките:течь¦2жьте:резать,мазать¦2ерите:убрать¦12е:поблагодарить,злоупотребить¦8е:различить,удочерить,потребить,запретить,запомнить,напомнить,вспомнить,засветить,наградить,своротить,начертить,укоротить,прищемить¦1отрите:стереть¦3ьте:жарить,ранить,жалить,рушить¦3йтесь:иметься,смеяться¦1овите:звать¦3овите:позвать¦4ите:спасти,дрожать,жаждать,вертеть,качнуть,утонуть,стонать¦3ерите:собрать,избрать¦2ейте:убить,сшить,сбить,слить¦1ягте:лечь¦5вите:прожить¦5ньте:достать,настать,застать¦9е:употребить,припомнить¦1еритесь:драться,браться¦3мите:нажать¦1уйте:жевать¦7есь:ухудшиться¦2тите:учесть¦5есь:делиться,молиться,мочиться,садиться,лечиться,лишиться¦4ьтесь:броситься¦1очтите:счесть¦2итесь:рваться,мчаться¦4итесь:дождаться¦5йте:обожать,уцелеть,растаять,постоять¦1ожните:сжать¦3тите:цвести¦1ейтесь:литься,биться¦5ейте:перебить¦1ожгите:сжечь¦7йтесь:раскачаться¦1онитесь:гнаться¦4е:злить,учить/научить¦1бопритесь:опереться¦2имитесь:сняться¦2юйте:плевать¦3итесь:очнуться,бороться,тянуться¦2ритесь:упереться¦1гите:жечь¦1ёргайте:дергать¦2ньтесь:деться¦3ьтесь:целиться¦4вите:дожить¦1ните:мять¦8ьте:растаможить¦2йтесь:даться,бояться¦1оните:гнать¦2читесь:метаться¦2зжайте:уехать¦3дите:класть,упасть,впасть,красть¦4ньтесь:оставаться¦5ите:блестеть¦2шитесь:писаться¦6есь:убедиться¦1рите:тереть,переть¦3рите:потереть¦1елите:молоть¦1ойтесь:рыться¦6йте:удостоить"
-      }
+      "second": "3и:ть{а{он,дожд,жажд,р},е{тр,ор,уд,т},о}|2й:ть{а{раст,ист,гр,ир,гор},ладе,худе,поте,раня}|4ши:есать|6бери:обрать|4ери:собрать|4зжай:ехать|3ь:ть{и{р{по,ско,уда,жа,ве,жу,и},ож,аруж,соб,лаб,раб,кон,оран,инуд,лад,т{тве,тре,ме,тра},с{бро,ра,е,ы},ч{а,е,ели,ни},ав,тов,слов,ом,жал,вол,сил},се}|2:ить{лож,орож,б{ю,ру,тре,р},олеч,дав}|2ви:жить{ро,до,е,ы}|3й:ть{ои,еи,оя,ая,ея}|10:ть/научить|3ей:ить{ып,сш,ыш}|5ри:ереть|3ими:бнять|5ели:олоть|2ги:речь|4ись:тись|2и:ти|3ти:ести|5йся:ться{оя,ои}|13-:сопроводиться|4сь:иться{вет,юб}|5ейся:литься{з,с}|6овись:зваться|4йся:ороваться|4нься:остаться|6жись:заться|5ись:ться{ре,у,о}|7рись:ереться|5дись:асться~3удь:быть|4ядь:сесть|3ь:ть{иде,теши,руши,изи,лыша,ыпа,ну{и,ы,ро,ю,у}}|4сь:иться|6ймись:заняться|5мись:рижаться|6мись:риняться|6озьмись:зяться|6чись:метаться|5ись:ться{а{мч,рв,дожд,рж},яде}|8зовись:озваться|5нись:ться{нача,яс}|6онись:гнаться|5дись:вестись|4дись:йтись|6шись:исаться|5лись:баться|6ерись:раться{д,б}|8берись:зобраться|8бопрись:опереться|4кись:чься|4гись:ячься|3шь:сть|4чь:ать{лак,ят}|2нь:ть{ста,де,тря}|4жь:зать{ре,ма}|2ь:зть|2:ить|2ги:чь|4ги:бежать|3ги:жечь|4ожги:сжечь|3и:ть{а{лг,леж,дрож,рж,опад,рв,дыш,сос,ч{ву,ту,ри,л,р},сп},е{сид,яд,рев,шум,ем,п,абол,вел},ну}|4жи:зать{а,ыре,я}|6отри:стереть|4ери:брать|2ди:йти|3ди:асть,сти{ве,ю}|4ови:звать|6зови:тозвать|2ви:лыть|4йми:нять{по,а}|4ми:ринять|4озьми:зять|3ми:жать{на,ри}|4ши:ать{пис,ах}|4омни:мять|4они:гнать|3ни:жать{по,за}|4ожни:сжать|7ёрзни:ерзнуть|2и:нести,ызть|4чи:ать{мот,хот,пт,как}|3ти:цвести|0:расти|4ти:честь|5очти:счесть|5щи:скать{и,ы}|5шли:слать|3ли:ипать|2ки:ечь|2й:ть,спеть|8ёркивай:еркивать|3дай:опасть|6ёргай:дергать|3ей:ить{пол,нал,зал,б,зв}|3ой:ыть|5уй:вать{о,е{ц,ч,ж,ш}}|5юй:евать{о,пл,ор}|5ься:ться{и{ав,тов,тив,ет,от,из,ич,точ,ом,ил,вол,цел,ыс,брос,рас,сор,ур,уш,аруж},ину,иде,ыпа}|4нься:деться|6нься:аваться|6чься:ятаться|6ядься:сесться|5шься:сться|4йся:ться|5ойся:ыться|5йся:еяться|5ейся:иться{бр,б,зв,ап}|7уйся:оваться|9-:переехать|8:появляться~1ить:ь,й{кле,о{дост,тр,к,св,дв}}|5яться:имись|5ваться:азовись|1еть:авись,и{гор,мотр,гуд,ис,т{хо,ле,лес,ис,вер}}|3уться:нись{ч,р,тя,г,к}|4сться:падись|4заться:жись{а,я}|2ться:ись{лиш,лас,ос}|3оться:борись|4ереться:прись|3еться:трись|3тись:сись|0ть:и{раж,град,сад,ряд,щем,н{оч,пом,о,яс,л,и,е,ра,ав,аз,д},уп,еп,оп}|1оть:ори{б,п}|2ереть:ри{т,м,п}|4обрать:бери{аз,д,т}|1ать:и{вр,жр,ср,жд,стон}|1ти:и{ид,пас,яс,ез,лз}|2ть:живи|3ять:ими|2сать:чеши|2ать:начни|2ять:мни|1уть:тони|2сти:ети{бр,пл,м}|3олоть:мели|4хать:езжай{у,о}|2ить:пей,шей|1ять:сей,той|2еть:пой|1ть:подуй|4ться:достанься|3иться:ойся{тр,к}|3яться:бойся|3ться:ейся{им,н}|4иться:лейся|2ечь:яг~2ви:жить|3ни:начать,мять|3и:ть{жда,ора,висе}|3ей:ить{п,л,сл,ш}|3ой:петь{,с}|3ими:снять|10:учить/научить|2:ить{стро,леч,моч}|3яг:лечь|3й:аять{л,т,раст}|3ь:ранить|2й:дуть|5ейся:литься|5имись:сняться",
+      "secondPlural": "3ите:ть{а{он,дожд,жажд,р},е{тр,ор,уд,т},о}|2йте:ть{а{раст,ист,гр,ир,гор},ладе,худе,поте,раня}|4шите:есать|6берите:обрать|4ерите:собрать|4зжайте:ехать|3ьте:ить{р{по,ско,уда,жа,ве,жу,и},ож,аруж,соб,лаб,раб,кон,оран,инуд,лад,т{тве,тре,ме,тра},ч{а,е,ели,ни},ав,тов,слов,ом,жал,вол,сил}|1е:ить{лож,орож,б{ю,ру,тре,р},олеч,дав}|2вите:жить{ро,до,е,ы}|3йте:ть{ои,еи,оя,ая,ея}|9е:ь/научить|3ейте:ить{ып,сш,ыш}|5рите:ереть|3имите:бнять|5елите:олоть|2гите:речь|4итесь:тись|2ите:ти|3тите:ести|5йтесь:ться{оя,ои}|13-:сопроводиться|3есь:иться{вет,юб}|5ейтесь:литься{з,с}|6овитесь:зваться|4йтесь:ороваться|4ньтесь:остаться|6житесь:заться|5итесь:ться{ре,у,о}|7ритесь:ереться|5дитесь:асться~3удьте:быть|4ядьте:сесть|3ьте:ть{иде,се,и{теш,руш,с{бро,е,ы,ра},из},лыша,ыпа,ну{и,ы,ро,ю,у}}|3шьте:сть|4чьте:ать{лак,ят}|2ньте:ть{ста,де,тря}|4жьте:зать{ре,ма}|2ьте:зть|1е:ить|2гите:чь|4гите:бежать|3гите:жечь|4ожгите:сжечь|3ите:ть{а{лг,леж,дрож,рж,опад,рв,дыш,сос,ч{ву,ту,ри,л,р},сп},е{сид,яд,рев,шум,ем,п,абол,вел},ну}|4жите:зать{а,я}|6отрите:стереть|4ерите:брать|2дите:йти|3дите:асть,сти{ве,ю}|4овите:звать|6зовите:тозвать|2вите:лыть|4ймите:нять{по,а}|4мите:ринять|4озьмите:зять|3мите:жать{на,ри}|4шите:ать{пис,ах}|4омните:мять|4оните:гнать|3ните:жать{по,за}|4ожните:сжать|7ёрзните:ерзнуть|2ите:нести,ызть|4чите:ать{мот,хот,пт,как}|3тите:цвести|0те:расти|4тите:честь|5очтите:счесть|5щите:скать{и,ы}|5шлите:слать|3лите:ипать|2ките:ечь|2йте:ть,спеть|8ёркивайте:еркивать|3дайте:опасть|6ёргайте:дергать|3ейте:ить{пол,нал,зал,б,зв}|3ойте:ыть|5уйте:вать{о,е{ц,ч,ж,ш}}|5юйте:евать{о,пл,ор}|3есь:иться|6ймитесь:заняться|5митесь:рижаться|6митесь:риняться|6озьмитесь:зяться|6читесь:метаться|5итесь:ться{а{мч,рв,дожд,рж},яде}|8зовитесь:озваться|5нитесь:ться{нача,яс}|6онитесь:гнаться|5дитесь:вестись|4дитесь:йтись|6шитесь:исаться|5литесь:баться|6еритесь:раться{д,б}|8беритесь:зобраться|8бопритесь:опереться|4китесь:чься|4гитесь:ячься|5ьтесь:ться{и{ав,тов,тив,ет,от,из,ич,точ,ом,ил,вол,цел,ыс,брос,рас,сор,ур,уш,аруж},ину,иде,ыпа}|4ньтесь:деться|6ньтесь:аваться|6чьтесь:ятаться|6ядьтесь:сесться|5шьтесь:сться|4йтесь:ться|5ойтесь:ыться|5йтесь:еяться|5ейтесь:иться{бр,б,зв,ап}|7уйтесь:оваться|9-:переехать|8:появляться~3ить:те{ь,й{кле,о{дост,тр,к,св,дв}}}|1ь:ите{раж,град,сад,ряд,щем,н{оч,пом,о,яс,л,и,е,ра,ав,аз,д},уп,еп,оп}|3еть:ите{гор,мотр,гуд,ис,т{хо,ле,лес,ис,вер}}|3оть:орите{б,п}|4ереть:рите{т,м,п}|6обрать:берите{аз,д,т}|3ать:ите{вр,жр,ср,жд,стон}|3ти:ите{ид,пас,яс,ез,лз}|4ть:живите|5ять:имите|4сать:чешите|4ать:начните|4ять:мните|3уть:тоните|4сти:етите{бр,пл,м}|5олоть:мелите|6хать:езжайте{у,о}|4ить:ейте{п,ш}|3ять:йте{се,то}|4еть:пойте|3ть:подуйте|4ечь:ягте|7яться:имитесь|7ваться:азовитесь|5уться:нитесь{ч,р,тя,г,к}|6сться:падитесь|6заться:житесь{а,я}|3ься:итесь{лиш,лас,ос}|5оться:боритесь|6ереться:притесь|5еться:тритесь|5тись:ситесь|6ться:достаньтесь|5иться:ойтесь{тр,к}|5яться:бойтесь|5ться:ейтесь{им,н}|6иться:лейтесь~2вите:жить|3ните:начать,мять|3ите:ть{жда,ора,висе}|3ейте:ить{п,л,сл,ш}|3ойте:петь{,с}|3имите:снять|9е:учить/научить|1е:ить{стро,леч,моч}|3ягте:лечь|3йте:аять{л,т,раст}|3ьте:ранить|2йте:дуть|5ейтесь:литься|5имитесь:сняться"
     },
     "gerund": {
-      "gerund": {
-        "fwd": "2:оять,аять,еять¦а:ить/научить¦я:таваться¦ясь:оться¦еля:олоть¦1я:дти,дить,вить,сеть,мить,зить,роть,петь,оить,еить¦1дя:ийти¦1ясь:диться¦1а:шить¦2а:ачить,очить¦2дя:ласть¦2я:ерить,ететь,стить,етить,стеть,езти,ртеть¦2ясь:меться,ериться¦3а:рожить",
-        "both": "3:рчать,ржать¦4:лежать,вучать,ричать¦5в:оходить,оносить,лновать,ыносить,осадить,оменять,портить,глядеть,стучать,плакать,молчать,аболеть,дождать,слышать,ставить,звинить,платить,звонить¦5вшись:свататься,равняться,аружиться,кончаться,сноваться,ередаться,слышаться,краситься,твориться,ссориться,строиться,крутиться,слушаться,прятаться,траниться,оменяться,портиться,светиться,надеяться,стараться¦5я:зревать,акивать,умевать,тревать,скивать,ешеветь,риносить¦5ясь:очетаться,ъясняться,овышаться,зменяться,именяться,ближаться¦4вшись:годиться,ватиться,целиться,рузиться,питаться,метиться,чиниться,ложиться,волиться,читаться,мириться,бедиться,катиться,видеться,ториться,разиться,оздаться,пытаться,казаться,теряться,ердиться,ругаться,ласиться,уститься,мениться,дивиться,олжиться,купаться,смеяться,азваться¦4в:ведать,можить,целеть,годить,качать,ватить,релить,гореть,влиять,радать,пугать,ездить,весить,будить,любить,ломать,терять,думать,хотеть,писать,делать¦4ясь:миряться,сыпаться,нижаться,росаться,бижаться¦4я:иучать,пивать,висать,ручать,лотать,хивать,двидеть,бучать,аивать,вивать,нивать,гивать,бивать,ривать,девать,певать,живать,зучать,ватать,ерзать,ливать,кучать,авидеть,росать,чивать,зносить,шивать,лучать¦4ши:ползти¦3я:нчать,гчать,ясать,аветь,росить,ареть,усать,снеть,утать,лтать,стать,езать,адеть,слеть,асать,ичать,ратить,ылать,етать,чтать,ючать,ыхать,ывать,ачать,ечать,итать,авать¦3в:инуть,кнуть,хнуть,онуть,нчить,ймать,спать,ехать,упить,азать¦3ясь:оститься,ишаться,ужаться,ечаться,ьняться,тивиться,иняться,хотиться,ршаться,идаться,оряться,аняться,ажаться,юдаться,ючаться,ираться,дшаться,оняться,асаться,ешаться,лняться,ждаться,ашаться,лжаться,ичаться,ываться,ьшаться,иваться,учаться,еваться,инаться¦3вшись:рваться,язаться,мчаться,клясться,ддаться,явиться,упиться,злиться,исаться,ачаться,знаться,одаться,твиться,звиться,ямиться,ыситься,браться,сниться,илиться,драться,тояться,изиться,бриться,здеться,авиться¦3а:вожить,речить¦3уясь:зироваться¦3ча:охотать¦3ши:лезть¦3дав:опасть¦3кши:ытечь¦2я:ызть,илить,улить,опить,абить,убить,ясти,слить,цать,брить,бать,ятить,асить,еметь,алить,олить,щать,утить,урить,кать,арить,пать,жать,дать,гать,шать,рать,мать,нать¦2уясь:иноваться,изоваться,ндоваться,вноваться¦2ясь:озиться,неться,хаться,уриться,ылиться,маться,ястись,емиться,каться,гаться,ляться,щаться¦2вшись:зяться,щиться,биться,шиться,читься¦2юя:оревать¦2ёкши:отечь,стечь¦2дя:расть,вести¦2ча:мотать¦2гши:ричь¦2шись:астись¦2а:ужить¦2вя:лыть¦2в:ъесть,зять,оесть¦1уя:шевать,чевать,цевать¦1ёсши:нести¦1ёгши:речь,жечь¦1ши:пнуть¦1жа:язать¦1ёкши:сечь,лечь¦1ча:птать,ятать¦1уясь:воваться,коваться¦1дясь:йтись¦1юя:оевать¦1вшись:уться,ыться¦1тя:честь¦1я:ять,нить¦1гши:очь¦1дя:йти¦ёкшись:ечься¦ёркивая:еркивать¦осши:асти¦уя:овать",
-        "rev": "ыть:удучи¦ежать:ёжа¦скать:ща¦оваться:уясь¦ечь:ёгши¦наться:онясь¦евать:юя¦ергать:ёргая¦1ть:ея,ивя,ив,яв¦1ить:бя¦1иться:вясь,мясь,лясь,тясь¦1ться:аясь,авшись,ившись,евшись,яясь,евавшись¦1заться:ажась¦1являться:о¦1таться:ячась¦1аться:блясь¦1сться:янясь¦2еть:отя,ися,ядя,умя,ипя,евя¦2ть:лая,тая,дев,вав,мев,хая,тав,нев¦2ить:одя,авя,атя,рмя,озя,еся,еша,омя,уша,ьзя,узя,ымя,еча,рдя¦2иться:одясь,адясь,опясь,удясь,коясь,анясь,ирясь,очась,асясь,роясь,осясь,ушась¦2кать:лача¦2ться:нявшись¦2ти:лзя¦2еться:трясь¦3ить:воря,нача,товя,нося,окоя,ортя,ледя,редя¦3еть:отря,ерпя,рапя¦3ть:тоя,трев,ыша,лча,уча,алев,евая,огав¦3ться:деясь,ржась,ышась¦3иться:сорясь,ворясь,ружась,терясь¦4еть:лестя¦4ть:щивая¦4ить:рестя,орожа¦5ть:лкивая",
-        "ex": "2:появляться¦3:лаять,таять,сеять¦4:дышать¦5:слышать,молчать,стучать,дрожать¦-:родить¦ся:прийтись¦1удучи:быть¦5я:говорить,смотреть,свистеть¦3я:хотеть,иметь,видеть,любить,сидеть,уметь,носить,гореть,делить,весить,шуметь,греть,лезть,гудеть,сосать,катить,реветь,велеть,сметь,верить,лететь,ездить,будить,бороть,клеить,судить,ловить,мстить,пороть,везти¦4я:делать,болеть,желать,платить,уносить,глядеть,жалеть,вносить,кивать,портить,нюхать,потеть,спорить,ползти,катать,худеть,чертить,творить,пытать,чистить,гладить,светить,увезти,вертеть¦6я:работать,печатать,сожалеть¦2вя:жить¦1ёжа:лежать¦1еря:брать¦4ясь:нравиться,купаться,храниться,светиться,кататься,теряться,читаться,портиться,пытаться,делаться,крутиться,ссориться,краситься,строиться,питаться,твориться,гордиться¦2ась:учиться¦2в:сесть¦7в:прочитать,сработать¦1оя:мыть,выть,рыть,ныть¦5ясь:кончаться,торопиться,стараться,готовиться,заботиться,относиться,слушаться,говориться,смотреться,шевелиться,равняться,свататься¦3вшись:одеться,удаться,сдаться,сняться,слиться¦7ясь:здороваться,беспокоиться¦9вшись:поздороваться,познакомиться,приготовиться,взволноваться,потребоваться,обеспокоиться¦2еясь:бриться¦5в:увидеть,научить¦6ясь:становиться,знакомиться,стесняться,хвастаться¦8в:посмотреть,нарисовать,поцеловать,поговорить,напечатать,растрогать,искалечить,пожаловать¦2дя:вести¦1ща:искать¦7вшись:встретиться,успокоиться,подвигаться,задержаться,всмотреться¦3в:упасть¦4сь:смеяться¦3ча:плакать,скакать¦8вшись:остановиться,поторопиться,пожаловаться,установиться,залюбоваться,договориться,поцеловаться,позаботиться,обрадоваться,постесняться,ознакомиться,поколебаться,похвастаться,воздержаться,образоваться,пошевелиться¦3ясь:жениться,делиться,молиться,видеться,катиться,мириться,носиться,целиться,иметься,бороться¦3ась:ложиться,лечиться,мочиться,рушиться¦3а:лечить,мочить¦8я:заболевать,выращивать,беременеть¦11в:поблагодарить,запланировать,зафиксировать¦14вшись:зарегистрироваться¦3сь:бояться,мчаться¦5сь:надеяться,держаться,слышаться¦5уясь:пользоваться,советоваться¦1овя:звать¦4уясь:требоваться,волноваться¦4в:суметь¦1ёгши:лечь¦3уясь:радоваться,жаловаться,любоваться,целоваться¦7уясь:интересоваться,использоваться¦12в:заинтересовать¦2ясь:длиться,сниться¦1ерясь:драться,браться¦5вшись:обидеться,броситься,дождаться,прижаться,сделаться¦9в:проработать,проговорить¦1уя:жевать¦12вшись:заинтересоваться¦10в:застраховать,опубликовать,изнасиловать,забеременеть,сформировать¦10вшись:посоветоваться,сформироваться¦10уясь:консультироваться¦16вшись:проконсультироваться¦2жась:казаться¦11вшись:воспользоваться¦7сь:содержаться¦2я:орать,дуть,идти,оставаться¦6уясь:формироваться¦3чась:прятаться¦6в:пожалеть,постоять¦5лясь:колебаться¦14в:проанализировать¦10я:преодолевать¦3тя:цвести¦6вшись:обменяться,удержаться,износиться,доноситься¦1онясь:гнаться¦8уясь:ориентироваться¦3нясь:клясться¦2юя:плевать¦4ась:кружиться¦1ёргая:дергать¦2вавшись:деться¦9я:отталкивать¦5а:калечить¦2вшись:даться¦1оня:гнать¦2чась:метаться¦1оясь:рыться¦3дя:прийти,класть¦2а:учить/научить¦1еля:молоть"
-      }
+      "gerund": "2я:ть{,има,лота,рака,поте},ти|2:ть{дыша,оя,ая,ея}|6:опадать|3а:чить|3я:ть{те,се,о}|3в:пасть|3ёгши:ечь{ж,р}|8ся:прийтись|3дя:ийти,ести|9я:справиться|5ясь:ться{и{тив,д,ур,ер,ост,хот,оз,жен,хран,ем,тнос,л{д,де,мо,ы}},о}|8я:ться{сходи,тава}|13-:сопроводиться|4вшись:ться{ди{иго,ер,е},а{зн,ач,сконч,мч,риж,рж,ыруг,подвиг,ыкуп,лыш,уш,р,д,дожд,т{осва,счи,апи,опы,я,охвас},ис,з,сдел,б},ня{оме,бме,остес,срав}}|5ась:кружиться|4сь:одержаться|4ясь:ться{а{ир,жд,юд,ид},я{л,н,ор,ир}}|10ся:попадаться|5вшись:сться|9-:напрячься~3удучи:быть|2гши:чь|4осши:асти|4ёсши:нести|2кши:ытечь|3ёкши:ечь|2ши:езть,оползти|4ши:пнуть|3в:сть|2в:ть{а{аз,дел,пис,рочит,бот,апечат,ех,м,лыш,сп,дожд,рад,овед,ов{арис,аинтерес,оцел,знасил,ожал,ир{аплан,афикс,оанализ,сформ},астрах,опублик,лн},лч,туч,окач,аплак,апуг,строг},и{уп,озвон,вин,аплат,ват,спорт,остав,уч,нч,скалеч,олюб,д{збу,ъез,са,го,охо},облагодар,оговор,овес,ынос,онос,рел,мож},е{ахот,увид,яд,тр,ор,абол,пожал,ел,сум,аберемен},я{з,отер,омен,овли,посто},ну}|3дав:опасть|3я:ть{и,е{ид,гуд,рев,шум,ем,вел,п},соса}|4еря:брать|8ёркивая:еркивать|6ёргая:дергать|3тя:цвести|4тя:честь|2дя:йти|3дя:асть|4овя:звать|2вя:лыть|3оя:ыть|4оня:гнать|5уя:вать{о,е{ц,ч,ж,ш}}|5еля:олоть|5юя:евать{о,пл,ор}|11а:ить/научить|3а:ить{ж,ш}|2:ать{рж,леж,дрож,вуч,рич,рч}|4жа:язать|4ча:ать{ак,ят,от,пт}|5ща:искать|4ясь:ться{а,ме,не},ястись|4дясь:йтись|6онясь:гнаться|7уясь:оваться|4сь:бояться|6чась:метаться|4шись:тись|4вшись:ться{,ва{з,о{р{о,ри,оконсульти,сформи},зволн,сн,отреб,алюб,ожал,оцел,аинтерес,осовет,оспольз,аз,брад},р}}|5ёкшись:ечься|8:появляться~4ечь:ёгши|1еть:я{гор,тр,т{о,ле,вис,лес,вер},яд,ис}|1оть:боря|1ть:я{а,е,я,лез,ыз}|1ить:я{кле,глад,ко,дел,оп},нача,еча|0ть:сея,тоя,туча,лча,ыша|2йти:ридя|2сти:ведя|2ть:ивя|1ти:яся,езя,лзя|3ежать:ёжа|3иться:сь{я,теря,а}|3еться:ясь{ид,тр}|4иться:еясь|2ться:сь{смея,дея,мча,ржа,ыша}|3ться:яясь|4сться:янясь|3оться:борясь|5раться:ерясь|4аться:блясь|4таться:ячась|4заться:ажась|7ться:вавшись|5сться:лявшись|1родить:-~2я:идти,ть{а{дел,дум,лом,работ},лез,ду}|2вя:жить|3я:ть{смотре,горе,гляде,ора,поро}|5ёжа:лежать|5ясь:ться{и{нрав,станов,готов,тороп,знаком,беспоко,стро,т{све,пор,забо,кру,ка},сн,р{ссо,гово,тво,ми},крас,нос,шевел,цел},виде,смотре}|5ась:иться{уч,леч,моч,лож,руш}|6-:родить|4ясь:ться{здорова,стара,слуша,теря}|5еясь:бриться|8я:оставаться|2:ть{слыша,молча,стуча,лая,тая}|4сь:ться{смея,надея,держа,слыша,мча}|3ёгши:лечь|6ерясь:раться{д,б}|3а:мочить|6жась:казаться|8ся:прийтись|6чась:прятаться|5лясь:колебаться|5нясь:клясться|4вшись:сняться|4вавшись:деться|5оясь:рыться"
     },
     "participle": {
-      "activePresent": {
-        "fwd": "ящий:ить¦ащий:ить/научить¦ющийся:оться¦ущийся:тись¦рущий:ереть¦1ящий:теть,сеть,петь¦1ущий:дти,зть,зти¦1ющий:авать,аять,еять¦1ащийся:читься,житься,шиться¦1ющийся:еяться,аваться¦1ащий:жить,шить¦1щийся:уться¦1ящийся:деться,реться¦1нущийся:ясться¦2ющий:нать,дать¦2щийся:ояться¦2ющийся:меться¦2ущий:онать¦2ящий:елеть¦3ющий:стать",
-        "both": "5ющий:зревать,акивать,тревать,ащивать,скивать,звивать,ешеветь,мерзать,олевать¦5ющийся:должаться,ороваться¦4ющий:пивать,мевать,висать,лотать,хивать,живать,нивать,гивать,ривать,аивать,певать,бивать,ливать,девать,росать,чивать,лавать,шивать,ботать¦4ющийся:четаться,ражаться¦4щий:лежать,тучать,вучать,ричать,лышать¦3ющий:ытать,ясать,аветь,ареть,усать,алеть,утать,лтать,адеть,слеть,орать,езать,асать,атать,етать,чтать,ирать,ывать,грать,итать¦3ющийся:ужаться,статься,осаться,ираться,ытаться,асаться,итаться,ататься,араться,иваться,ижаться,еваться,инаться,ываться¦3щий:рчать,бнуть,хнуть,януть,лчать,ржать¦3щийся:ржаться¦2кущий:лечь¦2ющийся:неться,хаться,латься,ряться,даться,шаться,каться,няться,паться,гаться,ляться,щаться,чаться,маться¦2юющий:оревать¦2чущий:какать,хотать,мотать,лакать¦2ьющийся:апиться¦2ющий:неть,бать,цать,щать,кать,пать,хать,жать,гать,шать,чать,мать,лать¦2ущий:ясти¦2гущий:речь¦2щий:оять¦2ащий:очить,ечить,ачить¦2ящий:еметь,уметь,идеть,треть¦2вущий:лыть¦1ерущийся:драться,браться¦1ующий:шевать,чевать,цевать¦1дящийся:есться¦1жущий:азать,язать¦1шущий:есать¦1дущий:асть¦1шущийся:исаться¦1лющийся:баться¦1чущий:птать,ятать¦1чущийся:ятаться¦1ьющийся:биться¦1гущий:ичь,очь¦1юющий:оевать¦1ющий:роть,ять¦оющийся:ыться¦елющий:олоть¦жущийся:заться¦ёрзнущий:ерзнуть¦ёркивающий:еркивать¦ующийся:оваться¦ующий:овать¦ящийся:иться",
-        "rev": "сать:шущий¦рать:ерущий¦ить:ьющий¦скать:щущий¦чь:кущий¦зать:жущий¦вать:овущий¦раться:ерущийся¦иться:ьющийся¦наться:онящийся¦евать:юющий¦ергать:ёргающий¦таться:чущийся¦1ть:еющий,ивущий¦1ить:нящий,сящий,вящий,лящий,зящий,еящий,бящий¦1иться:реющийся¦1сти:едущий,етущий¦1оться:рющийся¦1аться:вущийся¦1тись:сущийся¦2еть:отящий,исящий,ядящий,ипящий,апящий,евущий¦2ить:одящий,арящий,ерящий,атящий,здящий,рмящий,ужащий,адящий,ешащий,коящий,омящий,урящий,ушащий,ятящий,едящий,утящий,опящий,ымящий¦2иться:ожащийся,ечащийся,очащийся,ужащийся,ушащийся¦2яться:деющийся¦2еться:идящийся,трящийся¦2ти:лзущий¦2ать:осущий,ждущий¦2сться:лянущийся¦2ть:ызущий¦3ить:ворящий,ветящий,убрящий,порящий,вожащий¦3ть:инающий,ежащий,адающий,юдающий,ждающий¦3и:астущий¦3вать:тдающий,знающий,здающий¦3еть:ерпящий¦3ать:тонущий¦3ться:ышащийся¦3ваться:здающийся¦4ть:оедающий,жидающий,лодающий,истающий¦4вать:родающий,подающий,остающий,тстающий,редающий,ридающий,дстающий¦4еть:лестящий,вистящий¦4ить:рестящий,вердящий¦5ть:растающий,лкивающий¦5вать:рестающий",
-        "ex": "3ющий:иметь,уметь,греть,сметь,знать,сдавать¦2вущий:жить¦2шущий:писать¦2ущий:ждать,орать,врать,рвать,лгать,жрать,срать,идти¦4щий:лежать,дышать,тонуть¦2ящий:спать¦1ерущий:брать¦1дущий:ехать¦1ьющий:пить,бить,лить,шить¦2гущий:бежать¦1дящий:есть¦1оющий:петь,мыть,выть,рыть,ныть¦4ющий:болеть,кивать,потеть,худеть,задавать,вставать,кидать,уставать,выдавать,подавать,рыдать,ведать¦2еющийся:бриться¦2дущий:вести¦1щущий:искать¦4ущий:расти,жаждать¦3ящий:гореть,гудеть,лететь,будить,судить,мстить,велеть¦2кущий:течь¦2жущий:резать¦4ящий:глядеть,чистить,портить,вертеть,чертить¦1овущий:звать¦1ерущийся:драться,браться¦1ующий:жевать¦5щий:дрожать¦2ущийся:рваться¦2ющий:дуть,давать,лаять,таять,сеять¦3тущий:цвести¦1ьющийся:литься,биться¦3ущий:сосать,реветь,лезть,везти¦1онящийся:гнаться¦5щийся:слышаться¦2юющий:плевать¦3щийся:мчаться,бояться¦1гущий:жечь¦1ёргающий:дергать¦9ющий:отталкивать¦1нущий:мять¦1онящий:гнать¦2чущийся:метаться¦2ащийся:учиться¦2ащий:учить/научить¦5ющий:обедать,наставать,заставать¦3ющийся:смеяться,иметься¦4щийся:тянуться¦1рущий:тереть,переть¦5ащий:дорожить"
-      },
-      "activePast": {
-        "fwd": "вший:сть¦вшийся:сться¦1ший:зть¦2вший:чить/научить¦4шийся:ставаться",
-        "both": "4ший:ытереть¦3ёдший:азвести,одвести¦3ёкший:ротечь¦3ший:рипнуть,переть,мереть¦3давший:опасть¦3кший:ытечь¦2ётший:плести¦2ший:ясти,лзти¦2тший:мести,рести¦2ёрший:отереть¦2ёкший:есечь¦2шедшийся:бойтись¦2шийся:астись¦2ёдшийся:звестись¦2дший:вести¦1ёгший:речь,жечь¦1гшийся:ячься¦1ёкший:лечь¦1ёсшийся:нестись¦1шедшийся:айтись¦1гший:ичь,очь¦1дший:юсти¦1осший:расти¦1ёсший:нести¦ёршийся:ереться¦ёрзнувший:ерзнуть¦ёкшийся:ечься¦ёркивавший:еркивать¦ёзший:езти¦вшийся:ться¦шедший:йти¦вший:ть",
-        "rev": "асти:осший¦ечь:ёкший,ёгший¦йтись:шедшийся¦ести:ётший¦ереть:ёрший¦ергать:ёргавший¦2сть:оевший,ъевший¦2ть:езший,ызший¦2тись:ясшийся¦2сться:севшийся¦2стись:ведшийся¦3ти:пасший,везший¦3сть:впавший,кравший¦3сться:клявшийся,опавшийся¦4сть:рисевший",
-        "ex": "шедший:идти¦-:учесть¦2дший:вести¦1осший:расти¦1ёкший:течь¦2ёрший:стереть¦4ший:спасти¦1ёгший:лечь,жечь¦3шедшийся:прийтись¦4вший:попадать,выпасть,напасть¦4шийся:трястись¦2ётший:цвести¦5ший:вывезти¦1ёрший:тереть,переть¦3ёкший:истечь¦3дшийся:свестись¦1ёргавший:дергать¦2шедший:сойтись¦2вший:сесть,пасть¦1вший:есть¦3вший:учить/научить,класть,упасть,впасть,красть¦5шийся:оставаться¦3вшийся:наесться,клясться"
-      },
-      "passivePast": {
-        "fwd": "шенный:сить¦енный:ить/научить¦1щённый:остить,естить¦1ченный:ртить,ртеть¦1женный:ичь,изить¦1щенный:астить¦1вшийся:ясться¦1жённый:узить¦2енный:ожить,ечить,ачить,очить,ащить¦2женный:возить,мозить¦2ённый:ажить¦2ченный:рутить¦2жённый:речь¦3жённый:ередить¦3ённый:рждать",
-        "both": "5ый:иснуть,ткнуть,лкнуть,ронуть¦5вший:орожить,оходить,бладать,оросить,охотать,сковать,счезать,рослеть,идовать,очевать,дходить,сходить,иходить¦5нный:лковать,спахать,одовать,адовать,оменять,аковать,кашлять,еловать,бменять¦5лённый:охновить¦5ыйся:риняться¦5ждённый:проводить¦5ченный:роглотить¦5енный:ыключить¦5ённый:бъяснить¦4ый:дбить,ыбить,пнуть,унуть,хнуть,збить,анять,ижать,бнять,звить,ежить,инять,ибить,гнуть,ануть,инуть,януть,ыпить¦4ённый:хвалить,окорить,ояснить,одолеть,кружить,тличить,зличить,зрешить¦4вший:шевать,девать,левать,речить,висать,ревать,лезать,ражать,жалеть,ышлять,уждать,розить,оедать,лодать,журить,падать,певать,летать,астать,товать,вонить,бедать,мирать,вовать,могать¦4нный:ведать,рогать,оптать,качать,ридать,истать,лотать,новать,авдать,бовать,ховать,ботать,редать,зовать,гадать,ровать,тирать,подать,совать,родать,терять,видеть,писать,купать¦4енный:спорить,аружить,скорить,ыяснить,оранить,акурить,ыделить,еличить¦4женный:городить¦4ыйся:апиться¦4лённый:бновить,требить¦4ждённый:ринудить¦4ленныйся:правиться¦4ченный:асветить¦4нныйся:казаться¦3щенный:ыместить¦3вший:елеть,ымить,ькать,рчать,блять,улить,екать,ырять,ареть,онать,бнуть,удеть,ьзить,ркать,икать,отеть,орать,ивать,агать,стеть,рзать,ывать,ыкать,егать,ыгать,чтать,упать,здить,ететь,учать,лчать,ичать,акать,инать,авать,ыхать,улять,зжать,ежать¦3енный:конить,иучить,варить,релить,тешить,ничить,бучить,лужить,волить,жарить,верить,ыучить,лучить¦3нный:утать,рвать,алять,рпать,усать,осать,жрать,опать,лтать,ржать,юхать,ятать,атать,елять,ытать,здать,спать,угать,звать,скать,брать,грать,итать,треть¦3лённый:шевить¦3ённый:лонить,далить,нушить,молить,лечь,черить,ворить,ранить,пасти,нести,делить,дарить,торить¦3ый:мять¦3женный:ыводить,следить,студить,ыразить,тходить¦3ленный:собить,копить,топить,рабить,лабить¦3жённый:аразить,тразить¦3ждённый:вредить,предить¦3жденный:ынудить¦3нныйся:зваться,уматься¦3дённый:зойти,бойти¦3щённый:кратить,вратить¦3ёркнутый:одчеркнуть¦3тый:переть¦3ченный:тратить,третить,тветить¦3денный:ройти¦2лённый:емить,умить,рбить,твить,епить¦2шенныйся:роситься¦2енный:ызть,ирить,слить,зрить,брить,чшить,илить,ушить,ьшить,нчить,лжить,лнить,мнить¦2ённый:бщить,дрить,днить,гчить,щрить,ишить,злить,чнить,знить,ясти,ршить,длить,внить,енить,езти,инить,ючить¦2нный:еять,щать,нать,мать,шать,лать,зать¦2щённый:вятить,мутить,сетить¦2вший:иять,неть,бать,веть,аять,цать,петь,лыть,сеть,меть,оять¦2тённый:мести,рести¦2ёванный:воевать¦2ленный:омить,рмить,упить,юбить¦2ёртый:отереть¦2ченный:ротить,катить,метить,ватить,латить¦2ждённый:бодить,будить,радить,бедить,судить¦2ший:лзти,езть¦2ленныйся:явиться¦2чённый:пятить¦2жённый:ажечь¦2ый:оть,ыть¦2женный:ладить¦2денный:ъесть,айти¦2шённый:ласить¦2дённый:вести,ейти¦1денныйся:есться¦1женный:ядить¦1ётанный:метать¦1денный:асть¦1шийся:стись¦1дённыйся:йтись¦1щенный:устить,истить¦1щённый:итить¦1енный:еить,оить¦1дённый:юсти¦1тённый:честь¦1ованный:цевать¦1ленный:вить¦1гший:очь¦ёрганный:ергать¦ёсанный:есать¦ёптанный:ептать¦ёрзнувший:ерзнуть¦вшийся:ться",
-        "rev": "асти:осший¦ечь:ёкший¦ереть:ёртый¦иться:ленныйся¦евать:ёванный¦ести:ётший¦жечь:ожжённый¦1ть:авший,евший,ивший,янный,явший,ывший¦1ься:тыйся¦1сить:ошенный,ышенный,ашенный¦1ить:рённый,влённый,ненный,бленный,пленный¦1сти:едённый¦1тить:ущённый,ащённый¦1ться:анныйся¦1дить:ождённый,рженный¦2ь:ятый,атый,етый,итый¦2дить:хоженный¦2ть:данный,ранный,чанный,жанный¦2тить:раченный,орченный,лощённый¦2ить:елённый,аренный,оленный,ешённый,аленный,учённый¦2стить:рощённый,гощённый,мещённый,ращенный¦2чь:риженный¦2сить:вешенный¦2зить:ниженный¦2деть:биженный¦2сти:веденный¦3ть:иденный,онувший¦3ить:ложенный,аученный,леченный,ноженный,зученный,наченный,печенный,тоженный,тащенный¦3тить:прещённый,свещённый,черченный,крученный¦3зить:рможенный¦3сить:екушенный¦3ти:везенный¦3стить:звещённый,крещённый¦4дить:ровоженный¦4ь:ынутый¦4ть:кованный,вованный,дованный¦4еть:ытертый¦4ить:орученный,евоженный,аможенный¦4стить:повещённый¦4чь:бережённый¦5дить:дтверждённый¦5ть:стованный",
-        "ex": "шедший:идти¦-:поедать¦-ся:достаться¦4нный:видеть,писать,задать,терять,отдать,выдать,подать,качать,сажать,ведать¦4вший:думать,сидеть,стоить,ходить,падать,болеть,верить,мешать,гореть,летать,дышать,шутить,махать,рыдать,тонуть,мигать,мстить,вонять,царить,вопить¦6вший:работать,дорожать,изменять,ликовать,угождать¦5ый:понять,начать,побить,надеть,налить,вынуть,нажать,пожать,залить,забить,полить,зажать,вышить,задеть,дожить,набить¦2нный:дать¦3нный:ждать,звать,сдать,орать,рвать¦5ыйся:заняться¦4женный:выходить,находить,твердить¦3вший:спать,ехать,лгать,срать¦3женный:уходить,обидеть,увозить¦3ый:пить,петь,бить,лить,шить,дуть,мять¦5вший:входить,дружить,кашлять,спешить,воевать,светить,следить,владеть,спорить,дрожать,вредить,бродить,править,грешить¦1денный:есть¦4ый:снять,взять,убить,одеть,сшить,греть,сжать,сбить,слить¦3ённый:дарить,делить,решить¦5щённый:запретить,поглотить¦2дённый:вести¦5женный:проводить¦1осший:расти¦3енный:курить,варить,жарить,солить,ранить,жалить,валить,лечить,мочить¦4енный:научить,изучить,хвалить¦3ченный:тратить,вертеть,крутить,чертить¦1ёкший:течь¦2женный:возить,будить¦2ёртый:стереть¦8нный:арендовать,арестовать¦7нный:парковать,разменять¦10нный:припарковать,опубликовать,расследовать,заимствовать¦2ленныйся:явиться¦7вший:следовать¦9вший:планировать,реагировать,маршировать¦6ый:прожить¦12нный:приветствовать¦4лённый:удивить¦1ёванный:жевать¦5енный:починить,хоронить,вывезти,поручить,завалить¦10вший:аплодировать,претендовать,доминировать¦9ый:вычеркнуть¦3щённый:ощутить,крестить¦11нный:рекомендовать¦7ждённый:подтвердить¦9нный:исследовать,публиковать,наследовать,оборудовать¦8вший:беседовать,заведовать¦4щённый:осветить,обратить,навестить¦13вший:функционировать¦11вший:конкурировать,циркулировать,гармонировать,коррелировать,иронизировать,дезертировать¦2ётший:цвести¦3ленный:рубить,топить,копить¦5тый:вытереть¦7ый:перебить¦4ённый:вручить¦1ожжённый:сжечь¦5нныйся:забраться¦2ченный:катить¦16нный:освидетельствовать¦4денный:вывести¦4ждённый:породить¦1жённый:жечь¦2вший:выть,ныть¦14нный:совершенствовать¦2енный:учить/научить¦7ённый:раздражить,утверждать¦4жённый:беречь¦5жённый:опередить¦3вшийся:клясться¦3жённый:грузить"
-      }
+      "activePresent": "2гущий:речь|11ащий:ить/научить|4ющий:авать|2ющий:ть{а{лав,гр,ир,гор,рак},поте,аде,худе}|3ущий:жаждать|4жущий:зать{я,а}|3ящий:еть{т,д,ор,ел,с}|5рущий:ереть|2щий:оять|3ющий:ть{ая,ея,о}|3дящий:сть|2вущий:лыть|2ущий:зть|4ющийся:ороваться|6ющийся:аваться|5ьющийся:иться{ап,б}|4щийся:ться{оя,у}|5ящийся:еться{д,р}|5ющийся:оться|5дящийся:сться~2ущий:ти|2гущий:чь|4гущий:бежать|3ущий:ть{а{лг,рв,р,он,сос},реве}|3гущий:жечь|4дущий:ехать|3дущий:асть|4овущий:звать|4шущий:сать{пи,е}|4ерущий:брать|5щущий:искать|1ущий:асти|3тущий:ести|4чущий:ать{ак,т{я,п,мо,хо}}|2щий:ть{ну,а{леж,рж,дрож,ч{ву,ту,ри,л,р},лыш,дыш}}|7ёрзнущий:ерзнуть|3нущий:мять|2кущий:ечь|3ящий:ть{и,е{тр,п,шум,ем},спа}|4онящий:гнать|2ющий:ть|8ёркивающий:еркивать|6ёргающий:дергать|3оющий:ыть|5ующий:вать{о,е{ц,ч,ж,ш}}|5юющий:евать{о,пл,ор}|5елющий:олоть|3ащий:ить{ж,ч,ш}|4ющийся:ться|5ющийся:еяться|5еющийся:бриться|7ующийся:оваться|5лющийся:баться|5оющийся:ыться|5ящийся:иться|6онящийся:гнаться|5ащийся:иться{ч,ж,ш}|4щийся:аться{мч,рж,лыш}|4ущийся:тись|6ерущийся:раться{д,б}|6жущийся:заться|5нущийся:ясться|6чущийся:таться{я,ме}|5ущийся:рваться|6шущийся:исаться~4ать:ждущий|5сти:ведущий|5ть:вущий|5ереть:рущий{т,п}|5зать:жущий|4ть:щий{лезу,ызу,аю{раст,ист,д{па,ла,е,ло,ки,жи,ж,ры,ю}}}|4еть:ящий{гор,т{о,ле,вис,лес,вер},ид,гуд,яд,ис,вел}|3ть:тоящий|4ить:опящий|4вать:ающий{зн,ст,д,ред}|4ять:сеющий|5ить:ьющий|5еть:поющий|4оть:рющий|4ить/научить:учащий|6ваться:здающийся|6ться:еющийся{им,н}|6оться:рющийся|7иться:ьющийся|6еться:ящийся{ид,тр}|7сться:едящийся|5ться:щийся{боя,тяну}~2ющий:знать,дуть|2вущий:жить|3ущий:ждать|3ьющий:ить{п,б,л,ш}|3дящий:есть|3оющий:петь|3дущий:вести|4жущий:резать|3ющий:аять{л,т}|5ьющийся:литься|2щий:тонуть",
+      "activePast": "4вший:опадать|10вший:ть/научить|3вший:сть|3ёгший:ечь{ж,р}|4шедший:идти|5шийся:таваться|4вавшийся:деться|4вшийся:деться{о,з,и,я}|5вшийся:сться~2ший:ти,ывезти,зть|2вший:ть|8ёркивавший:еркивать|3давший:опасть|6ёргавший:дергать|7ёрзнувший:ерзнуть|2гший:чь|3шедший:йти|5шедший:сойтись|3дший:сти{ве,ю}|4ёдший:вести{д,аз}|4ёсший:нести|4осший:расти|3ший:ереть{м,ап,ыт}|5ёрший:ереть|3ёкший:ечь|2кший:ытечь|4ёзший:езти|3тший:ести|4ётший:ести{цв,л}|4ший:ипнуть|4шийся:тись|4вшийся:ться|6ёдшийся:естись|5шедшийся:йтись|5дшийся:свестись|5ёкшийся:ечься|6ёсшийся:нестись|4гшийся:чься|7ёршийся:ереться|6-:учесть~4сть:вший{а{кл,кр,вып,вп,ап},се,ое,ъе}|4дать:попавший|4ть:висевший|5ечь:ёгший|3ти:лзший|6сться:вшийся{опа,кля,се,ае}~4шедший:идти|3вший:сть{е,па,упа}|10вший:учить/научить|5шийся:оставаться|3ёгший:лечь",
+      "passivePast": "1ённый:ь|2жённый:речь|2вший:ть{а{ез,рз,т{хо,ч,е,ас},вис,д{ж,па,ла,ое,бе,ло,ры},ч,в{,о{в,ир{ур,н{а,ункцио,мо,ми},кул,ел,ониз,зерт,од,г,ш},т,тенд,ед,ид,ск}},мир,гор,ср,ж{е,з,ра,ро},туп,дыш,х,г,ин,он,к,ц,б},воня,изменя,и{вон,ход,брод,зд,шут,мст,орос,реч,воп,орож,друж,цар,жур,ым,ул,греш,пеш,роз,ьз},тону,бну}|2нный:ать{рез,кач,в{з,о{,ств{ивет,ь,м,н},рест,лед},р},саж,рж,пах,юх,рог,уг,ск}|8-:ать{пожел,жалов}|7-:ть{ста{за,до},качну,метну}|3ённый:ть{ржда,лони,ажи}|1ый:ть{ача,жа,е{над,зад,од,гр},ня,зя,мя,и{б,ып,зв,рож,дож,еж,нал,зал,пол,сш,ыш},ры,бы,мы,у,о}|10-:насиловать,разглядеть|9-:ть{пробежа,перееха,погляде,пролете}|4ченный:ртеть,тратить|3енный:ить{н{м,ыяс,л,почи,о,ора},елич,пор,скор,ыдел}|5щенный:ыместить|11енный:ить/научить|3ленный:ановить|4женный:зить|2ённый:нести|5вшийся:ясться~2гший:очь|4шедший:идти|2вший:ть|7ёрзнувший:ерзнуть|4осший:расти|3ёкший:течь|2ший:зть,лзти|4ётший:цвести|2нный:ть{а,виде,тре,я{ер,ен,окашл,ел,ал,е}}|5ёсанный:есать|6ёптанный:ептать|5ётанный:метать|5ованный:цевать|5ёванный:евать{ж,аво}|6ёрганный:ергать|3енный:ить{,ыключ}|3денный:сть,ывести|2денный:йти{ро,а}|4жденный:ынудить|3ленный:ить{б{ю,ла,ра,ру,со},п,в,м}|4ченный:тить{,ру}|4шенный:сить|4женный:ть{и{д{о{х{ы,у,а,т},ыв,гор},ла,ту,ле,я},ыраз},биде}|2женный:ичь|5щенный:стить|2енный:ывезти,ызть|2ённый:ти|3ённый:ть{и{н,ч{ю,ли,вру,г},р{о,да,че,щ,д},ш{ре,р,ну,и},бщ,л{де,д,мо,да,схва,з},круж},доле}|4чённый:ятить|2дённый:йти|3дённый:сти{ве,ю}|4ждённый:дить|4шённый:ласить|5щённый:стить{е,о}|4щённый:тить{пре,се,осве,погло,ра,и,у,вя}|4тённый:честь|3тённый:ести|3лённый:ить{треб,рб,в{и,т,но,е},еп,ум,ем}|3жённый:жечь|4ожжённый:сжечь|4жённый:ить{уз,аз,еред}|7ёркнутый:дчеркнуть|5ёртый:ереть|3тый:ереть{п,ыт}|4вшийся:ться|4шийся:стись|3ыйся:ться{заня,риня,апи}|5ленныйся:виться{я,пра}|5денныйся:сться|6шенныйся:роситься|4нныйся:аться{з,ум,зв,абр}|4дённыйся:тись|9-ся:достаться|7-:поедать~2ь:ый|5ить:нный{е{ч{ле,пе,у,ору,на,и,н,мо},ш{ь,у,те,ч},евож,тащ},дражё}|6теть:верченный|6сить:кушенный|6зить:женный{во,рмо,ни}|6дить:женный{ово,бу,р}|5ь:чённый|5ать:утверждённый|6чь:бережённый|6сться:клявшийся~2вший:ть{а{дум,работ,сп,меш,следов,ликов},и{сто,вер,спор,свет,след,вред,прав}}|2нный:ждать|1ый:ть{и{п,л,сл,ш},пе}|11енный:учить/научить|4женный:дить{прово,бу,твер}|4вшийся:казаться|3енный:ранить"
     },
-    "perfective": "true¦0:EW;1:EO;2:E1;3:EM;4:EK;5:DY;6:CY;7:E3;8:DW;9:CM;A:D1;B:EV;C:EI;D:EF;E:EE;F:DS;G:ED;H:CP;I:AJ;аF8брF3вC2дBQзABи9Pк9Mл9Kм9Iн8Lо6Uп2Fр1Jс0Gт0FуJх6OчеAGшаг3я52;б0Cв0Aг08д03еHжаDOз02й4кZлXмVнUпQро6сLтJхуд89цеBNч9E;в5VеEAоJра5;ну0ч6;в8Pес2и7Qко8лыCCом93пMтJ;аKрJуD6;а6ои1;ви2ноA3ть;е0окои1;аLеD8ла5оKрJус5;азд6ос5;мя3тA1;коBс0;ес4ичто7;еJно7оDBы2;нь96ре0;еEAоJучDW;ви0жи0;аBDоро5рJ;асJеCSы0;и0ть;ако6на0;аMв87еLи9OоJ;влетво8стоJче8;ве8и0;ли0рAP;ли1ри0тьDU;аA7оJ;во8ди0с5;еJи7OлечьEEо71;з4лиDSри0с4;еJи0ра0;ди1жа0;о63ро3;б0Kв0GгоA5д0Eес0жACк08л07м04н03оUпRраPтNуMфоKхваDAч8Hши0ъеJыгC1эконо8G;з9с0ха0;ку9HрмJтографиI;и9Oу1T;ме0ну0;аJеA0олк7NуC8;нцеBть;боDвнJ;и0я2;ас81е0иB7ла7IрJусD1;оJя0I;воциIси0;бQвPгNе0QжBPзMй7Yк2Nл7NобLпрово9сJтв55х0Lчи6;редото0VтJ;аCоя2;раCNщи1;да1на0ре0;ласJну0реCX;и2оB;ер84мBCоку2VпC3ра0;люс4ра1;ес4и4Sя1;еKиAFоJу5ягA;ло0н5Iчь;ни1ша0;и1о3Mу0J;аNлMоJры1;льз3мKнJпиI;цен17ча2;би6Yпроме5C;еи0о7F;за1ти0;а1еJох3;ла1рCY;аLеKист3ороJяAM;ва0ти0;рк3с7A;ли1ри0;еCTи0роE;аKеJиск3о9ух3;алиDAши1;зVсJ;кTпPсLтJчеAAши8;аJво8еря2и,ро6S;мо7я0;ерACка9Oла86м5Gор4Wп5AтKчиJ;та1;аCрJ;е0Lои0;аHоLрJус5;е1NостJ;ра8K;з58ло61ро0;ача2ры0;бYвVглUдSлPмNоMрLъеKыJ;гAIс9T;ди6;а05е72уBT;бра1чаI;еJысB4;ня0с5ша0;иKо7уJ;чи2;тьBVчи0;а93еJра7;ли1тьBT;аEяBD;еJи1леFя92;рC4сJ;и0ти6E;и1ро9Iу9;ас0ере3Pлю3ну0о14рJус5;е0Qи09оJ;анализиIб07в05г02д00еHжи0зву9ZиXй4кSлеBRмол9ZнRпQрOсLтKци44чJшепDя7B;ес0иD;еFивопос0Xя3;ия0лKм4Lпа0тJ;и1о4Jу9G;а1Yе9;аJва2;боD;и97ус5;естись,ик3;ашMоJ;ммен3TнJ;сульти7EтроJ;лиI;ля0;г9LзKллюсJнфор7H;триI;вADнADой4;а1виBHеJикBTли1ол4YуB8;кла7Dла0;л2Uна0оKреме0уJ;де0ля2;во8ло5A;аABе8EоJ;ди0зглаE;еB5и0ормоDу9;бYвXгVдUеHжа1зTй4кRлQмPнOоNпMсKт89уJчи6ще5P;краEчи0;в52ес0лJни2оеди5Gпосо6Mту9K;а0у0W;ар62ом6;бр9Zс9Wткры0;ес4у9я1;е71к3;еATо7;а7XрJ;е9Cы0;ва0ем9Xна1;а0ра2уAO;лаEоJ;во8ди2то67;еAXлеFык3я7R;аCеAOи0ли2Bы0;бы0вUдLкраA2небреFоKпо6SрGуJ;велиAменьA5с2I;браB4до7G;а0ло7назнаAоNпLстаKуJъяC;пре9см3D;ви1ть;оJри9I;ло7ч52;преLсKтвJ;ра5;таC;де98;зой4ра9QыE;б21в1Vг1Rд1Bе1Aж16з0Zис7Rй0Yк0Sл0Pм0Lн0Iо0Gп0Cр09сVтPужи33хNцелоGчLшKщи59яJ;ви2с6;еве9Cу5;е7SиJ;ни0с5;ваJло54о9у9H;ли0с07;ерNороMрJу9MяA8;еJу7Sяс4;бJво7;и0оG;пи2;е0я1;а9вVеUка7EлRмQоPпоOсо73тJчи00;аLесня2оя0рKуJ;пи0ча0;а5Zои2;ви0рJ;а2е0;ри0собс8T;ветоGдейс8Sли0;е0отре1;а0е4WуKыJ;ша2;жи0ша1;ли2ти0я0;аNя5;аKва0еJо9уAы2;за0комен4Q;зи0ни0;ас1олз4рKыJ;та2;аCоJы3I;боBси0;беJщ8;да0ща0;адKес3PраJюHя0;ви2;ея2о8X;еLи6DоJча2ы0;ли2чJ;и2ь;ня1с5ти0ша0;еKи0оJу8Wю4N;жи1ма0;з0те0чи1;аNи3лMоLрKуJ;ри0са0ша0;ас5Uу8Dы0;леба2нAри0;о3Aяс2;за1ти1ча0;ма0ти;аNвLдKнаJ;коми1ть;ор7UраC;а0оJ;ли0ни0;бо7JвJимс7Q;и3Vтра64;аKеJ;ва0ла0р7N;лJть;е0оG;с0ха0;аXбWвSг3VдRеPклюAм7HоOпи4QраNсMтвLуKх0CчJъеHы64;е5Tи4K;ма0ть;ер9;ка5Fлу60;з6ть83;б6Hж4Gй4;йс7CлJше45;а0и0;а2ер88;еKиJ;га2ну2;рJс4;г89ну0;и0од8;ви0ри0ть;аEиб3лLоKруJ;зи1;во8ди0;о5я7A;а6TеLзрос4Sис3лия0оKре9тJы89;ори1;зи2;да0з4рKсJ;и0ти;и0ну1;еJи0лагода8ри2;ди0жа0;бPвеOдNеHжи0й4куEм5Pн6PсMтерLхKчJ;ис6Kувс6Q;ва5;пе0;еFка4Nп09та0;а1ви7Pела0у7G;з4р3с4;и0ра0;б0Sвла6Tг0Qд0Oзнако5Dк0Mп0Eргани80с06тMфор22хKце6чJщу6W;аIис5ну2;аракте7Xва5рJ;а6ип3;б01вYга3IдXкVлUмеTнес1SоRпPрLсDтJыс4U;оJя19;лк3;аLеJ;агиIдакJмонJ;тиI;боDзи1;раJус5;ви1зд1M;браJзGй4мс5;зи0ть;ни0ти1;иAо7;а4PлJры1;о6юA;а0еZох3;еJлеF;з4рJс4ти0;г3ну2;роE;вOкор2Dла2DмNноGозMпо8тKуJ;ди0щест29;аJриFу9;ви0но27ть6H;на0;от2Y;е5идетельс5PоJ;бо62и0;ереPи46ла5оNрKуJ;бли1Mс5Z;ав2OедеKоJ;ки3си0;ли1;в4GзJ;да0на0;ди0ть65;а42онAрJ;ес5у7;е1оJ;б8л7;ляде2раJ;би0ни61;ви6ду63еWиVлегAмUнSоQрNсMуLъJ;еди2AяJ;ви0с29;слоCчи1;лу7у9;аKес4уJ;ши2;боDдоGзоGти1;бщи0зJй0Eс0G;ли0наA;аруJоCя0;жи1;а3еня1;де1;рKспJ;еAокои2;еFну2;аJедооце6ыр3;б0Dвес3Iгр0Cд09е08жа0з07име06й04к01л00меZнYпSрQсNтKу5Iхму2Vце4TчJ;а1ер5;кKреJя3;ниI;ну2;ла3AтJ;а0оя0рJу41;ои0;ас4иJу50я9;соB;ас0ечаDиMоLрKуJ;га0;а0Uо0Pячь54;л6м6;са0тJ;а1ь51;ес4я0;к3ти0;а9и0о7;а28лоKоJры0;пи0рQ;ни2;тиJ;!сь;ноB;ва1наA;с2ха0;е0оKыJ;ми0;ес0;а9у42;и0ра1;ах3еJиг3;льк3т3;еFиJ;ши1;ач3иKоJр3Uу37;н4Hп3;в3ну1;зSсJ;кQпOтLчеJ;з3рJ;па0;еFоJра5;лJпи0;коB;оJраCыD;л0Iр3T;алеAлюA;бSвRгQда0жа8ло7мPнNоLрасхоKуJ;ми0чи0;доB;брJй4;а3Fес4;асилоBоJ;си2;а17е09я0;отоC;ес5и07леF;аJе42и0ра0;ви1;аLлоупотJ;реJ;би0;б0Qв0Mг0Jд0FеHж0Eзуб8интересоGй4к0Cл0Bм09н08пVрRсOтMфикLхо3UчJщи5яC;еJис2S;рп3;сиI;к3ормо30рJя3Y;о3уд6;ве36лу7мея2ну0тJу3;а2AрJы3;ахоBе2Lя0;аLегистриKжаJ;ве0;роG;боDзи0;еUиTлQоNрKуJ;с5та0;е5оJ;грамJт3X;миI;доз8зKл6мJ;ни1;да0;аJес4;ка0ниIти0;роB;са1;ре0;ес4очеBя1;еJол1B;ни0ре0ти0;ез0и0о7юб27;а05люAон2WрJу8;е1Kу7ы1;а0еF;а0еKуJ;ма1ши0;рJть;жа1;ля3на0оJру23;во8рJ;е0о9;аLеJис3ла25оеBяV;рJс4;боBи0ну0ши1;ли0ри0;еремеLи0оKрJы0;а1о09;ле0;не0;а1ви2Qе2оJ;бSвеRгOеHжNй4каMло7но2WпLстJ;аJиг3;ви0ть2W;ол6роEус5;за0;да2и0;на0оJ;воJ;ри2;ри0с4;аCи2ра2ы0;ве2Hдохн2Fер2Eз23клю22л1Xме1Vн1Rо11п10руAс0Pт0OъеHыJ;б0Kве2Gг0Hд0FеHжи0зBиг0Eй4к0Bл09м08н06п03рZсQтMу21чKши0яJ;ви0с6;еJис12;рк3;аKеJя3;ре0чь;сJщи0;ка0;аQкOлMоLтJу1J;аCрJу0H;е0Uои0;са0;а0е9уJ;ша0;аJоA;за1;ди2;аJва1уга1;боDзи1сJ;тиJ;!ть;ас0иKла5ол6ряJус5;ми2;са0ть;оEуJ;ди0ть;ес5;еJо7;з0те0;аKи3люAрJупа2;а1Qу5;ча0;ра0;а0ви3еJох3;ли1р1A;лJна0;а9я0K;ди0;е16и0рJ;а1оE;ха0;ис3я3;кRмотQпNтJ;аLрKуJ;пи0;е0Eои0ях3;ви0ть;оJых3;м6те0;ни0;ре2;ипя5оAры0;чи0;ас0;влеFзYй4оWсJтк3;клUпNсMхJ;ваKиJ;ти2;ли0;таV;аOиDользNрJ;епятсLиKоизвJ;ес4;ня0;твоB;ова2;ли2;ик3;браJдушеC;зи0;буQвOглаCдеNнLобKраJ;зи0с4;ноC;енавиJик3;де0;ла0ржа2;ес4раJ;ти1;ди1;чь;еKуJ;ши0;д8с4;ри0;с5ша2;ти0;ез0о7юJ;би2;тьJ;ся;жи0;чи1;болDвPгля3дMлJя1;еKоJ;ма0;те0;оJрог3;роJх3;жа0;еEолноGы0;ва1;си0;та0;ну1;оCу0;ви0;з4с4;ти;оKыз3;ну0;си1;тьJ;!ся;втоLрJ;есJ;тоB;риJ;зоB;ва0;ть",
+    "perfective": "true¦0:EW;1:EO;2:E1;3:EM;4:EK;5:DY;6:CY;7:E3;8:DW;9:CM;A:D1;B:EV;C:EI;D:EF;E:EE;F:DS;G:ED;H:CP;I:AJ;аF8брF3вC2дBQзABи9Pк9Mл9Kм9Iн8Lо6Uп2Fр1Jс0Gт0FуJх6OчеAGшаг3я52;б0Cв0Aг08д03еHжаDOз02й4кZлXмVнUпQро6сLтJхуд89цеBNч9E;в5VеEAоJра5;ну0ч6;в8Pес2и7Qко8лыCCом93пMтJ;аKрJуD6;а6ои1;ви2ноA3ть;е0окои1;аLеD8ла5оKрJус5;азд6ос5;мя3тA1;коBс0;ес4ичто7;еJно7оDBы2;нь96ре0;еEAоJучDW;ви0жи0;аBDоро5рJ;асJеCSы0;и0ть;ако6на0;аMв87еLи9OоJ;влетво8стоJче8;ве8и0;ли0рAP;ли1ри0ться;аA7оJ;во8ди0с5;еJи7OлечьEEо71;з4лиDSри0с4;еJи0ра0;ди1жа0;о63ро3;б0Kв0GгоA5д0Eес0жACк08л07м04н03оUпRраPтNуMфоKхваDAч8Hши0ъеJыгC1эконо8G;з9с0ха0;ку9HрмJтографиI;и9Oу1T;ме0ну0;аJеA0олк7NуC8;нцеBть;боDвнJ;и0я2;ас81е0иB7ла7IрJусD1;оJя0I;воциIси0;бQвPгNе0QжBPзMй7Yк2Nл7NобLпрово9сJтв55х0Lчи6;редото0VтJ;аCоя2;раCNщи1;да1на0ре0;ласJну0реCX;и2оB;ер84мBCоку2VпC3ра0;люс4ра1;ес4и4Sя1;еKиAFоJу5ягA;ло0н5Iчь;ни1ша0;и1о3Mу0J;аNлMоJры1;льз3мKнJпиI;цен17ча2;би6Yпроме5C;еи0о7F;за1ти0;а1еJох3;ла1рCY;аLеKист3ороJяAM;ва0ти0;рк3с7A;ли1ри0;еCTи0роE;аKеJиск3о9ух3;алиDAши1;зVсJ;кTпPсLтJчеAAши8;аJво8еря2и,ро6S;мо7я0;ерACка9Oла86м5Gор4Wп5AтKчиJ;та1;аCрJ;е0Lои0;аHоLрJус5;е1NостJ;ра8K;з58ло61ро0;ача2ры0;бYвVглUдSлPмNоMрLъеKыJ;гAIс9T;ди6;а05е72уBT;бра1чаI;еJысB4;ня0с5ша0;иKо7уJ;чи2;ться,чи0;а93еJра7;ли1ться;аEяBD;еJи1леFя92;рC4сJ;и0ти6E;и1ро9Iу9;ас0ере3Pлю3ну0о14рJус5;е0Qи09оJ;анализиIб07в05г02д00еHжи0зву9ZиXй4кSлеBRмол9ZнRпQрOсLтKци44чJшепDя7B;ес0иD;еFивопос0Xя3;ия0лKм4Lпа0тJ;и1о4Jу9G;а1Yе9;аJва2;боD;и97ус5;естись,ик3;ашMоJ;ммен3TнJ;сульти7EтроJ;лиI;ля0;г9LзKллюсJнфор7H;триI;вADнADой4;а1виBHеJикBTли1ол4YуB8;кла7Dла0;л2Uна0оKреме0уJ;де0ля2;во8ло5A;аABе8EоJ;ди0зглаE;еB5и0ормоDу9;бYвXгVдUеHжа1зTй4кRлQмPнOоNпMсKт89уJчи6ще5P;краEчи0;в52ес0лJни2оеди5Gпосо6Mту9K;а0у0W;ар62ом6;бр9Zс9Wткры0;ес4у9я1;е71к3;еATо7;а7XрJ;е9Cы0;ва0ем9Xна1;а0ра2уAO;лаEоJ;во8ди2то67;еAXлеFык3я7R;аCеAOи0ли2Bы0;бы0вUдLкраA2небреFоKпо6SрGуJ;велиAменьA5с2I;браB4до7G;а0ло7назнаAоNпLстаKуJъяC;пре9см3D;ви1ть;оJри9I;ло7ч52;преLсKтвJ;ра5;таC;де98;зой4ра9QыE;б21в1Vг1Rд1Bе1Aж16з0Zис7Rй0Yк0Sл0Pм0Lн0Iо0Gп0Cр09сVтPужи33хNцелоGчLшKщи59яJ;ви2с6;еве9Cу5;е7SиJ;ни0с5;ваJло54о9у9H;ли0с07;ерNороMрJу9MяA8;еJу7Sяс4;бJво7;и0оG;пи2;е0я1;а9вVеUка7EлRмQоPпоOсо73тJчи00;аLесня2оя0рKуJ;пи0ча0;а5Zои2;ви0рJ;а2е0;ри0собс8T;ветоGдейс8Sли0;е0отре1;а0е4WуKыJ;ша2;жи0ша1;ли2ти0я0;аNя5;аKва0еJо9уAы2;за0комен4Q;зи0ни0;ас1олз4рKыJ;та2;аCоJы3I;боBси0;беJщ8;да0ща0;адKес3PраJюHя0;ви2;ея2о8X;еLи6DоJча2ы0;ли2чJ;и2ь;ня1с5ти0ша0;еKи0оJу8Wю4N;жи1ма0;з0те0чи1;аNи3лMоLрKуJ;ри0са0ша0;ас5Uу8Dы0;леба2нAри0;о3Aяс2;за1ти1ча0;ма0ти;аNвLдKнаJ;коми1ть;ор7UраC;а0оJ;ли0ни0;бо7JвJимс7Q;и3Vтра64;аKеJ;ва0ла0р7N;лJть;е0оG;с0ха0;аXбWвSг3VдRеPклюAм7HоOпи4QраNсMтвLуKх0CчJъеHы64;е5Tи4K;ма0ть;ер9;ка5Fлу60;з6ться;б6Hж4Gй4;йс7CлJше45;а0и0;а2ер88;еKиJ;га2ну2;рJс4;г89ну0;и0од8;ви0ри0ть;аEиб3лLоKруJ;зи1;во8ди0;о5я7A;а6TеLзрос4Sис3лия0оKре9тJы89;ори1;зи2;да0з4рKсJ;и0ти;и0ну1;еJи0лагода8ри2;ди0жа0;бPвеOдNеHжи0й4куEм5Pн6PсMтерLхKчJ;ис6Kувс6Q;ва5;пе0;еFка4Nп09та0;а1ви7Pела0у7G;з4р3с4;и0ра0;б0Sвла6Tг0Qд0Oзнако5Dк0Mп0Eргани80с06тMфор22хKце6чJщу6W;аIис5ну2;аракте7Xва5рJ;а6ип3;б01вYга3IдXкVлUмеTнес1SоRпPрLсDтJыс4U;оJя19;лк3;аLеJ;агиIдакJмонJ;тиI;боDзи1;раJус5;ви1зд1M;браJзGй4мс5;зи0ть;ни0ти1;иAо7;а4PлJры1;о6юA;а0еZох3;еJлеF;з4рJс4ти0;г3ну2;роE;вOкор2Dла2DмNноGозMпо8тKуJ;ди0щест29;аJриFу9;ви0но27ться;на0;от2Y;е5идетельс5PоJ;бо62и0;ереPи46ла5оNрKуJ;бли1Mс5Z;ав2OедеKоJ;ки3си0;ли1;в4GзJ;да0на0;ди0ться;а42онAрJ;ес5у7;е1оJ;б8л7;ляде2раJ;би0ни61;ви6ду63еWиVлегAмUнSоQрNсMуLъJ;еди2AяJ;ви0с29;слоCчи1;лу7у9;аKес4уJ;ши2;боDдоGзоGти1;бщи0зJй0Eс0G;ли0наA;аруJоCя0;жи1;а3еня1;де1;рKспJ;еAокои2;еFну2;аJедооце6ыр3;б0Dвес3Iгр0Cд09е08жа0з07име06й04к01л00меZнYпSрQсNтKу5Iхму2Vце4TчJ;а1ер5;кKреJя3;ниI;ну2;ла3AтJ;а0оя0рJу41;ои0;ас4иJу50я9;соB;ас0ечаDиMоLрKуJ;га0;а0Uо0Pячься;л6м6;са0тJ;а1ься;ес4я0;к3ти0;а9и0о7;а28лоKоJры0;пи0рQ;ни2;тиJ;!сь;ноB;ва1наA;с2ха0;е0оKыJ;ми0;ес0;а9у42;и0ра1;ах3еJиг3;льк3т3;еFиJ;ши1;ач3иKоJр3Uу37;н4Hп3;в3ну1;зSсJ;кQпOтLчеJ;з3рJ;па0;еFоJра5;лJпи0;коB;оJраCыD;л0Iр3T;алеAлюA;бSвRгQда0жа8ло7мPнNоLрасхоKуJ;ми0чи0;доB;брJй4;а3Fес4;асилоBоJ;си2;а17е09я0;отоC;ес5и07леF;аJе42и0ра0;ви1;аLлоупотJ;реJ;би0;б0Qв0Mг0Jд0FеHж0Eзуб8интересоGй4к0Cл0Bм09н08пVрRсOтMфикLхо3UчJщи5яC;еJис2S;рп3;сиI;к3ормо30рJя3Y;о3уд6;ве36лу7мея2ну0тJу3;а2AрJы3;ахоBе2Lя0;аLегистриKжаJ;ве0;роG;боDзи0;еUиTлQоNрKуJ;с5та0;е5оJ;грамJт3X;миI;доз8зKл6мJ;ни1;да0;аJес4;ка0ниIти0;роB;са1;ре0;ес4очеBя1;еJол1B;ни0ре0ти0;ез0и0о7юб27;а05люAон2WрJу8;е1Kу7ы1;а0еF;а0еKуJ;ма1ши0;рJть;жа1;ля3на0оJру23;во8рJ;е0о9;аLеJис3ла25оеBяV;рJс4;боBи0ну0ши1;ли0ри0;еремеLи0оKрJы0;а1о09;ле0;не0;а1ви2Qе2оJ;бSвеRгOеHжNй4каMло7но2WпLстJ;аJиг3;ви0ть2W;ол6роEус5;за0;да2и0;на0оJ;воJ;ри2;ри0с4;аCи2ра2ы0;ве2Hдохн2Fер2Eз23клю22л1Xме1Vн1Rо11п10руAс0Pт0OъеHыJ;б0Kве2Gг0Hд0FеHжи0зBиг0Eй4к0Bл09м08н06п03рZсQтMу21чKши0яJ;ви0с6;еJис12;рк3;аKеJя3;ре0чь;сJщи0;ка0;аQкOлMоLтJу1J;аCрJу0H;е0Uои0;са0;а0е9уJ;ша0;аJоA;за1;ди2;аJва1уга1;боDзи1сJ;тиJ;!ть;ас0иKла5ол6ряJус5;ми2;са0ть;оEуJ;ди0ть;ес5;еJо7;з0те0;аKи3люAрJупа2;а1Qу5;ча0;ра0;а0ви3еJох3;ли1р1A;лJна0;а9я0K;ди0;е16и0рJ;а1оE;ха0;ис3я3;кRмотQпNтJ;аLрKуJ;пи0;е0Eои0ях3;ви0ть;оJых3;м6те0;ни0;ре2;ипя5оAры0;чи0;ас0;влеFзYй4оWсJтк3;клUпNсMхJ;ваKиJ;ти2;ли0;таV;аOиDользNрJ;епятсLиKоизвJ;ес4;ня0;твоB;ова2;ли2;ик3;браJдушеC;зи0;буQвOглаCдеNнLобKраJ;зи0с4;ноC;енавиJик3;де0;ла0ржа2;ес4раJ;ти1;ди1;чь;еKуJ;ши0;д8с4;ри0;с5ша2;ти0;ез0о7юJ;би2;тьJ;ся;жи0;чи1;болDвPгля3дMлJя1;еKоJ;ма0;те0;оJрог3;роJх3;жа0;еEолноGы0;ва1;си0;та0;ну1;оCу0;ви0;з4с4;ти;оKыз3;ну0;си1;тьJ;!ся;втоLрJ;есJ;тоB;риJ;зоB;ва0;ть",
     "aspectPairs": "смочь¦мочь|сказать¦говорить|захотеть¦хотеть|сделать¦делать|пойти¦идти,ходить|увидеть¦видеть|подумать¦думать|посмотреть¦смотреть|понять¦понимать|написать¦писать|дать¦давать|начать¦начинать|прочесть¦читать0;!ся|назвать¦называть|сыграть¦играть|заняться¦заниматься|ответить¦отвечать|попросить¦просить|выйти¦выходить|получить¦получать|прийти¦приходить|взять¦брать|купить¦покупать|послушать¦слушать|рассказать¦рассказывать|уйти¦уходить|спросить¦спрашивать|поехать¦ехать|понравиться¦нравиться|выпить¦выпива0пи0;ть|войти¦входить|суметь¦уметь|помочь¦помогать|выучиться¦учиться|сесть¦садиться|поставить¦поставля0стави0;ть|назваться¦называться|побежать¦бежать|положить¦класть|съесть¦есть|начаться¦начинаться|позвонить¦звонить|спеть¦петь|родить¦ро0;диться,жать|прочитать¦прочитывать|пасть¦падать|открыть¦открывать|уехать¦уезжать|снять¦снимать|учиться¦учить|объяснить¦объяснять|выбрать¦выбирать|включить¦включать|забыть¦забывать|принести¦приносить|приготовить¦готовить|перейти¦переходить|повторить¦повторять|умереть¦умирать|перевести¦переводить|задать¦задавать|бежать¦бегать|закрыть¦закрывать|пригласить¦приглашать|отдохнуть¦отдыхать|станцевать¦танцевать|произнести¦произносить|поздравить¦поздравлять|заснуть¦засыпать|помыть¦мыть|поломать¦ломать|подарить¦дарить|кончиться¦кончаться|поесть¦поедать|одеться¦одеваться|заполнить¦заполнять|пообедать¦обедать|своровать¦воровать|подписать¦подписывать|поужинать¦ужинать|запретить¦запрещать0;!ся|запомнить¦запоминать|раздеться¦раздеваться|поздороваться¦здороваться|позавтракать¦завтракать|выключить¦выключать|умыться¦умываться|побриться¦бриться|выучить¦выучивать|извинить¦извинять|счесть¦считать|найтись¦находиться|стать¦становиться|остаться¦оставаться|произойти¦происходить|повести¦в0;ести,одить0;!ся|перечувствовать¦чувствовать|продолжить¦продолжать|услышать¦слышать|привести¦приводить|поискать¦искать|провести¦проводить|проводить¦пров0;ести,ожать|пройти¦проходить|поверить¦верить|показать¦показывать|предложить¦предлагать|пожелать¦желать|потерять¦терять|вызвать¦вызывать|подойти¦подходить|получиться¦получаться|встретиться¦встречаться|уплатить¦платить|крикнуть¦кричать|понести¦носить|найти¦находить|побить¦бить0побивать;!ся|засмеяться¦смеяться|помешать¦мешать|прозвучать¦звучать|заплакать¦плакать|выстроить¦выстраива0строи0;ть|полететь¦лететь|обменять¦меня0обменива0;ть|научиться¦научить|ехать¦ездить|подняться¦подниматься|поступить¦поступать|встретить¦встречать|продать¦продавать|встать¦вставать|приехать¦приезжать|отдать¦отдавать|поднять¦поднимать|представиться¦представляться|бросить¦бросать|покурить¦курить|подышать¦дышать|потянуть¦тянуть|случиться¦случаться|остановиться¦останавливаться|послать¦посылать|возненавидеть¦ненавидеть|приблизиться¦приближаться|накормить¦кормить|проверить¦проверять|истратить¦тратить|попробовать¦пробовать|открыться¦открываться|посоветовать¦советовать|дойти¦доходить|поблагодарить¦благодарить|узнать¦узнавать|поторопиться¦торопиться|лечь¦ложиться|поцеловать¦целовать|пугаться¦испугаться|испугаться¦пугаться|попрыгать¦прыгать|нарисовать¦рисовать|записать¦записывать|полечить¦лечить|отправить¦отправлять|пошутить¦шутить|увеличиться¦увеличиваться|потрудиться¦трудиться|постучать¦стучать|увеличить¦увеличивать|отойти¦отходить|проехать¦проезжать|полюбить¦любить|закончить¦заканчивать|заболеть¦заболевать|разделить¦дели0разделя0;ть|разбудить¦будить|разрешить¦разрешать|воспитать¦воспитывать|забрать¦забирать|надеть¦надевать|порезать¦резать|познакомиться¦знакомиться|выругать¦ругать|выехать¦выезжать|убрать¦убирать|различить¦различать0;!ся|заночевать¦ночевать|отличить¦отличать|убежать¦убегать|повезти¦в0;езти,озить|толкнуть¦толкать|проститься¦прощаться|преподать¦преподавать|заказать¦заказывать|доехать¦доезжать|выкупаться¦купаться|отнести¦относить|сварить¦варить|почистить¦чистить|выгладить¦гладить|уменьшиться¦уменьшаться|извиниться¦извиняться|повернуть¦поворачивать|предъявить¦предъявлять|прибыть¦прибывать|прислать¦присылать|соединить¦соединять|закрыться¦закрываться|привыкнуть¦привыкать|выбросить¦выбрасывать|стереть¦стирать|кинуть¦кидать|привезти¦привозить|отвести¦отводить|вылететь¦вылетать|налить¦наливать|вырасти¦вырастать|устать¦уставать|продиктовать¦диктовать|запереть¦запирать|унести¦уносить|исправить¦исправлять|вынуть¦вынимать|уменьшить¦уменьшать|зарегистрироваться¦зарегистрировать|зарегистрировать¦зарегистрироваться,регистрировать|улететь¦улетать|подъехать¦подъезжать|опоздать¦опаздывать|выписать¦выписывать|поправить¦поправлять|сфотографировать¦фотографировать|проспать¦просыпать|переехать¦переезжать|изжарить¦жарить|прилететь¦прилетать|въехать¦въезжать|прокашлять¦кашлять|замерзнуть¦замерза0мерзну0;ть|пересказать¦пересказывать|развестись¦разводиться|выкинуть¦выкидывать|завернуть¦заворачивать|приземлиться¦приземляться|умножить¦умножать|отвезти¦отвозить|переспросить¦переспрашивать|упаковать¦пако0упаковы0;вать|посолить¦солить|отгадать¦отгадывать|припарковать¦парковать|хватить¦хватать|явиться¦являться|последовать¦следовать|представить¦представлять|принять¦принимать|постараться¦стараться|понадеяться¦надеяться|воспользоваться¦пользоваться|выглядеть¦выглядывать|иметь¦иметься|поглядеть¦глядеть|возвратиться¦возвращаться|создать¦создавать|позвать¦звать|обратиться¦обращаться|выступить¦выступать|решить¦решать|напомнить¦напоминать|двинуться¦двигаться|вспомнить¦вспоминать|пообещать¦обещать|испытать¦испытывать|оставить¦оставлять|потребоваться¦требоваться|зайти¦заходить|заметить¦замечать|держать¦держаться|спасти¦спасать|произвести¦производить|продолжиться¦продолжаться|бороть¦бороться|бороться¦бороть|сообщить¦сообщать|указать¦указывать|приготовиться¦готовиться|собрать¦собирать|изучить¦изучать|обсудить¦обсуждать0;!ся|передать¦передавать|заинтересовать¦интересовать|спешить¦спешить|сойти¦сходить|усомниться¦сомневаться|выстрелить¦стрелять|убить¦убивать|отметить¦отмечать|отказаться¦отказываться|поймать¦ловить|применить¦применять|перетерпеть¦терпеть|наступить¦наступать|выразить¦выражать|обрадоваться¦радоваться|спланировать¦планировать|выдать¦выдавать|описать¦описывать|проконтролировать¦контролировать|сохранить¦сохранять|прожить¦проживать|подать¦подавать|заинтересоваться¦интересоваться|удивиться¦удивляться|пожаловаться¦жаловаться|пожалеть¦жалеть|почтить¦почитать|взволноваться¦волноваться|заработать¦зарабатывать|примениться¦применяться|спуститься¦спускаться|установить¦устанавливать|закончиться¦заканчиваться|обеспокоиться¦беспокоиться|нарушить¦нарушать|достать¦доставать|простить¦прощать|согласиться¦соглашаться|продлиться¦длиться|успеть¦успевать|перестать¦переставать|сравнить¦сравнивать|подчеркнуть¦подчеркивать|добавить¦добавлять|хранить¦храниться|повесить¦вешать|тронуть¦трогать|соблюсти¦соблюдать|употребить¦употреблять|предупредить¦предупреждать|возразить¦возражать|беспокоиться¦беспокоить|родиться¦рождаться|проголосовать¦голосовать|охранить¦охранять|выделить¦выделять|испортить¦портить|доставить¦доставлять|внести¦вносить|повысить¦повышать|проанализировать¦анализировать|раздавить¦давить|перенести¦переносить|подраться¦драться|отвернуться¦отвертываться|напечатать¦печатать|вытечь¦вытекать|исключить¦исключать|выругаться¦ругаться|спрятать¦прятать|засветить¦светить|объявить¦объявлять|засветиться¦светиться|катать¦кататься|возвратить¦возвращать|прибежать¦прибегать|одеть¦одевать|повернуться¦поворачиваться|выполнить¦выполнять0;!ся|кончить¦кончать|измениться¦изменяться|махнуть¦махать|блеснуть¦блестеть|кивнуть¦кивать|установиться¦устанавливаться|позавидовать¦завидовать|украсить¦украшать|обмануть¦обманывать|обидеться¦обижаться|шагнуть¦шагать|заменить¦заменять|оплатить¦оплачивать|успокоить¦успокаивать|придумать¦придумывать|двинуть¦двигать|отстать¦отставать|обойти¦обходить|рассердиться¦сердиться|назначить¦назначать|удивить¦удивлять|остановить¦останавливать|залюбоваться¦любоваться|выиграть¦выигрывать|победить¦побеждать|увлечься¦увлекаться|потеряться¦теряться|договориться¦договариваться|уговорить¦уговаривать|доложить¦докладывать|проработать¦прорабатывать|увезти¦увозить|разрешиться¦разрешаться|усилить¦усиливать|увести¦уводить|усилиться¦усиливаться|нажать¦нажимать|пожевать¦жевать|похвалить¦хвалить|подсказать¦подсказывать|сложить¦складывать|присниться¦сниться|сшить¦шить|промолчать¦промалчивать|добраться¦добираться|затормозить¦тормозить|проиграть¦проигрывать|поцеловаться¦целоваться|отказать¦отказывать|раздать¦раздавать|обучиться¦обучаться|догнать¦догонять|отпраздновать¦праздновать|выпасть¦выпадать|сэкономить¦экономить|разбить¦разбивать|оторвать¦отрывать|прекратить¦прекращать|прогреметь¦греметь|повыситься¦повышаться|прекратиться¦прекращаться|измерить¦измерять|зажечь¦зажигать|взлететь¦взлетать|улучшить¦улучшать|сократить¦сокращать|разрезать¦разрезать|пожать¦пожимать|оформить¦оформлять|угостить¦угощать|спастись¦спасаться|воскликнуть¦восклицать|записаться¦записываться|очистить¦очищать|отменить¦отменять|починить¦чинить|вдохнуть¦вдыхать|застраховать¦застраховы0страхо0;вать|выбежать¦выбегать|избрать¦избирать|вытянуть¦вытягивать|влюбиться¦влюбляться|наклониться¦наклоняться|успокоиться¦успокаиваться|натренировать¦тренировать|смешать¦смешивать|расслабить¦расслабляться|отремонтировать¦ремонтировать|надоесть¦надоедать|развернуть¦разворачивать|практиковать¦практиковаться|остричь¦стричь|разбиться¦разбиваться|погасить¦гасить|завязать¦завязывать|взорвать¦взрывать|посоветоваться¦советоваться|расставить¦расставлять|испортиться¦портиться|ухудшиться¦ухудшаться|ударить¦ударять|отключить¦отключать|понюхать¦нюхать|угадать¦угадывать|высушить¦сушить|взвесить¦взвешивать|загореть¦загорать|закурить¦закуривать|наградить¦награждать|подготовить¦подготавливать|вспотеть¦потеть|запрограммировать¦программировать|прикрепить¦прикреплять|передвинуть¦передвигать|простудиться¦простужаться|заговорить¦заговаривать|уволить¦увольнять|повзрослеть¦взрослеть|склеить¦клеить|выздороветь¦выздоравливать|продлить¦продлевать|проконсультировать¦консультировать|выдохнуть¦выдыхать|прописать¦прописывать|вздорожать¦дорожать|проконсультироваться¦консультироваться|проглотить¦проглатывать|развязать¦развязывать|скатить¦скачивать|развесить¦развешивать|вскипятить¦кипятить|подвинуться¦подвигаться|подвигаться¦подвинуться|согнуть¦сгибать|вычеркнуть¦вычеркивать|забронировать¦бронировать|выпрямиться¦выпрямляться|зазубрить¦зубрить|настать¦наставать|прибить¦прибивать|одолжить¦одалживать|размешать¦размешивать|перекусить¦перекусывать|подешеветь¦дешеветь|остудить¦остужать|разменять¦разменивать|воспалиться¦воспаляться|авторизовать¦авторизоваться|удочерить¦удочерять|показаться¦каз0показыв0;аться|просуществовать¦существовать|попытаться¦пытаться|позволить¦позволять|потребовать¦требовать|собраться¦собираться|прийтись¦приходиться|приходиться¦прийтись|подействовать¦действовать|возникнуть¦возникать|оказаться¦оказываться|появиться¦появляться|понаблюдать¦наблюдать|занять¦занимать|устремиться¦стремиться|поддержать¦поддерживать|рассмотреть¦рассматривать0;!ся|определить¦определять|предположить¦предполагать|опубликовать¦опубликовы0публико0;вать|заключиться¦заключаться|проследить¦следить|обеспечить¦обеспечивать|заставить¦заставлять|развиться¦развиваться|изойти¦исходить|учесть¦учитывать|поменяться¦меняться|сделаться¦делаться|попасть¦попадать|удаться¦удаваться|рассчитать¦рассчитывать|оказать¦оказывать|достигнуть¦достигать|защитить¦защищать|воспринять¦воспринимать|предпочесть¦предпочитать|совершить¦совершать|ощутить¦ощущать|завладеть¦владе0завладева0;ть|поспорить¦спорить|осуществить¦осуществлять|повлиять¦влиять|порекомендовать¦рекомендовать|признать¦признавать|пережить¦переживать|осуществиться¦осуществляться|дрогнуть¦дрожать|превратиться¦превращаться|оценить¦оценива0цени0;ть|развить¦развивать|исчезнуть¦исчезать|посадить¦сажать|заподозрить¦подозревать|привлечь¦привлекать|приобрести¦приобретать|проявить¦проявлять|окружить¦окружать|отразить¦отражать|полезть¦лезть|доверить¦доверять|вступить¦вступать|решиться¦решаться|создаться¦создаваться|превысить¦превышать|исполнить¦исполнять|подтвердить¦подтверждать|отправиться¦отправляться|заявить¦заявлять|процитировать¦цитировать|поделиться¦делиться|допустить¦допускать|отреагировать¦реагировать|настоять¦настаивать|позаботиться¦заботиться|помолиться¦молиться|доказать¦доказывать|понаблюдаться¦наблюдаться|сопроводить¦сопровождать|сдать¦сдавать|разобраться¦разбираться|изменить¦изменять|посетить¦посещать|заорать¦орать|погрозить¦грозить|потянуться¦тянуться|достаться¦доставаться|связать¦вяз0связыв0;ать|задуматься¦задумываться|прокомментировать¦комментировать|рискнуть¦рисковать|рассудить¦рассуждать|пострадать¦страдать|расположиться¦располагаться|совпасть¦совпадать|изобразить¦изображать|набрать¦набирать|направить¦направлять|произвестися¦производиться|покинуть¦покидать|пустить¦пускать|выразиться¦выражаться|избежать¦избегать|предположиться¦предполагаться|выносить¦вынашивать|добиться¦добиваться|соврать¦врать|проговорить¦проговаривать|подвести¦подводить|распространиться¦распространяться|размыслить¦размышлять|заслужить¦заслуживать|атаковать¦атаковывать|продаться¦продаваться|направиться¦направляться|броситься¦бросаться|признаться¦признаваться|насладиться¦наслаждаться|сформироваться¦формироваться|побеседовать¦беседовать|повториться¦повторяться|выделиться¦выделяться|продемнстрировать¦продемонстрировать|спрятаться¦прятаться|уступить¦уступать|увидеться¦видеться|объясниться¦объясняться|обвинить¦обвинять|поранить¦ранить|сохраниться¦сохраняться|возглавить¦возглавлять|возрасти¦возрастать|удержать¦удерживать|сформировать¦сформироваться,формировать|раздражить¦раздражать|объединить¦объединять|подвергнуться¦подвергаться|охватить¦охватывать|покрутить¦крутить|прислушаться¦прислушиваться|предусмотреть¦предусматривать|заглянуть¦заглядывать|постесняться¦стесняться|нанести¦наносить|сверкнуть¦сверкать|отпустить¦отпускать|вложить¦вкладывать|обрадовать¦радовать|почувствоваться¦чувствоваться|уничтожить¦уничтожать|ознакомиться¦ознакомляться|порваться¦рваться|обойтись¦обходиться|пригодиться¦годи0пригожда0;ться|обучить¦обучать|убедить¦убеждать|пропустить¦пропускать|дождаться¦дожидаться|прошептать¦шептать|превратить¦превращать|разработать¦разрабатывать|захватить¦захватывать|справляться¦справиться|обозначить¦обозначать|взболтать¦болтать|отразиться¦отражаться|раскрыть¦раскрывать|издать¦издавать|ограничить¦ограничивать|заключить¦заключать|поколебаться¦колебаться|опуститься¦опускаться|сгореть¦сгорать|качнуть¦качать|обнять¦обнимать|осветить¦освещать|удовлетворить¦удовлетворять|сдержать¦сдерживать|написаться¦писаться|опустить¦опускать|напасть¦нападать|отнестись¦относиться|сжать¦сжимать|превзойти¦превосходить|протянуть¦протягивать|поберечь¦беречь|снизить¦снижать|порвать¦поры0р0;вать|обслужить¦обслуживать|пробормотать¦бормотать|вмешаться¦вмешиваться|поползти¦ползти|разрушить¦разрушать|покрутиться¦крутиться|подобрать¦подбирать|подуть¦дуть|выдержать¦выдерживать|умолить¦умолять|разобрать¦разбирать|завести¦заводить|наполнить¦наполнять|покушать¦кушать|осудить¦осуждать|нарасти¦нарастать|вздохнуть¦вздыхать|обернуться¦оборачиваться|внушить¦внушать|оправдать¦оправдывать|удалиться¦удаляться|вращать¦вращаться|восстановить¦восстанавливать|восхититься¦восхищаться|скользнуть¦скользить|вообразить¦воображать|совершиться¦совершаться|отделить¦отделять|предпринять¦предпринимать|распространить¦распространять|продвинуться¦продви0;гаться,нуть|снизиться¦снижаться|похлопать¦хлопать|осмотреть¦осматривать|вытащить¦вытаскивать|включиться¦включаться|преодолеть¦преодолевать|сообщиться¦сообщаться|хохотнуть¦хохотать|организовать¦организовывать|добыть¦добывать|смутить¦смущать|впасть¦впадать|довести¦доводить|изложить¦излагать|потрястись¦трястись|сбежать¦сбегать|возбудить¦возбуждать|обидеть¦обижать|покатиться¦катиться|сочинить¦сочинять|подвергнуть¦подвергать|послушаться¦слушаться|полечиться¦лечиться|прижать¦прижимать|выяснить¦выяснять0;!ся|потрясти¦потрясать,трясти|запустить¦запускать|завершить¦завершать|поохотиться¦охотиться|волновать¦взволновать|освободить¦освобождать|прогудеть¦гудеть|базировать¦базироваться|базироваться¦базировать|выбраться¦выбираться|приказать¦приказывать|отложить¦откладывать|солгать¦лгать|расширить¦расширять|погибнуть¦гибну0погиба0;ть|растаять¦таять|передвинуться¦передвигаться|порубить¦рубить|утонуть¦тонуть|отвлечь¦отвлекать|адресовать¦адресовывать|сожрать¦жрать|политься¦литься|поглотить¦поглощать|пересечь¦пересекать|расспросить¦расспрашивать|наказать¦наказывать|воспроизвести¦воспроизводить|привязать¦привязывать|отозваться¦отзываться|приступить¦приступать|задержаться¦задерживаться|вытереть¦вытирать|развернуться¦разворачиваться|присоединиться¦присоединяться|провзаимодействовать¦взаимодействовать|устроиться¦устраиваться|освоить¦осваивать|вставить¦вставлять|поместить¦помещать|укрепить¦укреплять|обменяться¦обмениваться|отобрать¦отбирать|оскорбить¦оскорблять|дополнить¦дополнять|причинить¦причинять|простонать¦стонать|залить¦заливать|перечислить¦перечислять|пояснить¦пояснять|запротестовать¦протестовать|извлечь¦извлекать|посодействовать¦содействовать|потребить¦потреблять|сбить¦сбивать|пососать¦сосать|проиллюстрировать¦иллюстрировать|приложить¦прилагать|удалить¦удалять|вспыхнуть¦вспыхивать|забить¦забивать|исполниться¦исполняться|проинформировать¦информировать|пролететь¦пролетать|ограбить¦грабить|поссориться¦ссориться|разыскать¦разыскивать|уточнить¦уточнять|похоронить¦хоронить|утешить¦утешать|уложить¦укладывать|передумать¦передумывать|глотнуть¦глотать|покраснеть¦краснеть|одобрить¦одобрять|перебить¦перебивать|выслушать¦выслушивать|полить¦поливать|вырастить¦выращивать|задержать¦задерживать|задушить¦душить|притвориться¦притворяться|опередить¦опережать|выкрасить¦красить|наложить¦накладывать|вздрогнуть¦вздрагивать|пробежать¦пробегать|отредактировать¦редактировать|спровоцировать¦провоцировать|разместить¦размещать|своротить¦сворачивать|распределить¦распределять|увлечь¦увлекать|отследить¦отслеживать|скопировать¦копировать|вручить¦вручать|застрелить¦застреливать|покусать¦кусать|сжечь¦жечь,сжигать|объединиться¦объединяться|вскочить¦вскакивать|постареть¦стареть|прибавить¦прибавлять|вынудить¦вынуждать|освободиться¦освобождаться|обдумать¦обдумывать|истопить¦топить|накрыть¦накрывать|проделать¦проделывать|пожертвовать¦жертвовать|мигнуть¦мигать|сформулировать¦формулировать|разыграть¦разыгрывать|нанять¦нанимать|свистнуть¦свистеть|образовать¦образовывать|нырнуть¦нырять|вывезти¦вывозить|убедиться¦убеждаться|настроить¦настраивать|навестить¦навещать|уронить¦ронять|завершиться¦завершаться|подразнить¦дразнить|кинуться¦кидаться|прижаться¦прижиматься|потереть¦тереть|повредить¦вредить|выжить¦выживать|помириться¦мириться|раскачаться¦раскачиваться|приговорить¦приговаривать|расстрелять¦расстреливать|ворваться¦врываться|устранить¦устранять|натянуть¦натягивать|забраться¦забираться|покатить¦катить|избить¦избивать|изнасиловать¦насиловать|заложить¦закладывать|отомстить¦мстить|преувеличить¦преувеличивать|забеременеть¦беременеть|напрячься¦напрягаться|прогнать¦прогонять|снести¦сносить|украсть¦красть|совместить¦совмещать|распознать¦распознавать|изобрести¦изобретать|воспротивиться¦противиться|перевезти¦перевозить|истечь¦истекать|завонять¦вонять|развлечь¦развлекать|познакомить¦знакомить|прославиться¦прославляться|усесться¦усаживаться|загрузить¦загружать|выгнать¦выгонять|погнаться¦гнаться|допросить¦допрашивать|донести¦доносить|запомниться¦запоминаться|похвастаться¦хвастаться|влезть¦влезать|избавиться¦избавляться|залезть¦залезать|перевернуть¦переворачивать|накопить¦копить|порулить¦рулить|разделиться¦разделяться|реализовать¦реализовывать|злоупотребить¦злоупотреблять|подписаться¦подписываться|принудить¦принуждать|вскрыть¦вскрывать|поручить¦поручать|подключить¦подключать|погрузить¦грузи0погружа0;ть|заехать¦заезжать|почесать¦чесать|ускорить¦ускорять|завоевать¦завоевывать|ослабить¦ослаблять|израсходовать¦расходовать|упростить¦упрощать|рассчитаться¦рассчитываться|обновить¦обновлять|недооценить¦недооценивать|закрепить¦закреплять|предать¦предавать|присвоить¦присваивать|усвоить¦усваивать|удержаться¦удерживаться|списать¦списывать|покатать¦катать|предотвратить¦предотвращать|изготовить¦изготавливать|переместить¦перемещать|воздержаться¦воздерживаться|переделать¦переделывать|окончить¦оканчивать|отделиться¦отделяться|похудеть¦худеть|вычислить¦вычислять|застынуть¦застывать|измазать¦мазать|вместить¦вмещать|похрапеть¦храпеть|потушить¦тушить|задумать¦задумывать|обосновать¦обосновывать|напиться¦напиваться|удостоверить¦удостоверять|разлиться¦разливаться|арестовать¦арестовывать|зажать¦зажимать|брызнуть¦брызгать|расстроить¦расстраивать|заверить¦заверять|продумать¦продумывать|застрять¦застревать|исчерпать¦исчерпывать|подбодрить¦подбадривать|известить¦извещать|ввезти¦ввозить|приоткрыть¦приоткрывать|подмести¦подметать|поморосить¦моросить|застать¦заставать|наметить¦намечать|образоваться¦образовываться|приподнять¦приподнимать|смолоть¦молоть|опрокинуть¦опрокидывать|начертить¦чертить|зависнуть¦зависать|съехать¦съезжать|сосредоточиться¦сосредоточиваться|вышить¦вышивать|возобновить¦возобновлять|помочиться¦мочиться|опросить¦опрашивать|укрыть¦укрывать|основать¦основывать|высосать¦высасывать|рассортировать¦сортировать|преуспеть¦преуспевать|загрязнить¦загрязнять|загородить¦загораживать|распороть¦пороть|заразить¦заражать|обозлить¦злить|смонтировать¦монтировать|разочаровать¦разочаровывать|нагрузить¦нагружать|уволиться¦увольняться|взломать¦взламывать|ужалить¦жалить|заварить¦заваривать|встряхнуть¦встряхивать|зачислить¦зачислять|оповестить¦оповещать|охрипнуть¦хрипнуть|запоздать¦запаздывать|преобразовать¦преобразовывать|расчесать¦расчесывать|выкраситься¦краситься|растворить¦растворять|встроить¦встраивать|сфокусировать¦фокусировать|взглянуть¦взглядывать|заржаветь¦ржаветь|удвоить¦удваивать|запылиться¦пылиться|совокупиться¦совокупляться|приспособить¦приспосабливать|выкрутить¦выкручивать|разгласить¦разглашать|разъединить¦разъединять|опознать¦опознавать|износиться¦изнашиваться|нарядить¦наряжать|пометить¦помечать|наесться¦наедаться|укоротить¦укорачивать|заархивировать¦архивировать|подвернуть¦подворачивать|составить¦составлять|послужить¦служить|посчитаться¦считаться|утвердить¦утверждать|обратить¦обращать|поспособствовать¦способствовать|устроить¦устраивать|освидетельствовать¦свидетельствовать|определиться¦определяться|скрыть¦скрывать|выпустить¦выпускать|предоставить¦предоставлять0;!ся|проявиться¦проявляться|приняться¦приниматься|сложиться¦складываться|опереться¦опираться|призвать¦призывать|столкнуться¦сталкиваться|придать¦придавать|осознать¦осознавать|ввести¦вводить|положиться¦полагаться|построиться¦строиться|взяться¦браться|подавить¦подавлять|расположить¦располагать|вывести¦выводить|просиять¦сиять|скрыться¦скрываться|сотворить¦сотворя0твори0;ть|свести¦сводить|разглядеть¦разглядывать|уставиться¦уставляться|послышаться¦слышаться|валять¦валяться|валяться¦валять|подчиниться¦подчиняться|упомянуть¦упоминать|обнаружить¦обнаруживать|сопроводиться¦сопровождаться|сопровождаться¦сопроводиться|свестись¦сводиться|отметиться¦отмечаться|оглядеться¦оглядываться|передаться¦передаваться|поддаться¦поддаваться|породить¦порождать|доноситься¦донашиваться|напитаться¦питаться|проникнуть¦проникать|поклясться¦клясться|поразить¦поражать|охарактеризовать¦характеризовать0;!ся|основаться¦основываться|ограничиться¦ограничиваться|сработать¦срабатывать|руководствовать¦руководствоваться|лишить¦лишать|сдаться¦сдаваться|высказать¦высказывать|воспрепятствовать¦препятствовать|сняться¦сниматься|прикрыть¦прикрывать|плюнуть¦плевать|покрыть¦покрывать|вырезать¦вырезать|навести¦наводить|сознать¦сознавать|ожидать¦ожидаться|помчаться¦мчаться|наименовать¦именовать|посмотреться¦смотреться|выставить¦выставлять|отстоять¦отстаивать|пошевелиться¦шевелиться|протечь¦протекать|поскакать¦скакать|привестись¦приводиться|обработать¦обрабатывать|скончаться¦скончать|сообразить¦соображать|мелькнуть¦мелькать|вылезть¦вылезать|понестись¦носиться|закружить¦кружиться|отвергнуть¦отвергать|поклониться¦кланяться|зафиксировать¦фиксировать|сойтись¦сходиться|связаться¦связываться|упереться¦упираться|затронуть¦затрагивать|практиковаться¦практиковать|высказаться¦высказываться|нахмуриться¦хмуриться|пронестись¦проноситься|потревожить¦тревожить|перебрать¦перебирать|оторваться¦отрываться|ощутиться¦ощущаться|просмотреть¦просматривать|погрузиться¦погружаться|выдвинуть¦выдвигать|поощрить¦поощрять|намекнуть¦намекать|взвыть¦выть|спустить¦спускать|склониться¦склоняться|сунуть¦совать|замереть¦замирать|дернуть¦дергать|прервать¦прерывать|выработать¦вырабатывать|облегчить¦облегчать|обнаружиться¦обнаруживаться|копнуть¦копать|выложить¦выкладывать|упустить¦упускать|сорвать¦срывать|посвятить¦посвящать|выплатить¦выплачивать|выскочить¦выскакивать|сдохнуть¦сдыхать|смениться¦сменяться|деться¦деваться|задеть¦задевать|пренебречь¦пренебрегать|отбросить¦отбрасывать|позаимствовать¦заимствовать|сравняться¦равняться|оттолкнуть¦отталкивать|рушиться¦рушить|разложить¦раскладывать|присесть¦присаживаться|посеять¦сеять|примкнуть¦примыкать|прогуляться¦прогуливаться|мобилизовать¦мобилизовывать|оберечь¦оберегать|продвинуть¦продви0;гать,нуться|затруднить¦затруднять|затянуть¦затягивать|усовершенствовать¦совершенствовать|занести¦заносить|провалиться¦проваливаться|отработать¦отрабатывать|выслать¦высылать|овладеть¦овладевать|вдохновить¦вдохновлять|сменить¦сменять|материть¦материться|пробить¦пробивать|оспорить¦оспаривать|прерваться¦прерываться|внедрить¦внедрять|наткнуться¦натыкаться|согрешить¦грешить|провозгласить¦провозглашать|вырвать¦вырывать|затянуться¦затягиваться|уловить¦улавливать|лишиться¦лишаться|прорваться¦прорываться|отыскать¦отыскивать|обобщить¦обобщать|окрестить¦крестить|подхватить¦подхватывать|приучить¦приучать|утратить¦утрачивать|нацелиться¦целиться|противопоставить¦противопоставлять|забросать¦забрасывать|разбросать¦разбрасывать|засунуть¦засовывать|отобразить¦отображать|втянуть¦втягивать|наехать¦наезжать|наладить¦налаживать|обрушиться¦обрушиваться|свалить¦сваливать|распахать¦распахивать|подслушать¦подслушивать|надымить¦дымить|перехватить¦перехватывать|распустить¦распускать|избавить¦избавлять|дожить¦доживать|обусловить¦обусловливать|скомбинировать¦комбинировать|слить¦сливать|сконцентрировать¦концентрировать|измять¦мять|согласовать¦согласовывать|созреть¦созревать|возбудиться¦возбуждаться|жениться¦женить|посрать¦срать|продекламировать¦декламировать|искалечить¦калечить|свалиться¦сваливаться|отклонить¦отклонять|повиснуть¦повисать|изумить¦изумлять|высадиться¦высаживаться|воодушевить¦воодушевлять|выследить¦выслеживать|проглядеть¦проглядывать|скомпрометировать¦компрометировать|запутать¦запутывать|поселиться¦поселяться|смириться¦смиряться|очаровать¦очаровывать|приостановить¦приостанавливать|выкачать¦выкачивать|преуменьшить¦преуменьшать|приукрасить¦приукрашивать|посвататься¦свататься|заплести¦заплетать|оснастить¦оснащать|предназначить¦предназначать|зачерпнуть¦зачерпывать|узаконить¦узаконивать|растаможить¦растаможивать|даться¦даваться|посметь¦сметь|постоять¦стоять|уверить¦уверять|пребыть¦пребывать|попасться¦попадаться|раздаться¦раздаваться|уделить¦уделять|развести¦разводить|сотвориться¦твориться|поведать¦поведывать|ступить¦ступать|сказаться¦сказываться|вытаскать¦таскать|пожаловать¦жаловать|напитать¦питать|повозиться¦возиться|метнуть¦метаться|обрести¦обретать|слиться¦сливаться|повалить¦валить|сбросить¦сбрасывать|навязать¦навязывать|схватиться¦схватываться|истолковать¦толковать|вырваться¦вырываться|предстать¦представать|всмотреться¦всматриваться|довестись¦доводиться|выявить¦выявлять|загнать¦загонять|напроситься¦напрашиваться|возвести¦возводить|познать¦познавать|черпнуть¦черпать|набраться¦набираться|набить¦набивать|выбить¦выбивать|припомнить¦припоминать|порыться¦рыться|подчинить¦подчинять|вскарабкаться¦карабкаться|пнуть¦пинать|пробудить¦пробуждать|смягчить¦смягчать|вовлечь¦вовлекать|завалить¦заваливать|покорить¦покорять|придраться¦придираться|пощипать¦щипать|надорваться¦надрываться|воткнуть¦втыкать|заткнуть¦затыкать|восхвалить¦восхвалять|предопределить¦предопределять|завербовать¦вербовать|угодить¦угождать|отозвать¦отзывать|возделать¦возделывать|подбить¦подбивать|оттянуться¦оттягивать|упразднить¦упразднять|вцепиться¦вцепляться|разлучиться¦разлучаться|удостоить¦удостаивать|втиснуть¦втискивать|выместить¦вымещать|выдворить¦выдворять|прищемить¦прищемлять"
   };
 
@@ -8512,7 +9559,7 @@
     });
   });
 
-  let { presentTense: presentTense$1, pastTense: pastTense$1, imperative: imperative$1, gerund } = result;
+  const { presentTense: presentTense$1, pastTense: pastTense$1, imperative: imperative$1, gerund } = result;
   const perfective$1 = result.perfective || {};
   const aspectPairs = result.aspectPairs || {};
 
@@ -8529,7 +9576,7 @@
   };
 
   const doEach = function (str, m, keys) {
-    let res = {};
+    const res = {};
     keys.forEach(k => {
       res[k] = convert(str, m[k]);
     });
@@ -8543,7 +9590,7 @@
   const isPerfective = (str) => perfective$1[str] === true;
 
   const toGerund$1 = function (str) {
-    let out = convert(str, gerund.gerund);
+    const out = convert(str, gerund.gerund);
     if (!out) {
       return null
     }
@@ -8592,7 +9639,7 @@
   // console.log(toPresent('сидеть'))
   // console.log(toPast('сидеть'))
 
-  let { presentTense, pastTense, imperative } = result;
+  const { presentTense, pastTense, imperative } = result;
 
   // known dictionary-infinitives, for ranking reverse-guesses
   const knownInf = unpack(lexData.Infinitive) ;
@@ -8605,14 +9652,14 @@
     }, {})
   };
 
-  let presentRev = revAll(presentTense);
-  let pastRev = revAll(pastTense);
-  let imperativeRev = revAll(imperative);
+  const presentRev = revAll(presentTense);
+  const pastRev = revAll(pastTense);
+  const imperativeRev = revAll(imperative);
 
   // russian text often writes 'е' for 'ё' (вернется ~ вернётся).
   // the models are trained on 'ё' spellings - try restoring it, too
   const eVariants = function (str) {
-    let out = [str];
+    const out = [str];
     for (let i = 0; i < str.length; i += 1) {
       if (str[i] === 'е') {
         out.push(str.slice(0, i) + 'ё' + str.slice(i + 1));
@@ -8625,14 +9672,14 @@
   // a verified guess that is a known dictionary-infinitive wins
   // (шел: fabricated 'шеть' round-trips, but 'шёл' → 'идти' is in the dictionary)
   const tryAll = function (str, revModel, fwdModel, forms) {
-    let keys = forms || Object.keys(revModel);
+    const keys = forms || Object.keys(revModel);
     let verified = null;
     let guess = null;
-    let variants = eVariants(str);
+    const variants = eVariants(str);
     for (let v = 0; v < variants.length; v += 1) {
       for (let i = 0; i < keys.length; i += 1) {
-        let k = keys[i];
-        let inf = convert(variants[v], revModel[k]);
+        const k = keys[i];
+        const inf = convert(variants[v], revModel[k]);
         if (inf && inf !== variants[v]) {
           // does it round-trip?
           if (convert(inf, fwdModel[k]) === variants[v]) {
@@ -8749,7 +9796,7 @@
     if (irregularPlurals[str]) {
       return irregularPlurals[str]
     }
-    let stem = str.slice(0, -1);
+    const stem = str.slice(0, -1);
     // линия → линии
     if (str.endsWith('ия')) {
       return stem + 'и'
@@ -8791,11 +9838,11 @@
 
   // best-effort - plural endings are ambiguous without a gender-dictionary
   const toSingular = function (str = '') {
-    let irregular = getIrregularSingulars();
+    const irregular = getIrregularSingulars();
     if (irregular[str]) {
       return irregular[str]
     }
-    let stem = str.slice(0, -1);
+    const stem = str.slice(0, -1);
     // линии → линия
     if (str.endsWith('ии')) {
       return stem + 'я'
@@ -8882,8 +9929,8 @@
     if (irregularCases[str]) {
       return Object.assign({ nominative: str }, irregularCases[str])
     }
-    let stem = str.slice(0, -1);
-    let res = { nominative: str, accusative: str };
+    const stem = str.slice(0, -1);
+    const res = { nominative: str, accusative: str };
     const hush = (c) => /[жчшщц]/.test(c);
 
     if (gender === 'feminine') {
@@ -8893,8 +9940,8 @@
       }
       if (str.endsWith('а')) {
         // книга → книги, книге, книгу, книгой
-        let gen = isHushOrVelar(stem.slice(-1)) ? stem + 'и' : stem + 'ы';
-        let instr = hush(stem.slice(-1)) ? stem + 'ей' : stem + 'ой';
+        const gen = isHushOrVelar(stem.slice(-1)) ? stem + 'и' : stem + 'ы';
+        const instr = hush(stem.slice(-1)) ? stem + 'ей' : stem + 'ой';
         return Object.assign(res, { genitive: gen, dative: stem + 'е', accusative: stem + 'у', instrumental: instr, prepositional: stem + 'е' })
       }
       if (str.endsWith('я')) {
@@ -8926,7 +9973,7 @@
     // masculine
     // котёнок → котёнка (fleeting vowel in -ёнок/-онок diminutives)
     if (/[ёо]нок$/.test(str)) {
-      let base = str.slice(0, -2) + 'к';
+      const base = str.slice(0, -2) + 'к';
       return Object.assign(res, { genitive: base + 'а', dative: base + 'у', instrumental: base + 'ом', prepositional: base + 'е' })
     }
     if (str.endsWith('ий')) {
@@ -8952,7 +9999,7 @@
   // accusative of animate masculines takes the genitive form ('я вижу брата')
   const decline = function (str = '', gender, animate) {
     gender = gender || guessGender(str);
-    let res = declineBase(str, gender);
+    const res = declineBase(str, gender);
     if (animate && gender === 'masculine') {
       res.accusative = res.genitive;
     }
@@ -8995,7 +10042,7 @@
     if (irregularPluralGenitives[str]) {
       return irregularPluralGenitives[str]
     }
-    let plStem = plural.slice(0, -1);
+    const plStem = plural.slice(0, -1);
     if (gender === 'masculine') {
       // нож → ножей, месяц → месяцев, отец → отцов, учитель → учителей, стол → столов
       if (/[жчшщ]$/.test(str)) {
@@ -9061,8 +10108,8 @@
       return { nominative: str, genitive: str, dative: str, accusative: str, instrumental: str, prepositional: str }
     }
     gender = gender || guessGender(str);
-    let plural = toPlural$1(str);
-    let plStem = plural.slice(0, -1);
+    const plural = toPlural$1(str);
+    const plStem = plural.slice(0, -1);
     // hard-stem takes -ам/-ами/-ах, soft-stem takes -ям/-ями/-ях
     let soft = false;
     if (plural.endsWith('я')) {
@@ -9070,8 +10117,8 @@
     } else if (plural.endsWith('и') && /[кгхжчшщц]$/.test(plStem) === false) {
       soft = true;
     }
-    let a = soft ? 'я' : 'а';
-    let genitive = toPluralGenitive(str, gender, plural);
+    const a = soft ? 'я' : 'а';
+    const genitive = toPluralGenitive(str, gender, plural);
     return {
       nominative: plural,
       genitive,
@@ -9118,7 +10165,7 @@
   };
 
   const stemOf = function (str) {
-    let masc = toMasculine(str);
+    const masc = toMasculine(str);
     if (/(ый|ий|ой)$/.test(masc)) {
       return { stem: masc.slice(0, -2), soft: masc.endsWith('ий') }
     }
@@ -9126,11 +10173,11 @@
   };
 
   const toFeminine = function (str = '') {
-    let res = stemOf(str);
+    const res = stemOf(str);
     if (res === null) {
       return str
     }
-    let { stem, soft } = res;
+    const { stem, soft } = res;
     // синий → синяя, but маленький → маленькая, хороший → хорошая
     if (soft && !isVelar(stem.slice(-1)) && !isHusher(stem.slice(-1))) {
       return stem + 'яя'
@@ -9139,11 +10186,11 @@
   };
 
   const toNeuter = function (str = '') {
-    let res = stemOf(str);
+    const res = stemOf(str);
     if (res === null) {
       return str
     }
-    let { stem, soft } = res;
+    const { stem, soft } = res;
     // синий → синее, хороший → хорошее, but маленький → маленькое
     if (soft && !isVelar(stem.slice(-1))) {
       return stem + 'ее'
@@ -9152,11 +10199,11 @@
   };
 
   const toPlural = function (str = '') {
-    let res = stemOf(str);
+    const res = stemOf(str);
     if (res === null) {
       return str
     }
-    let { stem, soft } = res;
+    const { stem, soft } = res;
     // новый → новые, but синий/маленький/большой → -ие
     if (soft || isVelar(stem.slice(-1)) || isHusher(stem.slice(-1))) {
       return stem + 'ие'
@@ -9217,16 +10264,16 @@
 
   // быстрый → быстрее, громкий → громче
   const toComparative = function (str = '') {
-    let masc = toMasculine(str);
+    const masc = toMasculine(str);
     if (irregularComparatives[masc]) {
       return irregularComparatives[masc]
     }
-    let res = stemOf(masc);
+    const res = stemOf(masc);
     if (res === null) {
       return 'более ' + str
     }
-    let { stem } = res;
-    let last = stem.slice(-1);
+    const { stem } = res;
+    const last = stem.slice(-1);
     // velar-stems mutate: к→ч, г→ж, х→ш
     if (last === 'к') {
       return stem.slice(0, -1) + 'че'
@@ -9242,7 +10289,7 @@
 
   // быстрый → самый быстрый, хороший → лучший
   const toSuperlative = function (str = '') {
-    let masc = toMasculine(str);
+    const masc = toMasculine(str);
     if (irregularSuperlatives[masc]) {
       return irregularSuperlatives[masc]
     }
@@ -9283,7 +10330,7 @@
 
   // hand-curated words with multiple tags, plus ambiguity-pins.
   // these win over the packed lexicon and generated conjugations.
-  let misc$1 = {};
+  const misc$1 = {};
 
   // --- быть (to be) ---
   const bytForms = {
@@ -9409,7 +10456,7 @@
 
   const { toPresent, toPast, toImperative, toGerund } = methods$1.verb;
   const perfective = result.perfective || {};
-  let lexicon$1 = {};
+  const lexicon$1 = {};
 
   const personMap = {
     first: 'FirstPerson',
@@ -9421,9 +10468,9 @@
   };
   const addWords = function (obj, tag, lex, extraMap) {
     Object.keys(obj).forEach(k => {
-      let w = obj[k];
+      const w = obj[k];
       if (w && !lex[w]) {
-        let tags = [tag];
+        const tags = [tag];
         if (extraMap && extraMap[k]) {
           tags.push(extraMap[k]);
         }
@@ -9433,7 +10480,7 @@
   };
 
   Object.keys(lexData).forEach(tag => {
-    let wordsObj = unpack(lexData[tag]);
+    const wordsObj = unpack(lexData[tag]);
     Object.keys(wordsObj).forEach(w => {
       // animacy stacks with a gender-tag (гусь is MaleNoun + AnimateNoun),
       // in either processing-order
@@ -9445,7 +10492,7 @@
       // add conjugations for our verbs
       if (tag === 'Infinitive') {
         // perfective verbs' non-past conjugation is semantically future - 'скажу' = 'i will say'
-        let tense = perfective[w] === true ? 'FutureTense' : 'PresentTense';
+        const tense = perfective[w] === true ? 'FutureTense' : 'PresentTense';
         addWords(toPresent(w), tense, lexicon$1, personMap);
         addWords(toPast(w), 'PastTense', lexicon$1);
         addWords(toImperative(w), 'Imperative', lexicon$1);
@@ -9463,7 +10510,7 @@
   // russian text often spells 'ё' as 'е' - add spelling-variants (идёшь → идешь)
   Object.keys(lexicon$1).forEach(w => {
     if (w.includes('ё')) {
-      let plain = w.replace(/ё/g, 'е');
+      const plain = w.replace(/ё/g, 'е');
       if (!lexicon$1[plain]) {
         lexicon$1[plain] = lexicon$1[w];
       }
@@ -9481,7 +10528,7 @@
   };
 
   const verbForm = function (term) {
-    let found = Object.keys(tagToForm).find(tag => term.tags.has(tag));
+    const found = Object.keys(tagToForm).find(tag => term.tags.has(tag));
     return found ? tagToForm[found] : null
   };
 
@@ -9490,7 +10537,7 @@
     const { verb } = view.world.methods.two.transform;
     view.docs.forEach(terms => {
       terms.forEach(term => {
-        let str = term.implicit || term.normal || term.text;
+        const str = term.implicit || term.normal || term.text;
 
         // get infinitive form of the verb
         if (term.tags.has('Verb')) {
@@ -9563,10 +10610,10 @@
   };
 
   const checkRegex = function (terms, i, world) {
-    let setTag = world.methods.one.setTag;
-    let term = terms[i];
-    let { regexText, regexNormal, regexNumbers } = world.model.two;
-    let normal = term.machine || term.normal;
+    const setTag = world.methods.one.setTag;
+    const term = terms[i];
+    const { regexText, regexNormal, regexNumbers } = world.model.two;
+    const normal = term.machine || term.normal;
     let text = term.text;
     // keep dangling apostrophe?
     if (hasApostrophe.test(term.post) && !hasApostrophe.test(term.pre)) {
@@ -9593,8 +10640,8 @@
 
   // add a noun to any non-0 index titlecased word, with no existing tag
   const titleCaseNoun = function (terms, i, world) {
-    let setTag = world.methods.one.setTag;
-    let term = terms[i];
+    const setTag = world.methods.one.setTag;
+    const term = terms[i];
     // don't over-write any tags
     if (term.tags.size > 0) {
       return
@@ -9638,10 +10685,10 @@
 
   // recognize '1993' as a year
   const tagYear = function (terms, i, world) {
-    let setTag = world.methods.one.setTag;
+    const setTag = world.methods.one.setTag;
     const term = terms[i];
     if (term.tags.has('NumericValue') && term.tags.has('Cardinal') && term.normal.length === 4) {
-      let num = Number(term.normal);
+      const num = Number(term.normal);
       // number between 1400 and 2100
       if (num && !isNaN(num)) {
         if (num > min && num < max) {
@@ -9676,7 +10723,7 @@
   };
   // just uppercase acronyms, no periods - 'UNOCHA'
   const isNoPeriodAcronym = function (term, model) {
-    let str = term.text;
+    const str = term.text;
     // ensure it's all upper-case
     if (isUpperCase.test(str) === false) {
       return false
@@ -9713,8 +10760,8 @@
   };
 
   const isAcronym = function (terms, i, world) {
-    let setTag = world.methods.one.setTag;
-    let term = terms[i];
+    const setTag = world.methods.one.setTag;
+    const term = terms[i];
     //these are not acronyms
     if (term.tags.has('RomanNumeral') || term.tags.has('Acronym')) {
       return null
@@ -9753,8 +10800,8 @@
   // }
 
   const fallback = function (terms, i, world) {
-    let setTag = world.methods.one.setTag;
-    let term = terms[i];
+    const setTag = world.methods.one.setTag;
+    const term = terms[i];
     if (term.tags.size === 0) {
       setTag([term], 'Noun', world, false, '2-fallback');
     }
@@ -9768,10 +10815,10 @@
       max = len - 1;
     }
     for (let i = max; i > 1; i -= 1) {
-      let suffix = str.substr(len - i, len);
+      const suffix = str.substr(len - i, len);
       if (suffixes[suffix.length].hasOwnProperty(suffix) === true) {
         // console.log(suffix)
-        let tag = suffixes[suffix.length][suffix];
+        const tag = suffixes[suffix.length][suffix];
         return tag
       }
     }
@@ -9780,9 +10827,9 @@
 
   // decide tag from the ending of the word
   const suffixCheck = function (terms, i, world) {
-    let setTag = world.methods.one.setTag;
-    let suffixes = world.model.two.suffixPatterns;
-    let term = terms[i];
+    const setTag = world.methods.one.setTag;
+    const suffixes = world.model.two.suffixPatterns;
+    const term = terms[i];
     if (term.tags.size === 0) {
       let tag = suffixLoop(term.normal, suffixes);
       if (tag !== null) {
@@ -9844,7 +10891,7 @@
 
 
   const tagger = function (view) {
-    let world = view.world;
+    const world = view.world;
     view.docs.forEach(terms => {
       firstPass(terms, world);
       secondPass(terms, world);
@@ -10138,7 +11185,7 @@
   // roughly, split a document by comma or semicolon
   const splitOn = function (terms, i) {
     const isNum = /^[0-9]+$/;
-    let term = terms[i];
+    const term = terms[i];
     // early on, these may not be dates yet:
     if (!term) {
       return false
@@ -10153,7 +11200,7 @@
       return false
     }
     if (terms[i - 1]) {
-      let lastTerm = terms[i - 1];
+      const lastTerm = terms[i - 1];
       // thursday, june
       if (lastTerm.tags.has('Date') || maybeDate.has(lastTerm.normal)) {
         return false
@@ -10164,7 +11211,7 @@
       }
     }
     // don't split numbers, yet
-    let str = term.normal;
+    const str = term.normal;
     if (str.length === 1 || str.length === 2 || str.length === 4) {
       if (isNum.test(str)) {
         return false
@@ -10176,7 +11223,7 @@
   // kind-of a dirty sentence chunker
   const quickSplit = function (document) {
     const splitHere = /[,:;]/;
-    let arr = [];
+    const arr = [];
     document.forEach(terms => {
       let start = 0;
       terms.forEach((term, i) => {
@@ -10236,12 +11283,12 @@
     // rebuild this only lazily
     net = net || methods.one.buildNet(matches, world);
     // perform these matches on a comma-seperated document
-    let document = methods.two.quickSplit(view.document);
-    let ptrs = document.map(terms => {
-      let t = terms[0];
+    const document = methods.two.quickSplit(view.document);
+    const ptrs = document.map(terms => {
+      const t = terms[0];
       return [t.index[0], t.index[1], t.index[1] + terms.length]
     });
-    let m = view.update(ptrs);
+    const m = view.update(ptrs);
     m.cache();
     m.sweep(net);
     view.uncache();
@@ -10642,7 +11689,7 @@
     },
   };
 
-  let tags = Object.assign({}, nouns$1, verbs$1, values, dates, misc);
+  const tags = Object.assign({}, nouns$1, verbs$1, values, dates, misc);
 
   var tagset = {
     tags
@@ -10653,7 +11700,7 @@
   // get root form of verb
   const getRoot = function (m) {
     m.compute('root');
-    let str = m.text('root');
+    const str = m.text('root');
     return str
   };
 
@@ -10702,7 +11749,7 @@
       return 'third'
     }
     // no person-tag (past-tense) - look for a subject-pronoun
-    let pron = m.lookBehind('#Pronoun').last().text('normal');
+    const pron = m.lookBehind('#Pronoun').last().text('normal');
     if (pronounPerson[pron]) {
       return pronounPerson[pron]
     }
@@ -10717,7 +11764,7 @@
     if (/Plural/.test(person)) {
       return 'plural'
     }
-    let str = m.text('normal');
+    const str = m.text('normal');
     if (m.has('#PastTense')) {
       if (/(ли|лись)$/.test(str)) {
         return 'plural'
@@ -10730,15 +11777,15 @@
       }
       return 'masc'
     }
-    let pron = m.lookBehind('#Pronoun').last().text('normal');
+    const pron = m.lookBehind('#Pronoun').last().text('normal');
     return pronounGender[pron] || 'masc'
   };
 
   // split a verb-phrase into its finite head + trailing infinitives
   // ('буду читать' → [буду, читать],  'хочет работать' → [хочет, работать])
   const parseVerb = function (m) {
-    let inf = m.match('#Infinitive');
-    let head = m.not('#Infinitive');
+    const inf = m.match('#Infinitive');
+    const head = m.not('#Infinitive');
     return { head, inf }
   };
 
@@ -10752,8 +11799,8 @@
         const methods = this.methods.two.transform.verb;
         const { toPresent, toPast, toFuture, toImperative, toGerund, isPerfective, getAspectPair } = methods;
         return getNth(this, n).map(m => {
-          let str = getRoot(m);
-          let perfective = isPerfective(str);
+          const str = getRoot(m);
+          const perfective = isPerfective(str);
           return {
             infinitive: str,
             aspect: perfective ? 'perfective' : 'imperfective',
@@ -10775,15 +11822,15 @@
           if (m.has('#PastTense')) {
             return m
           }
-          let { head, inf } = parseVerb(m);
+          const { head, inf } = parseVerb(m);
           if (!head.found) {
             return m
           }
-          let person = getPerson(head);
-          let slot = getPastSlot(head, person);
+          const person = getPerson(head);
+          const slot = getPastSlot(head, person);
           // 'буду читать' → 'читал',  'будет' → 'был'
           if (head.has('#Copula')) {
-            let root = inf.found ? inf.text('normal') : 'быть';
+            const root = inf.found ? inf.text('normal') : 'быть';
             return m.replaceWith(toPast(root)[slot])
           }
           head.replaceWith(toPast(getRoot(head))[slot]);
@@ -10797,11 +11844,11 @@
           if (m.has('#PresentTense')) {
             return m
           }
-          let { head, inf } = parseVerb(m);
+          const { head, inf } = parseVerb(m);
           if (!head.found) {
             return m
           }
-          let person = getPerson(head);
+          const person = getPerson(head);
           // 'буду читать' → 'читаю'
           if (head.has('#Copula')) {
             if (inf.found) {
@@ -10825,16 +11872,16 @@
           if (m.has('#FutureTense')) {
             return m
           }
-          let { head, inf } = parseVerb(m);
+          const { head, inf } = parseVerb(m);
           if (!head.found) {
             return m
           }
-          let person = getPerson(head);
+          const person = getPerson(head);
           // 'был'/'есть' → 'будет'
           if (head.has('#Copula')) {
             return m.replaceWith(buduMap[person] + (inf.found ? ' ' + inf.text('normal') : ''))
           }
-          let root = getRoot(head);
+          const root = getRoot(head);
           // perfective conjugates straight to future; imperfective takes буду + infinitive
           if (isPerfective(root)) {
             head.replaceWith(toPresent(root)[person]);
@@ -10847,7 +11894,7 @@
 
       toInfinitive(n) {
         return getNth(this, n).map(m => {
-          let { head, inf } = parseVerb(m);
+          const { head, inf } = parseVerb(m);
           if (!head.found) {
             return m
           }
@@ -10905,30 +11952,30 @@
   const agreeAround = function (m, methods, form) {
     const { adjective, verb } = methods;
     // preceding adjectives + determiners  ('новая' in 'новая книга')
-    let mods = m.before('(#Adjective|#Determiner|#Possessive)+$');
+    const mods = m.before('(#Adjective|#Determiner|#Possessive)+$');
     mods.terms().forEach(t => {
-      let str = t.text('normal');
+      const str = t.text('normal');
       if (detPlural[str] !== undefined || detSingular[str] !== undefined) {
-        let out = form.plural ? detPlural[str] : (detSingular[str] || {})[form.gender];
+        const out = form.plural ? detPlural[str] : (detSingular[str] || {})[form.gender];
         if (out) {
           t.replaceWith(out, keep$1);
         }
         return
       }
-      let fns = {
+      const fns = {
         plural: adjective.toPlural,
         masculine: adjective.toMasculine,
         feminine: adjective.toFeminine,
         neuter: adjective.toNeuter,
       };
-      let fn = form.plural ? fns.plural : fns[form.gender];
-      let out = fn(str);
+      const fn = form.plural ? fns.plural : fns[form.gender];
+      const out = fn(str);
       if (out !== str) {
         t.replaceWith(out, keep$1);
       }
     });
     // the verb right after the noun  ('лежала' in 'книга лежала на столе')
-    let vb = m.after('^(#Adverb|#Negative)? [#Verb]', 0);
+    const vb = m.after('^(#Adverb|#Negative)? [#Verb]', 0);
     if (!vb.found) {
       return
     }
@@ -10938,7 +11985,7 @@
       root = 'быть';
     }
     if (vb.has('#PastTense')) {
-      let slot = form.plural ? 'plural' : { masculine: 'masc', feminine: 'fem', neuter: 'neut' }[form.gender];
+      const slot = form.plural ? 'plural' : { masculine: 'masc', feminine: 'fem', neuter: 'neut' }[form.gender];
       vb.replaceWith(verb.toPast(root)[slot]);
     } else if (vb.has('#ThirdPerson') && form.plural) {
       vb.replaceWith(verb.toPresent(root).thirdPlural);
@@ -10960,8 +12007,8 @@
           if (m.before('#Preposition$').found) {
             return m
           }
-          let str = m.text('normal');
-          let plural = methods.noun.toPlural(str);
+          const str = m.text('normal');
+          const plural = methods.noun.toPlural(str);
           if (plural !== str) {
             agreeAround(m, methods, { plural: true });
             m = m.replaceWith(plural, keep$1);
@@ -10976,10 +12023,10 @@
           if (m.before('#Preposition$').found) {
             return m
           }
-          let str = m.text('normal');
-          let single = methods.noun.toSingular(str);
+          const str = m.text('normal');
+          const single = methods.noun.toSingular(str);
           if (single !== str) {
-            let gender = methods.noun.guessGender(single);
+            const gender = methods.noun.guessGender(single);
             agreeAround(m, methods, { plural: false, gender });
             m = m.replaceWith(single, keep$1);
           }
@@ -11003,33 +12050,33 @@
         }, [])
       }
       isFeminine(n) {
-        let genders = this.gender();
-        let res = this.filter((m, i) => genders[i] === 'feminine');
+        const genders = this.gender();
+        const res = this.filter((m, i) => genders[i] === 'feminine');
         return getNth(res, n)
       }
       isMasculine(n) {
-        let genders = this.gender();
-        let res = this.filter((m, i) => genders[i] === 'masculine');
+        const genders = this.gender();
+        const res = this.filter((m, i) => genders[i] === 'masculine');
         return getNth(res, n)
       }
       isNeuter(n) {
-        let genders = this.gender();
-        let res = this.filter((m, i) => genders[i] === 'neuter');
+        const genders = this.gender();
+        const res = this.filter((m, i) => genders[i] === 'neuter');
         return getNth(res, n)
       }
       isAnimate(n) {
         const { guessAnimate } = this.methods.two.transform.noun;
-        let res = this.filter(m => m.has('#AnimateNoun') || guessAnimate(m.text('normal')));
+        const res = this.filter(m => m.has('#AnimateNoun') || guessAnimate(m.text('normal')));
         return getNth(res, n)
       }
       // full case-table for each noun - singular + plural
       decline(n) {
         const { decline, declinePlural, guessAnimate } = this.methods.two.transform.noun;
-        let genders = this.gender();
+        const genders = this.gender();
         return getNth(this, n).map((m, i) => {
-          let str = m.text('normal');
-          let animate = m.has('#AnimateNoun') || guessAnimate(str);
-          let res = decline(str, genders[i], animate);
+          const str = m.text('normal');
+          const animate = m.has('#AnimateNoun') || guessAnimate(str);
+          const res = decline(str, genders[i], animate);
           res.plural = declinePlural(str, genders[i], animate);
           return res
         }, [])
@@ -11054,8 +12101,8 @@
 
   const swapWith = function (view, n, fn) {
     return getNth(view, n).map(m => {
-      let str = m.text('normal');
-      let out = fn(str);
+      const str = m.text('normal');
+      const out = fn(str);
       if (out !== str) {
         m = m.replaceWith(out, keep);
       }
@@ -11136,7 +12183,7 @@
 
   /** log the decision-making to console */
   es.verbose = function (set) {
-    let env = typeof process === 'undefined' ? self.env || {} : process.env; //use window, in browser
+    const env = typeof process === 'undefined' ? self.env || {} : process.env; //use window, in browser
     env.DEBUG_TAGS = set === 'tagger' || set === true ? true : '';
     env.DEBUG_MATCH = set === 'match' || set === true ? true : '';
     env.DEBUG_CHUNKS = set === 'chunker' || set === true ? true : '';

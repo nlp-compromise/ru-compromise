@@ -86,7 +86,7 @@ const toPlural = function (str = '') {
   if (irregularPlurals[str]) {
     return irregularPlurals[str]
   }
-  let stem = str.slice(0, -1)
+  const stem = str.slice(0, -1)
   // линия → линии
   if (str.endsWith('ия')) {
     return stem + 'и'
@@ -128,11 +128,11 @@ const toPlural = function (str = '') {
 
 // best-effort - plural endings are ambiguous without a gender-dictionary
 const toSingular = function (str = '') {
-  let irregular = getIrregularSingulars()
+  const irregular = getIrregularSingulars()
   if (irregular[str]) {
     return irregular[str]
   }
-  let stem = str.slice(0, -1)
+  const stem = str.slice(0, -1)
   // линии → линия
   if (str.endsWith('ии')) {
     return stem + 'я'
@@ -219,8 +219,8 @@ const declineBase = function (str, gender) {
   if (irregularCases[str]) {
     return Object.assign({ nominative: str }, irregularCases[str])
   }
-  let stem = str.slice(0, -1)
-  let res = { nominative: str, accusative: str }
+  const stem = str.slice(0, -1)
+  const res = { nominative: str, accusative: str }
   const hush = (c) => /[жчшщц]/.test(c)
 
   if (gender === 'feminine') {
@@ -230,8 +230,8 @@ const declineBase = function (str, gender) {
     }
     if (str.endsWith('а')) {
       // книга → книги, книге, книгу, книгой
-      let gen = isHushOrVelar(stem.slice(-1)) ? stem + 'и' : stem + 'ы'
-      let instr = hush(stem.slice(-1)) ? stem + 'ей' : stem + 'ой'
+      const gen = isHushOrVelar(stem.slice(-1)) ? stem + 'и' : stem + 'ы'
+      const instr = hush(stem.slice(-1)) ? stem + 'ей' : stem + 'ой'
       return Object.assign(res, { genitive: gen, dative: stem + 'е', accusative: stem + 'у', instrumental: instr, prepositional: stem + 'е' })
     }
     if (str.endsWith('я')) {
@@ -263,7 +263,7 @@ const declineBase = function (str, gender) {
   // masculine
   // котёнок → котёнка (fleeting vowel in -ёнок/-онок diminutives)
   if (/[ёо]нок$/.test(str)) {
-    let base = str.slice(0, -2) + 'к'
+    const base = str.slice(0, -2) + 'к'
     return Object.assign(res, { genitive: base + 'а', dative: base + 'у', instrumental: base + 'ом', prepositional: base + 'е' })
   }
   if (str.endsWith('ий')) {
@@ -289,7 +289,7 @@ const declineBase = function (str, gender) {
 // accusative of animate masculines takes the genitive form ('я вижу брата')
 const decline = function (str = '', gender, animate) {
   gender = gender || guessGender(str)
-  let res = declineBase(str, gender)
+  const res = declineBase(str, gender)
   if (animate && gender === 'masculine') {
     res.accusative = res.genitive
   }
@@ -332,7 +332,7 @@ const toPluralGenitive = function (str, gender, plural) {
   if (irregularPluralGenitives[str]) {
     return irregularPluralGenitives[str]
   }
-  let plStem = plural.slice(0, -1)
+  const plStem = plural.slice(0, -1)
   if (gender === 'masculine') {
     // нож → ножей, месяц → месяцев, отец → отцов, учитель → учителей, стол → столов
     if (/[жчшщ]$/.test(str)) {
@@ -398,8 +398,8 @@ const declinePlural = function (str = '', gender, animate) {
     return { nominative: str, genitive: str, dative: str, accusative: str, instrumental: str, prepositional: str }
   }
   gender = gender || guessGender(str)
-  let plural = toPlural(str)
-  let plStem = plural.slice(0, -1)
+  const plural = toPlural(str)
+  const plStem = plural.slice(0, -1)
   // hard-stem takes -ам/-ами/-ах, soft-stem takes -ям/-ями/-ях
   let soft = false
   if (plural.endsWith('я')) {
@@ -407,8 +407,8 @@ const declinePlural = function (str = '', gender, animate) {
   } else if (plural.endsWith('и') && /[кгхжчшщц]$/.test(plStem) === false) {
     soft = true
   }
-  let a = soft ? 'я' : 'а'
-  let genitive = toPluralGenitive(str, gender, plural)
+  const a = soft ? 'я' : 'а'
+  const genitive = toPluralGenitive(str, gender, plural)
   return {
     nominative: plural,
     genitive,

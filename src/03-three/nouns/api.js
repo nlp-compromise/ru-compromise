@@ -33,30 +33,30 @@ const detSingular = {
 const agreeAround = function (m, methods, form) {
   const { adjective, verb } = methods
   // preceding adjectives + determiners  ('новая' in 'новая книга')
-  let mods = m.before('(#Adjective|#Determiner|#Possessive)+$')
+  const mods = m.before('(#Adjective|#Determiner|#Possessive)+$')
   mods.terms().forEach(t => {
-    let str = t.text('normal')
+    const str = t.text('normal')
     if (detPlural[str] !== undefined || detSingular[str] !== undefined) {
-      let out = form.plural ? detPlural[str] : (detSingular[str] || {})[form.gender]
+      const out = form.plural ? detPlural[str] : (detSingular[str] || {})[form.gender]
       if (out) {
         t.replaceWith(out, keep)
       }
       return
     }
-    let fns = {
+    const fns = {
       plural: adjective.toPlural,
       masculine: adjective.toMasculine,
       feminine: adjective.toFeminine,
       neuter: adjective.toNeuter,
     }
-    let fn = form.plural ? fns.plural : fns[form.gender]
-    let out = fn(str)
+    const fn = form.plural ? fns.plural : fns[form.gender]
+    const out = fn(str)
     if (out !== str) {
       t.replaceWith(out, keep)
     }
   })
   // the verb right after the noun  ('лежала' in 'книга лежала на столе')
-  let vb = m.after('^(#Adverb|#Negative)? [#Verb]', 0)
+  const vb = m.after('^(#Adverb|#Negative)? [#Verb]', 0)
   if (!vb.found) {
     return
   }
@@ -66,7 +66,7 @@ const agreeAround = function (m, methods, form) {
     root = 'быть'
   }
   if (vb.has('#PastTense')) {
-    let slot = form.plural ? 'plural' : { masculine: 'masc', feminine: 'fem', neuter: 'neut' }[form.gender]
+    const slot = form.plural ? 'plural' : { masculine: 'masc', feminine: 'fem', neuter: 'neut' }[form.gender]
     vb.replaceWith(verb.toPast(root)[slot])
   } else if (vb.has('#ThirdPerson') && form.plural) {
     vb.replaceWith(verb.toPresent(root).thirdPlural)
@@ -88,8 +88,8 @@ const api = function (View) {
         if (m.before('#Preposition$').found) {
           return m
         }
-        let str = m.text('normal')
-        let plural = methods.noun.toPlural(str)
+        const str = m.text('normal')
+        const plural = methods.noun.toPlural(str)
         if (plural !== str) {
           agreeAround(m, methods, { plural: true })
           m = m.replaceWith(plural, keep)
@@ -104,10 +104,10 @@ const api = function (View) {
         if (m.before('#Preposition$').found) {
           return m
         }
-        let str = m.text('normal')
-        let single = methods.noun.toSingular(str)
+        const str = m.text('normal')
+        const single = methods.noun.toSingular(str)
         if (single !== str) {
-          let gender = methods.noun.guessGender(single)
+          const gender = methods.noun.guessGender(single)
           agreeAround(m, methods, { plural: false, gender })
           m = m.replaceWith(single, keep)
         }
@@ -131,33 +131,33 @@ const api = function (View) {
       }, [])
     }
     isFeminine(n) {
-      let genders = this.gender()
-      let res = this.filter((m, i) => genders[i] === 'feminine')
+      const genders = this.gender()
+      const res = this.filter((m, i) => genders[i] === 'feminine')
       return getNth(res, n)
     }
     isMasculine(n) {
-      let genders = this.gender()
-      let res = this.filter((m, i) => genders[i] === 'masculine')
+      const genders = this.gender()
+      const res = this.filter((m, i) => genders[i] === 'masculine')
       return getNth(res, n)
     }
     isNeuter(n) {
-      let genders = this.gender()
-      let res = this.filter((m, i) => genders[i] === 'neuter')
+      const genders = this.gender()
+      const res = this.filter((m, i) => genders[i] === 'neuter')
       return getNth(res, n)
     }
     isAnimate(n) {
       const { guessAnimate } = this.methods.two.transform.noun
-      let res = this.filter(m => m.has('#AnimateNoun') || guessAnimate(m.text('normal')))
+      const res = this.filter(m => m.has('#AnimateNoun') || guessAnimate(m.text('normal')))
       return getNth(res, n)
     }
     // full case-table for each noun - singular + plural
     decline(n) {
       const { decline, declinePlural, guessAnimate } = this.methods.two.transform.noun
-      let genders = this.gender()
+      const genders = this.gender()
       return getNth(this, n).map((m, i) => {
-        let str = m.text('normal')
-        let animate = m.has('#AnimateNoun') || guessAnimate(str)
-        let res = decline(str, genders[i], animate)
+        const str = m.text('normal')
+        const animate = m.has('#AnimateNoun') || guessAnimate(str)
+        const res = decline(str, genders[i], animate)
         res.plural = declinePlural(str, genders[i], animate)
         return res
       }, [])

@@ -1,10 +1,10 @@
 import test from 'tape'
 import nlp from './_lib.js'
-let here = '[tagger] '
+const here = '[tagger] '
 nlp.verbose(false)
 
 test('tagger:', function (t) {
-  let arr = [
+  const arr = [
     // particles
     ['Он же знал', '#Pronoun #Particle #PastTense'],
     ['Ты ли это', '#Pronoun #Particle #Pronoun'],
@@ -42,11 +42,11 @@ test('tagger:', function (t) {
     ['#привет и @вася', '#HashTag #Conjunction #AtMention'],
   ]
   arr.forEach(function (a) {
-    let [str, match] = a
-    let doc = nlp(str)
-    let tags = doc.json()[0].terms.map(term => term.tags[0])
-    let msg = `'${(str + "' ").padEnd(20, ' ')}  - '${tags.join(', ')}'`
-    let m = doc.match(match)
+    const [str, match] = a
+    const doc = nlp(str)
+    const tags = doc.json()[0].terms.map(term => term.tags[0])
+    const msg = `'${(str + "' ").padEnd(20, ' ')}  - '${tags.join(', ')}'`
+    const m = doc.match(match)
     t.equal(m.text(), doc.text(), here + msg)
   })
   t.end()

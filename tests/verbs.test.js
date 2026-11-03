@@ -1,10 +1,10 @@
 import test from 'tape'
 import nlp from './_lib.js'
-let here = '[verbs] '
+const here = '[verbs] '
 nlp.verbose(false)
 
 test('conjugation-classes:', function (t) {
-  let arr = [
+  const arr = [
     // [infinitive, present-first, past-masc, imperative-second]
     ['рисовать', 'рисую', 'рисовал', 'рисуй'], // -овать
     ['танцевать', 'танцую', 'танцевал', 'танцуй'], // -евать
@@ -19,8 +19,8 @@ test('conjugation-classes:', function (t) {
     ['купить', 'куплю', 'купил', 'купи'],
   ]
   arr.forEach(function (a) {
-    let [inf, first, masc, imp] = a
-    let obj = nlp(inf).verbs().conjugate()[0]
+    const [inf, first, masc, imp] = a
+    const obj = nlp(inf).verbs().conjugate()[0]
     t.equal(obj.presentTense.first, first, here + inf + ' → ' + first)
     t.equal(obj.pastTense.masc, masc, here + inf + ' → ' + masc)
     t.equal(obj.imperative.second, imp, here + inf + ' → ' + imp)
@@ -48,7 +48,7 @@ test('gerunds:', function (t) {
 })
 
 test('verb-roots:', function (t) {
-  let arr = [
+  const arr = [
     ['куплю', 'купить'],
     ['вернёмся', 'вернуться'],
     ['шли', 'идти'], // suppletive past
@@ -56,22 +56,22 @@ test('verb-roots:', function (t) {
     ['дам', 'дать'],
   ]
   arr.forEach(function (a) {
-    let [form, want] = a
-    let root = nlp(form).compute('root').json()[0].terms[0].root
+    const [form, want] = a
+    const root = nlp(form).compute('root').json()[0].terms[0].root
     t.equal(root, want, here + form + ' → ' + want)
   })
   t.end()
 })
 
 test('to-infinitive:', function (t) {
-  let arr = [
+  const arr = [
     ['я читаю книгу', 'я читать книгу'],
     ['она прочитала книгу', 'она прочитать книгу'],
     ['мы будем работать', 'мы работать'], // compound-future collapses
   ]
   arr.forEach(function (a) {
-    let [from, want] = a
-    let doc = nlp(from)
+    const [from, want] = a
+    const doc = nlp(from)
     doc.verbs().toInfinitive()
     t.equal(doc.text(), want, here + from + ' → ' + want)
   })
@@ -79,20 +79,20 @@ test('to-infinitive:', function (t) {
 })
 
 test('copula-transforms:', function (t) {
-  let d1 = nlp('завтра будет дождь')
+  const d1 = nlp('завтра будет дождь')
   d1.verbs().toPastTense()
   t.equal(d1.text(), 'завтра был дождь', here + 'будет → был')
-  let d2 = nlp('он был дома')
+  const d2 = nlp('он был дома')
   d2.verbs().toFutureTense()
   t.equal(d2.text(), 'он будет дома', here + 'был → будет')
-  let d3 = nlp('она была здесь')
+  const d3 = nlp('она была здесь')
   d3.verbs().toFutureTense()
   t.equal(d3.text(), 'она будет здесь', here + 'была → будет')
   t.end()
 })
 
 test('е-spelling-roots:', function (t) {
-  let arr = [
+  const arr = [
     ['вернется', 'вернуться'],
     ['шел', 'идти'], // suppletive, е-spelled
     ['поймет', 'понять'],
@@ -100,15 +100,15 @@ test('е-spelling-roots:', function (t) {
     ['будем', 'быть'], // copula
   ]
   arr.forEach(function (a) {
-    let [form, want] = a
-    let root = nlp(form).compute('root').json()[0].terms[0].root
+    const [form, want] = a
+    const root = nlp(form).compute('root').json()[0].terms[0].root
     t.equal(root, want, here + form + ' → ' + want)
   })
   t.end()
 })
 
 test('tense-transform-extras:', function (t) {
-  let arr = [
+  const arr = [
     // [transform, from, to]
     ['future', 'ты читал книгу', 'ты будешь читать книгу'],
     ['future', 'они говорили', 'они будут говорить'],
@@ -123,8 +123,8 @@ test('tense-transform-extras:', function (t) {
     past: (d) => d.verbs().toPastTense(),
   }
   arr.forEach(function (a) {
-    let [which, from, want] = a
-    let doc = nlp(from)
+    const [which, from, want] = a
+    const doc = nlp(from)
     fns[which](doc)
     t.equal(doc.text(), want, here + from + ' → ' + want)
   })
