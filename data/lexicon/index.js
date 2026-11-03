@@ -75,7 +75,7 @@ const data = [
 
 ]
 
-let lex = {}
+const lex = {}
 for (let i = 0; i < data.length; i++) {
   const list = data[i][0]
   const tag = data[i][1]

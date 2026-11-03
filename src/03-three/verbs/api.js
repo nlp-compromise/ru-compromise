@@ -3,7 +3,7 @@ export const getNth = (doc, n) => (typeof n === 'number' ? doc.eq(n) : doc)
 // get root form of verb
 const getRoot = function (m) {
   m.compute('root')
-  let str = m.text('root')
+  const str = m.text('root')
   return str
 }
 
@@ -52,7 +52,7 @@ const getPerson = function (m) {
     return 'third'
   }
   // no person-tag (past-tense) - look for a subject-pronoun
-  let pron = m.lookBehind('#Pronoun').last().text('normal')
+  const pron = m.lookBehind('#Pronoun').last().text('normal')
   if (pronounPerson[pron]) {
     return pronounPerson[pron]
   }
@@ -67,7 +67,7 @@ const getPastSlot = function (m, person) {
   if (/Plural/.test(person)) {
     return 'plural'
   }
-  let str = m.text('normal')
+  const str = m.text('normal')
   if (m.has('#PastTense')) {
     if (/(ли|лись)$/.test(str)) {
       return 'plural'
@@ -80,15 +80,15 @@ const getPastSlot = function (m, person) {
     }
     return 'masc'
   }
-  let pron = m.lookBehind('#Pronoun').last().text('normal')
+  const pron = m.lookBehind('#Pronoun').last().text('normal')
   return pronounGender[pron] || 'masc'
 }
 
 // split a verb-phrase into its finite head + trailing infinitives
 // ('буду читать' → [буду, читать],  'хочет работать' → [хочет, работать])
 const parseVerb = function (m) {
-  let inf = m.match('#Infinitive')
-  let head = m.not('#Infinitive')
+  const inf = m.match('#Infinitive')
+  const head = m.not('#Infinitive')
   return { head, inf }
 }
 
@@ -102,8 +102,8 @@ const api = function (View) {
       const methods = this.methods.two.transform.verb
       const { toPresent, toPast, toFuture, toImperative, toGerund, isPerfective, getAspectPair } = methods
       return getNth(this, n).map(m => {
-        let str = getRoot(m)
-        let perfective = isPerfective(str)
+        const str = getRoot(m)
+        const perfective = isPerfective(str)
         return {
           infinitive: str,
           aspect: perfective ? 'perfective' : 'imperfective',
@@ -125,15 +125,15 @@ const api = function (View) {
         if (m.has('#PastTense')) {
           return m
         }
-        let { head, inf } = parseVerb(m)
+        const { head, inf } = parseVerb(m)
         if (!head.found) {
           return m
         }
-        let person = getPerson(head)
-        let slot = getPastSlot(head, person)
+        const person = getPerson(head)
+        const slot = getPastSlot(head, person)
         // 'буду читать' → 'читал',  'будет' → 'был'
         if (head.has('#Copula')) {
-          let root = inf.found ? inf.text('normal') : 'быть'
+          const root = inf.found ? inf.text('normal') : 'быть'
           return m.replaceWith(toPast(root)[slot])
         }
         head.replaceWith(toPast(getRoot(head))[slot])
@@ -147,11 +147,11 @@ const api = function (View) {
         if (m.has('#PresentTense')) {
           return m
         }
-        let { head, inf } = parseVerb(m)
+        const { head, inf } = parseVerb(m)
         if (!head.found) {
           return m
         }
-        let person = getPerson(head)
+        const person = getPerson(head)
         // 'буду читать' → 'читаю'
         if (head.has('#Copula')) {
           if (inf.found) {
@@ -175,16 +175,16 @@ const api = function (View) {
         if (m.has('#FutureTense')) {
           return m
         }
-        let { head, inf } = parseVerb(m)
+        const { head, inf } = parseVerb(m)
         if (!head.found) {
           return m
         }
-        let person = getPerson(head)
+        const person = getPerson(head)
         // 'был'/'есть' → 'будет'
         if (head.has('#Copula')) {
           return m.replaceWith(buduMap[person] + (inf.found ? ' ' + inf.text('normal') : ''))
         }
-        let root = getRoot(head)
+        const root = getRoot(head)
         // perfective conjugates straight to future; imperfective takes буду + infinitive
         if (isPerfective(root)) {
           head.replaceWith(toPresent(root)[person])
@@ -197,7 +197,7 @@ const api = function (View) {
 
     toInfinitive(n) {
       return getNth(this, n).map(m => {
-        let { head, inf } = parseVerb(m)
+        const { head, inf } = parseVerb(m)
         if (!head.found) {
           return m
         }

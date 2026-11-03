@@ -1,22 +1,22 @@
 // npm install papaparse --no-save
 import Papa from 'papaparse'
-import fs from 'fs'
+import fs from 'node:fs'
 
-let file = '/Users/spencer/mountain/ru-compromise/learn/conjugation/verbs.csv'
-let csv = fs.readFileSync(file).toString()
-let data = Papa.parse(csv, { delimiter: ";", header: true }).data
+const file = '/Users/spencer/mountain/ru-compromise/learn/conjugation/verbs.csv'
+const csv = fs.readFileSync(file).toString()
+const data = Papa.parse(csv, { delimiter: ";", header: true }).data
 
-let inf = 'Инфинитив'
-let first = 'Я'
-let second = 'Ты'
-let third = 'Он/Она/Оно'
-let firstPlural = 'Мы'
-let secondPlural = 'Вы'
-let thirdPlural = 'Они'
-let imperative1 = 'Повелительное накл. 1'
-let imperative2 = 'Повелительное накл. 2'
+const inf = 'Инфинитив'
+const first = 'Я'
+const second = 'Ты'
+const third = 'Он/Она/Оно'
+const firstPlural = 'Мы'
+const secondPlural = 'Вы'
+const thirdPlural = 'Они'
+const imperative1 = 'Повелительное накл. 1'
+const imperative2 = 'Повелительное накл. 2'
 
-let all = {}
+const all = {}
 data.forEach(o => {
   // NOTE: the 'Мы' and 'Вы' columns in verbs.csv contain each-other's data
   // (мочь row has Мы=можете, Вы=можем) - so we read them swapped, on purpose.

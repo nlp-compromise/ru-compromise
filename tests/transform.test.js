@@ -1,10 +1,10 @@
 import test from 'tape'
 import nlp from './_lib.js'
-let here = '[transform] '
+const here = '[transform] '
 nlp.verbose(false)
 
 test('verb-to-past:', function (t) {
-  let arr = [
+  const arr = [
     ['я читаю книгу', 'я читал книгу'],
     ['она читает книгу', 'она читала книгу'],
     ['они читают книги', 'они читали книги'],
@@ -12,8 +12,8 @@ test('verb-to-past:', function (t) {
     ['я буду читать', 'я читал'],
   ]
   arr.forEach(function (a) {
-    let [from, want] = a
-    let doc = nlp(from)
+    const [from, want] = a
+    const doc = nlp(from)
     doc.verbs().toPastTense()
     t.equal(doc.text(), want, here + from + ' → ' + want)
   })
@@ -21,14 +21,14 @@ test('verb-to-past:', function (t) {
 })
 
 test('verb-to-present:', function (t) {
-  let arr = [
+  const arr = [
     ['он сказал правду', 'он говорит правду'],
     ['она говорила', 'она говорит'],
     ['я буду читать', 'я читаю'],
   ]
   arr.forEach(function (a) {
-    let [from, want] = a
-    let doc = nlp(from)
+    const [from, want] = a
+    const doc = nlp(from)
     doc.verbs().toPresentTense()
     t.equal(doc.text(), want, here + from + ' → ' + want)
   })
@@ -36,7 +36,7 @@ test('verb-to-present:', function (t) {
 })
 
 test('verb-to-future:', function (t) {
-  let arr = [
+  const arr = [
     // imperfective takes буду + infinitive
     ['я читал книгу', 'я буду читать книгу'],
     ['она читает книгу', 'она будет читать книгу'],
@@ -45,8 +45,8 @@ test('verb-to-future:', function (t) {
     ['она сказала правду', 'она скажет правду'],
   ]
   arr.forEach(function (a) {
-    let [from, want] = a
-    let doc = nlp(from)
+    const [from, want] = a
+    const doc = nlp(from)
     doc.verbs().toFutureTense()
     t.equal(doc.text(), want, here + from + ' → ' + want)
   })
@@ -54,7 +54,7 @@ test('verb-to-future:', function (t) {
 })
 
 test('noun-decline:', function (t) {
-  let arr = [
+  const arr = [
     // [nominative, genitive, dative, accusative, instrumental, prepositional]
     ['книга', 'книги', 'книге', 'книгу', 'книгой', 'книге'],
     ['стол', 'стола', 'столу', 'стол', 'столом', 'столе'],
@@ -69,8 +69,8 @@ test('noun-decline:', function (t) {
     ['мать', 'матери', 'матери', 'мать', 'матерью', 'матери'],
   ]
   arr.forEach(function (a) {
-    let [nom, gen, dat, acc, instr, prep] = a
-    let obj = nlp(nom).nouns().decline()[0]
+    const [nom, gen, dat, acc, instr, prep] = a
+    const obj = nlp(nom).nouns().decline()[0]
     t.equal(obj.genitive, gen, here + nom + ' gen ' + gen)
     t.equal(obj.dative, dat, here + nom + ' dat ' + dat)
     t.equal(obj.accusative, acc, here + nom + ' acc ' + acc)
@@ -90,7 +90,7 @@ test('noun-animacy:', function (t) {
 })
 
 test('noun-decline-plural:', function (t) {
-  let arr = [
+  const arr = [
     // [nominative, plural: nom, gen, dat, instr, prep]
     ['книга', 'книги', 'книг', 'книгам', 'книгами', 'книгах'],
     ['стол', 'столы', 'столов', 'столам', 'столами', 'столах'],
@@ -104,8 +104,8 @@ test('noun-decline-plural:', function (t) {
     ['год', 'годы', 'лет', 'годам', 'годами', 'годах'],
   ]
   arr.forEach(function (a) {
-    let [nom, plNom, plGen, plDat, plInstr, plPrep] = a
-    let obj = nlp(nom).nouns().decline()[0].plural
+    const [nom, plNom, plGen, plDat, plInstr, plPrep] = a
+    const obj = nlp(nom).nouns().decline()[0].plural
     t.equal(obj.nominative, plNom, here + nom + ' pl-nom ' + plNom)
     t.equal(obj.genitive, plGen, here + nom + ' pl-gen ' + plGen)
     t.equal(obj.dative, plDat, here + nom + ' pl-dat ' + plDat)
@@ -116,7 +116,7 @@ test('noun-decline-plural:', function (t) {
 })
 
 test('noun-agreement:', function (t) {
-  let arr = [
+  const arr = [
     // pluralizing a noun re-agrees its modifiers and verb
     [(d) => d.nouns().toPlural(), 'новая книга лежала на столе', 'новые книги лежали на столе'],
     [(d) => d.nouns().toPlural(), 'этот старый дом стоит здесь', 'эти старые дома стоят здесь'],
@@ -124,8 +124,8 @@ test('noun-agreement:', function (t) {
     [(d) => d.nouns(0).toSingular(), 'новые книги лежали на столе', 'новая книга лежала на столе'],
   ]
   arr.forEach(function (a) {
-    let [fn, from, want] = a
-    let doc = nlp(from)
+    const [fn, from, want] = a
+    const doc = nlp(from)
     fn(doc)
     t.equal(doc.text(), want, here + from + ' → ' + want)
   })
@@ -142,7 +142,7 @@ test('noun-gender:', function (t) {
 })
 
 test('adjective-comparative:', function (t) {
-  let arr = [
+  const arr = [
     ['быстрый', 'быстрее'],
     ['красивый', 'красивее'],
     ['хороший', 'лучше'],
@@ -153,8 +153,8 @@ test('adjective-comparative:', function (t) {
     ['большой', 'больше'],
   ]
   arr.forEach(function (a) {
-    let [adj, want] = a
-    let doc = nlp(adj)
+    const [adj, want] = a
+    const doc = nlp(adj)
     doc.adjectives().toComparative()
     t.equal(doc.text(), want, here + adj + ' → ' + want)
   })
@@ -162,14 +162,14 @@ test('adjective-comparative:', function (t) {
 })
 
 test('adjective-superlative:', function (t) {
-  let arr = [
+  const arr = [
     ['старый дом', 'самый старый дом'],
     ['хороший день', 'лучший день'],
     ['красивая девушка', 'самый красивый девушка'],
   ]
   arr.forEach(function (a) {
-    let [from, want] = a
-    let doc = nlp(from)
+    const [from, want] = a
+    const doc = nlp(from)
     doc.adjectives().toSuperlative()
     t.equal(doc.text(), want, here + from + ' → ' + want)
   })

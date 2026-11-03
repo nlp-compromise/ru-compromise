@@ -4,8 +4,8 @@ const keep = { tags: true }
 
 const swapWith = function (view, n, fn) {
   return getNth(view, n).map(m => {
-    let str = m.text('normal')
-    let out = fn(str)
+    const str = m.text('normal')
+    const out = fn(str)
     if (out !== str) {
       m = m.replaceWith(out, keep)
     }

@@ -1,10 +1,10 @@
 import test from 'tape'
 import nlp from './_lib.js'
-let here = '[conjugate] '
+const here = '[conjugate] '
 nlp.verbose(false)
 
 test('conjugate:', function (t) {
-  let arr = [
+  const arr = [
     // [infinitive, present-first, past-fem, imperative-second]
     ['говорить', 'говорю', 'говорила', 'говори'],
     ['читать', 'читаю', 'читала', 'читай'],
@@ -14,8 +14,8 @@ test('conjugate:', function (t) {
     ['вернуться', 'вернусь', 'вернулась', 'вернись'],
   ]
   arr.forEach(function (a) {
-    let [inf, first, fem, imp] = a
-    let obj = nlp(inf).verbs().conjugate()[0]
+    const [inf, first, fem, imp] = a
+    const obj = nlp(inf).verbs().conjugate()[0]
     t.equal(obj.presentTense.first, first, here + inf + ' → ' + first)
     t.equal(obj.pastTense.fem, fem, here + inf + ' → ' + fem)
     t.equal(obj.imperative.second, imp, here + inf + ' → ' + imp)
@@ -24,7 +24,7 @@ test('conjugate:', function (t) {
 })
 
 test('conjugate-past-irregulars:', function (t) {
-  let arr = [
+  const arr = [
     ['идти', 'шёл', 'шла'],
     ['пойти', 'пошёл', 'пошла'],
     ['выйти', 'вышел', 'вышла'],
@@ -32,8 +32,8 @@ test('conjugate-past-irregulars:', function (t) {
     ['помочь', 'помог', 'помогла'],
   ]
   arr.forEach(function (a) {
-    let [inf, masc, fem] = a
-    let obj = nlp(inf).verbs().conjugate()[0]
+    const [inf, masc, fem] = a
+    const obj = nlp(inf).verbs().conjugate()[0]
     t.equal(obj.pastTense.masc, masc, here + inf + ' → ' + masc)
     t.equal(obj.pastTense.fem, fem, here + inf + ' → ' + fem)
   })

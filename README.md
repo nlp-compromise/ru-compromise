@@ -355,3 +355,7 @@ npm watch
 - &nbsp; **[rnnmorph](https://github.com/IlyaGusev/rnnmorph)** - python tagger
 
 MIT
+
+### TypeScript
+
+Both ESM imports and CommonJS `import = require()` are supported. CommonJS typings require TypeScript 5.3 or newer.
