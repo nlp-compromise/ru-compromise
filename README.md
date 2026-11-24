@@ -56,6 +56,14 @@ doc.match('#Verb').out('array')
 // [ 'забудь' ]
 ```
 
+### Документация
+
+- [Введение](./docs/index.md)
+- [Набор тегов](./docs/tagset.md)
+- [Синтаксис шаблонов](./docs/match.md)
+- [API](./docs/api.md)
+- [Участие в разработке](./docs/contributing.md)
+
 ### Спряжение
 ```js
 let doc = nlp('говорить')
