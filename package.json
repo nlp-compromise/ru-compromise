@@ -23,22 +23,24 @@
   "types": "./types/index.d.ts",
   "sideEffects": false,
   "engines": {
-    "node": ">=12"
+    "node": ">=18"
   },
   "packageManager": "pnpm@11.5.0",
   "scripts": {
-    "test": "pnpm run check-package-types && pnpm run check-types && tape \"./tests/**/*.test.js\" | tap-dancer",
-    "testb": "TESTENV=prod pnpm run test",
-    "check-types": "tsc",
-    "build": "pnpm run version && rollup -c --silent",
-    "prepack": "pnpm run build && pnpm run testb && pnpm run lint",
-    "version": "node ./scripts/version.js",
-    "pack": "node ./scripts/pack.js",
-    "score": "node ./learn/wikicorpus/test.js",
-    "lint": "eslint ./src/**/*",
+    "dev": "node ./scratch.js",
     "watch": "node --watch ./scratch.js",
-    "stress": "node scripts/stress.js",
-    "check-package-types": "tsc -p tests/package-types/tsconfig.json"
+    "pack": "node ./scripts/pack.js",
+    "version": "node ./scripts/version.js",
+    "build": "node ./scripts/pack.js && node ./scripts/version.js && rollup -c --silent",
+    "lint": "eslint ./src/**/*",
+    "test": "tape \"./tests/unit/**/*.test.js\" | tap-dancer",
+    "testb": "cross-env TESTENV=prod tape \"./tests/unit/**/*.test.js\" | tap-dancer",
+    "test:hmm": "tape \"./tests/_hmm/**/*.hmm.js\" | tap-dancer",
+    "test:types": "tsc -p tsconfig.json",
+    "testb:types": "tsc -p tests/types/package/tsconfig.json",
+    "test:all": "pnpm run test && pnpm run lint && pnpm run test:types",
+    "testb:all": "pnpm run testb && pnpm run testb:types",
+    "prepack": "pnpm run build && pnpm run testb:all && pnpm run lint"
   },
   "files": [
     "builds/",
@@ -49,7 +51,7 @@
     "compromise": "^14.19.0",
     "efrt": "2.9.0",
     "rollup-plugin-filesize-check": "^2.0.1",
-    "suffix-thumb": "6.0.0"
+    "suffix-thumb": "6.1.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -64,5 +66,12 @@
     "tape": "5.10.3",
     "typescript": "7.0.2"
   },
-  "unpkg": "./builds/ru-compromise.min.js"
+  "unpkg": "./builds/ru-compromise.min.js",
+  "prettier": {
+    "trailingComma": "none",
+    "tabWidth": 2,
+    "semi": false,
+    "singleQuote": true,
+    "printWidth": 100
+  }
 }

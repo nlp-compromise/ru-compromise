@@ -1,5 +1,5 @@
 import test from 'tape'
-import nlp from './_lib.js'
+import nlp from '../../_lib.js'
 const here = '[ru-aliases] '
 
 // every alias, and the tag it stands for

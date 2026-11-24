@@ -65,3 +65,9 @@ export {
   tokens,
   version,
 }
+
+// spec helpers
+const specFailures: import('ru-compromise').SpecFailure[] = nlp.fromSpec('a b', { tags: 'use', failures: 'retain' }).failures
+const specDoc: import('ru-compromise').RuView = nlp.testSpec('a b')
+nlp.compile(['a', 'b'])
+export { specFailures, specDoc }

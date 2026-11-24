@@ -15,8 +15,9 @@ declare namespace nlp {
   export type Verbs = api.Verbs
   export type Nouns = api.Nouns
   export type Adjectives = api.Adjectives
+  export type SpecOptions = api.SpecOptions
+  export type SpecFailure = api.SpecFailure
   export type RuView = api.RuView
-  export type TypedPlugin<Methods extends object> = esm.TypedPlugin<Methods>
 }
 
 export = nlp

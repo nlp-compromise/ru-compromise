@@ -96,6 +96,25 @@ export interface Adjectives extends View {
   toSuperlative(n?: number): Adjectives
 }
 
+/** options for nlp.fromSpec() */
+export interface SpecOptions {
+  tags?: 'ignore' | 'use'
+  failures?: 'ignore' | 'throw' | 'retain' | 'log'
+  verbose?: boolean
+}
+
+/** a failed line in a tagging spec */
+export interface SpecFailure {
+  code: 'length' | 'tags' | 'syntax' | 'match'
+  line: number
+  text: string
+  message: string
+  term?: number
+  word?: string
+  expected?: string[] | number
+  actual?: string[] | number
+}
+
 /** A compromise document with Russian-specific methods. */
 export interface RuView extends View {
   verbs(n?: number): Verbs
@@ -109,8 +128,6 @@ declare function nlp(text?: string, lexicon?: Lexicon): RuView
 declare namespace nlp {
   /** Interpret text without tagging. */
   export function tokenize(text: string, lexicon?: Lexicon): RuView
-  /** Scan through text with minimal analysis. */
-  export function lazy(text: string, match?: string): RuView
   /** Mix in a compromise plugin. */
   export function plugin(plugin: Plugin): any
   /** Alias for plugin(). */
@@ -132,17 +149,19 @@ declare namespace nlp {
   /** Connect new tags to the tag graph. */
   export function addTags(tags: object): any
   /** Add words to the lexicon. */
-  export function addWords(words: Lexicon): any
+  export function addWords(words: Lexicon, isFrozen?: boolean): any
   /** Turn words into a searchable graph. */
   export function buildTrie(words: string[]): object
+  /** alias for nlp.buildTrie() */
+  export function compile(words: string[]): object
   /** Compile match objects into an optimized net. */
   export function buildNet(matches: Match[]): Net
   /** Add words to the autocomplete dictionary. */
   export function typeahead(words: Lexicon): any
-  /** Describe a plugin whose method shape is known. */
-  export interface TypedPlugin<Methods extends object> extends Plugin {
-    methods: Methods
-  }
+  /** parse spec text, optionally applying tags or validating its constraints */
+  export function fromSpec(spec: string, options?: SpecOptions): RuView & { failures: SpecFailure[] }
+  /** returns untagged sentences and failing tagged lines, with validation failures */
+  export function testSpec(spec: string, verbose?: boolean, throwError?: boolean): RuView & { failures: SpecFailure[] }
 }
 
 export default nlp

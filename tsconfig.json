@@ -4,9 +4,10 @@
     "module": "esnext",
     "moduleResolution": "bundler",
     "strict": true,
+    "strictPropertyInitialization": false,
     "noEmit": true,
     "noUnusedLocals": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["types/**/*.d.ts", "tests/typescript/**/*.ts"]
+  "include": ["types/**/*", "tests/types/*.ts"]
 }
