@@ -1,7 +1,7 @@
 export default [
 
   // russian numeric ordinals - 5-й, 2-го, 1990-х
-  [/^[0-9]+-(?:го|му|ми|ых|ой|ое|ая|ий|ым|ом|[йяемхю])$/, ['Ordinal', 'NumericValue'], '5-й'],
+  [/^[0-9]+-(?:ого|ому|ыми|го|му|ми|ых|ой|ое|ая|ий|ый|ые|ую|ым|ом|[йяемхюи])$/, ['Ordinal', 'NumericValue'], '5-й'],
 
   [/^@1?[0-9](am|pm)$/i, 'Time', '3pm'],
   [/^@1?[0-9]:[0-9]{2}(am|pm)?$/i, 'Time', '3:30pm'],
@@ -44,6 +44,8 @@ export default [
   [/^[-+]?[$£]?[0-9]([0-9,.])+(usd|eur|jpy|gbp|cad|aud|chf|cny|hkd|nzd|kr|rub)$/i, ['Money', 'Value'], '$400usd'],
 
   //numbers
+  // thousands grouped with periods - 1.234.567
+  [/^[-+]?[0-9]{1,3}(\.[0-9]{3}){2,}$/, ['Cardinal', 'NumericValue'], '1.234.567'],
   // 50 | -50 | 3.23  | 5,999.0  | 10+
   [/^[-+]?[0-9]+(,[0-9]{3})*(\.[0-9]+)?\+?$/, ['Cardinal', 'NumericValue'], '5,999'],
   [/^[-+]?[0-9]+(,[0-9]{3})*(\.[0-9]+)?(st|nd|rd|r?th|°)$/, ['Ordinal', 'NumericValue'], '53rd'],

@@ -139,6 +139,35 @@ doc.text()
 // 'она будет читать книгу'
 ```
 
+### Числа
+```js
+let doc = nlp('у меня сорок рублей')
+doc.numbers().get()
+// [40]
+doc.numbers().minus(50)
+doc.text()
+// 'у меня минус десять рублей'
+
+doc = nlp('у меня двадцать пять рублей')
+doc.numbers().toNumber()
+doc.text()
+// 'у меня 25 рублей'
+
+// падеж сохраняется
+doc = nlp('она пришла с пятью друзьями')
+doc.numbers().add(1)
+doc.text()
+// 'она пришла с шестью друзьями'
+
+doc = nlp('в 2026-м году')
+doc.numbers().toText()
+doc.text()
+// 'в две тысячи двадцать шестом году'
+
+nlp('цена 5 000 рублей, скидка 2,5%').numbers().get()
+// [5000, 2.5]
+```
+
 <!-- spacer -->
 <img height="15px" src="https://user-images.githubusercontent.com/399657/68221862-17ceb980-ffb8-11e9-87d4-7b30b6488f16.png"/>
 
@@ -307,23 +336,6 @@ _(these methods are on the main `nlp` object)_
 
 
 <!-- 
-
-### Los Números
-puede analizar números escritos o numéricos
-```js
-let doc = nlp('tengo cuarenta dolares')
-doc.numbers().minus(50)
-doc.text()
-// tengo moins diez dolares
-```
-
-<div align="right">
-  <a href="https://docs.compromise.cool/compromise-numbers">number docs</a>
-</div>
-<div align="center">
-  <img height="50px" src="https://user-images.githubusercontent.com/399657/68221814-05ed1680-ffb8-11e9-8b6b-c7528d163871.png"/>
-</div>
-<img height="30px" src="https://user-images.githubusercontent.com/399657/68221862-17ceb980-ffb8-11e9-87d4-7b30b6488f16.png"/>
 
 ### Lematización
 puede conjugar la raíz de las palabras

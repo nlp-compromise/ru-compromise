@@ -10,12 +10,19 @@ const killUnicode = function (str) {
   return str
 }
 
+const numberAbbreviations = ['тыс', 'млн', 'млрд', 'трлн']
+
 export default {
   mutate: (world) => {
     world.model.one.unicode = {}
     world.methods.one.killUnicode = killUnicode
 
     world.model.one.contractions = contractions
+
+    // these periods don't end a sentence - '5 тыс. рублей'
+    numberAbbreviations.forEach(str => {
+      world.model.one.abbreviations[str] = true
+    })
 
     // 'que' -> 'quebec'
     delete world.model.one.lexicon.que

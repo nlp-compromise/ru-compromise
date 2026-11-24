@@ -12,9 +12,12 @@ declare namespace nlp {
   export type VerbConjugation = api.VerbConjugation
   export type CaseForms = api.CaseForms
   export type NounDeclension = api.NounDeclension
+  export type RussianCase = api.RussianCase
+  export type ParsedNumber = api.ParsedNumber
   export type Verbs = api.Verbs
   export type Nouns = api.Nouns
   export type Adjectives = api.Adjectives
+  export type Numbers = api.Numbers
   export type SpecOptions = api.SpecOptions
   export type SpecFailure = api.SpecFailure
   export type RuView = api.RuView

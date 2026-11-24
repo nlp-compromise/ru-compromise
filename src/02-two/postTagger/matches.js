@@ -1,4 +1,11 @@
+const num = ['Cardinal', 'TextValue']
+
 export default [
+  // 'семью' is usually 'the family' - but it is 'seven', beside a number, or a plural instrumental
+  { match: '#Value [семью]', group: 0, tag: num, reason: 'двадцатью-семью' },
+  { match: '[семью] #Value', group: 0, tag: num, reason: 'семью-тысячами' },
+  { match: '[семью] /[а-яё](ами|ями|ьми)$/', group: 0, tag: num, reason: 'семью-книгами' },
+
   // мистер Кузнецов
   { match: '(мистер|миссис|господин|госпожа|товарищ|доктор|профессор) #ProperNoun', tag: 'Person', reason: 'honorific-name' },
 

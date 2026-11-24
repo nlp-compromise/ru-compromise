@@ -55,6 +55,31 @@ export interface NounDeclension extends CaseForms {
   plural: CaseForms
 }
 
+/** One of the six grammatical cases. */
+export type RussianCase = keyof CaseForms
+
+/** A number, as parsed from the text. */
+export interface ParsedNumber {
+  /** Was it written with a thousands-separator - '5 000' or '1.234.567'. */
+  hasComma: boolean
+  /** Leading characters - '$'. A minus-sign is part of `num` instead. */
+  prefix: string
+  /** The numeric value, or null if it could not be parsed. */
+  num: number | null
+  /** Trailing characters - '%' or 'km'. */
+  suffix: string
+  /** Written-out in words, like 'сорок'. False for '40', and for '5 тысяч'. */
+  isText: boolean
+  /** An ordinal, like 'пятый' or '5-й'. */
+  isOrdinal: boolean
+  isFraction: boolean
+  isMoney: boolean
+  /** The case the number was written in - 'пяти' is genitive. Digits are nominative, unless they say otherwise - '5-го'. */
+  case: RussianCase
+  /** The gender the number was written in - 'одна' and 'первая' are feminine. Most cardinals have none, and are masculine. */
+  gender: RussianGender | 'plural'
+}
+
 export interface Verbs extends View {
   /** Get the conjugation and aspect data for each selected verb. */
   conjugate(n?: number): VerbConjugation[]
@@ -96,6 +121,57 @@ export interface Adjectives extends View {
   toSuperlative(n?: number): Adjectives
 }
 
+export interface Numbers extends View {
+  /** Get the parsed details of each number. */
+  parse(n?: number): ParsedNumber[]
+  /** Get the numeric value of each number - 'сорок' → 40, 'минус пять' → -5, '2,5 млн' → 2500000. */
+  get(n?: number): (number | null)[]
+  /** JSON output, with parsed number data on each match - a number returns only the nth match. */
+  json(n?: number | string | object): any
+  /** Write each number in all six cases - 'пять', 'пяти', 'пятью'. Null for a number that has no words, like '3,5'. */
+  decline(n?: number): (CaseForms | null)[]
+  /** Return the unit following each number. */
+  units(): View
+  /** Return only ordinal numbers - 'пятый', '5-й'. */
+  isOrdinal(): Numbers
+  /** Return only cardinal numbers - 'пять', '5'. */
+  isCardinal(): Numbers
+  /** Rewrite these numbers as digits - '40', '-5', '5-го' - and return only the numbers that changed. */
+  toNumber(): Numbers
+  /** Rewrite these numbers as words - 'сорок', 'минус пять', 'пятого'. */
+  toText(): Numbers
+  /** Rewrite ordinal numbers as cardinal, in the same case - 'пятого' → 'пяти'. */
+  toCardinal(): Numbers
+  /** Rewrite cardinal numbers as ordinal, in the same case - 'пяти' → 'пятого'. */
+  toOrdinal(): Numbers
+  /** Return numbers with this value. */
+  isEqual(n: number): Numbers
+  /** Alias for .isEqual(). */
+  equals(n: number): Numbers
+  /** Return numbers larger than n. */
+  greaterThan(n: number): Numbers
+  /** Return numbers smaller than n. */
+  lessThan(n: number): Numbers
+  /** Return numbers between min and max. */
+  between(min: number, max: number): Numbers
+  /** Alias for .between(). */
+  isBetween(min: number, max: number): Numbers
+  /** Set these numbers to n, keeping their case - 'пяти' → 'сорока'. A string may be a written number, like 'сорок'. */
+  set(n: number | string): Numbers
+  /** Add n to these numbers - 'сорок' → 'сорок два'. */
+  add(n: number | string): Numbers
+  /** Alias for .add(). */
+  plus(n: number | string): Numbers
+  /** Subtract n from these numbers - 'сорок' → 'тридцать восемь'. */
+  subtract(n: number | string): Numbers
+  /** Alias for .subtract(). */
+  minus(n: number | string): Numbers
+  /** Add 1 to these numbers - 'сорок' → 'сорок один'. */
+  increment(): Numbers
+  /** Subtract 1 from these numbers - 'сорок' → 'тридцать девять'. */
+  decrement(): Numbers
+}
+
 /** options for nlp.fromSpec() */
 export interface SpecOptions {
   tags?: 'ignore' | 'use'
@@ -120,6 +196,10 @@ export interface RuView extends View {
   verbs(n?: number): Verbs
   nouns(n?: number): Nouns
   adjectives(n?: number): Adjectives
+  /** Numbers written in words or digits - 'двадцать пять', '5 000', 'пятый'. */
+  numbers(n?: number): Numbers
+  /** Alias for .numbers(). */
+  values(n?: number): Numbers
 }
 
 /** Parse the given Russian text. */

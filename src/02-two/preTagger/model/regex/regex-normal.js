@@ -1,4 +1,9 @@
+import { compoundReg } from '../../../../03-three/numbers/data.js'
+
 export default [
+  // compound ordinals - 'двухтысячный', 'двадцатипятитысячного'
+  [compoundReg, ['Ordinal', 'TextValue'], 'двухтысячный'],
+
   // по-русски, по-моему, по-другому..
   [/^по-[а-яё]+$/, 'Adverb', 'по-русски'],
 

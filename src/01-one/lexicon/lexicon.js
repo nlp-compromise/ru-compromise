@@ -3,6 +3,7 @@ import { unpack } from 'efrt'
 import methods from './methods/index.js'
 import model from './methods/models.js'
 import misc from './misc.js'
+import { lexicon as numbers } from '../../03-three/numbers/data.js'
 
 const { toPresent, toPast, toImperative, toGerund } = methods.verb
 const perfective = model.perfective || {}
@@ -50,6 +51,16 @@ Object.keys(lexData).forEach(tag => {
       addWords({ gerund: toGerund(w) }, 'Gerund', lexicon)
     }
   })
+})
+
+// every form of our number-words - 'пять', 'пяти', 'пятью', 'пятый', 'пятого'..
+Object.keys(lexicon).forEach(w => {
+  if (lexicon[w] === 'Cardinal' || lexicon[w] === 'Ordinal') {
+    lexicon[w] = [lexicon[w], 'TextValue']
+  }
+})
+Object.keys(numbers).forEach(w => {
+  lexicon[w] = numbers[w]
 })
 
 // hand-curated entries win over generated ones

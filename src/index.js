@@ -4,7 +4,7 @@ import tokenizer from './01-one/tokenizer/plugin.js'
 import preTagger from './02-two/preTagger/plugin.js'
 import postTagger from './02-two/postTagger/plugin.js'
 import tagset from './01-one/tagset/plugin.js'
-// import numbers from './03-three/numbers/plugin.js'
+import numbers from './03-three/numbers/plugin.js'
 import nouns from './03-three/nouns/plugin.js'
 import adjectives from './03-three/adjectives/plugin.js'
 import verbs from './03-three/verbs/plugin.js'
@@ -18,7 +18,7 @@ nlp.plugin(postTagger)
 nlp.plugin(nouns)
 nlp.plugin(adjectives)
 nlp.plugin(verbs)
-// nlp.plugin(numbers)
+nlp.plugin(numbers)
 
 
 const es = function (txt, lex) {
