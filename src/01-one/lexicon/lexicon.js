@@ -3,6 +3,7 @@ import { unpack } from 'efrt'
 import methods from './methods/index.js'
 import model from './methods/models.js'
 import misc from './misc.js'
+import { properNouns } from 'compromise/shared'
 import { lexicon as numbers } from '../../03-three/numbers/data.js'
 
 const { toPresent, toPast, toImperative, toGerund } = methods.verb
@@ -104,5 +105,12 @@ adjectives.forEach(w => {
 })
 
 // console.log(lexicon['бежать'])
+// latin-script names of people and places, shared by every language - our own words win
+Object.keys(properNouns).forEach(tag => {
+  Object.keys(unpack(properNouns[tag])).forEach(w => {
+    lexicon[w] = lexicon[w] || tag
+  })
+})
+
 export { adjectiveForms }
 export default lexicon

@@ -44,8 +44,6 @@ export default [
   [/^[-+]?[$£]?[0-9]([0-9,.])+(usd|eur|jpy|gbp|cad|aud|chf|cny|hkd|nzd|kr|rub)$/i, ['Money', 'Value'], '$400usd'],
 
   //numbers
-  // thousands grouped with periods - 1.234.567
-  [/^[-+]?[0-9]{1,3}(\.[0-9]{3}){2,}$/, ['Cardinal', 'NumericValue'], '1.234.567'],
   // 50 | -50 | 3.23  | 5,999.0  | 10+
   [/^[-+]?[0-9]+(,[0-9]{3})*(\.[0-9]+)?\+?$/, ['Cardinal', 'NumericValue'], '5,999'],
   [/^[-+]?[0-9]+(,[0-9]{3})*(\.[0-9]+)?(st|nd|rd|r?th|°)$/, ['Ordinal', 'NumericValue'], '53rd'],

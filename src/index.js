@@ -9,11 +9,14 @@ import nouns from './03-three/nouns/plugin.js'
 import adjectives from './03-three/adjectives/plugin.js'
 import verbs from './03-three/verbs/plugin.js'
 import version from './_version.js'
+import { europeanNumbers } from 'compromise/shared'
 
 nlp.plugin(tokenizer)
 nlp.plugin(tagset)
 nlp.plugin(lexicon)
 nlp.plugin(preTagger)
+// tags '1 234,56' and '5,30€' from their raw text
+nlp.plugin(europeanNumbers)
 nlp.plugin(postTagger)
 nlp.plugin(nouns)
 nlp.plugin(adjectives)

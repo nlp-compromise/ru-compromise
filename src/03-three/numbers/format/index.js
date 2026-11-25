@@ -1,4 +1,8 @@
+import { europeanNumbers } from 'compromise/shared'
 import { toText, toTextOrdinal } from './toText.js'
+import locale from '../locale.js'
+
+const { write } = europeanNumbers.methods.two.europeanNumbers
 
 const vowels = /[аеёиоуыэюя]/
 
@@ -23,17 +27,8 @@ const toEnding = function (word) {
 
 // write the digits the way we found them - '3,5' or '1 234'
 const toDigits = function (parsed) {
-  const num = Math.abs(parsed.num)
-  let str = String(num)
-  // leave '1e+21' alone
-  if (/^[0-9]+(\.[0-9]+)?$/.test(str)) {
-    let [int, fraction] = str.split('.')
-    if (parsed.hasComma) {
-      int = int.replace(/\B(?=([0-9]{3})+$)/g, parsed.separator || ' ')
-    }
-    str = fraction ? int + (parsed.decimal || ',') + fraction : int
-  }
-  return (parsed.num < 0 ? '-' : '') + (parsed.prefix || '') + str
+  const how = { hasComma: parsed.hasComma, decimal: parsed.decimal, group: parsed.separator, prefix: parsed.prefix }
+  return write(parsed.num, how, locale)
 }
 
 // write this number in one of our four formats
