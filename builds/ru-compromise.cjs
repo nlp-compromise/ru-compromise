@@ -128,7 +128,7 @@
   const rawPointer = view => view.pointer || view.docs.map((_d, n) => [n]);
 
   // tag new terms, if the tagger is loaded
-  const retag = function (view, computes) {
+  const retag$1 = function (view, computes) {
     view.compute([...computes, 'freeze', 'lexicon']);
     if (view.world.compute.preTagger) {
       view.compute('preTagger');
@@ -391,7 +391,7 @@
       const document = methods.one.tokenize.fromString(input, this.world);
       const doc = new View(document);
       doc.world = this.world;
-      return retag(doc, ['normal'])
+      return retag$1(doc, ['normal'])
     }
     clone() {
       // clone the whole document
@@ -1213,7 +1213,7 @@
     // shift our self pointer, if necessary
     view.ptrs = selfPtrs;
     // try to tag them, too
-    return retag(doc, ['id', 'index'])
+    return retag$1(doc, ['id', 'index'])
   };
 
   const fns$3 = {
@@ -1353,7 +1353,7 @@
     main.docs.forEach((terms, i) => restoreOriginal(terms, originals[i], keep));
 
     // what should we return?
-    const m = retag(main.toView(), ['index']);
+    const m = retag$1(main.toView(), ['index']);
     // replace any old tags
     if (keep.tags) {
       m.forEach((match, i) => {
@@ -2501,7 +2501,7 @@ er
 
   // tag any words in our lexicon - even if it hasn't been filled-up yet
   // rest of pre-tagger is in ./two/preTagger
-  const lexicon$4 = function (view) {
+  const lexicon$5 = function (view) {
     const world = view.world;
     // loop through our terms
     eachTerm(view.docs, (term, terms, i) => {
@@ -2515,7 +2515,7 @@ er
   };
 
   var compute$2 = {
-    lexicon: lexicon$4,
+    lexicon: lexicon$5,
   };
 
   // derive clever things from our lexicon key-value pairs
@@ -2596,7 +2596,7 @@ er
     },
   };
 
-  var lexicon$3 = {
+  var lexicon$4 = {
     model: model$4,
     methods: methods$g,
     compute: compute$2,
@@ -2739,7 +2739,7 @@ er
     return view.update(results)
   };
 
-  function api$5 (View) {
+  function api$6 (View) {
 
     /** find all matches in this document */
     View.prototype.lookup = function (input, opts = {}) {
@@ -2795,8 +2795,8 @@ er
   // add alias
   lib$4.compile = lib$4.buildTrie;
 
-  var lookup = {
-    api: api$5,
+  var lookup$1 = {
+    api: api$6,
     lib: lib$4
   };
 
@@ -5308,7 +5308,7 @@ er
     return this
   };
 
-  const toText = function (term) {
+  const toText$1 = function (term) {
     const pre = term.pre || '';
     const post = term.post || '';
     return pre + term.text + post
@@ -5341,7 +5341,7 @@ er
           i = end - 1;
           text += terms[i].post || '';
         } else {
-          text += toText(t);
+          text += toText$1(t);
         }
       }
     });
@@ -5617,7 +5617,7 @@ er
 
   // each match on its own line: green, inside its grey sentence, aligned at the middle column
   const width = 55;
-  const half = 27;
+  const half$1 = 27;
   const dots = '…';
 
   // drop words from the outer edge until the side fits, leaving room for an ellipsis
@@ -5649,14 +5649,14 @@ er
       }
     });
     const [before, match, after] = arrs;
-    const left = (fit(before, half, true) ? dots + ' ' : '') + before.join('').trimStart();
+    const left = (fit(before, half$1, true) ? dots + ' ' : '') + before.join('').trimStart();
     let mid = match.join('');
-    const cutR = fit(after, width - half - mid.length, false);
+    const cutR = fit(after, width - half$1 - mid.length, false);
     const right = after.join('').trimEnd() + (cutR ? ' ' + dots : '');
     if (right === '') {
       mid = mid.trimEnd();
     }
-    return [' '.repeat(Math.max(0, half - left.length)) + left, mid, right]
+    return [' '.repeat(Math.max(0, half$1 - left.length)) + left, mid, right]
   };
 
   const showHighlight = function (view) {
@@ -5969,11 +5969,11 @@ er
     return res
   };
 
-  const max$1 = 20;
+  const max$2 = 20;
 
   // sweep-around looking for our start term uuid
   const blindSweep = function (id, doc, n) {
-    for (let i = 0; i < max$1; i += 1) {
+    for (let i = 0; i < max$2; i += 1) {
       // look up a sentence, then down one
       for (const k of [n - i, n + i]) {
         if (doc[k]) {
@@ -6227,7 +6227,7 @@ er
     }
   };
 
-  const api$4 = function (View) {
+  const api$5 = function (View) {
 
     /** speedy match a sequence of matches */
     View.prototype.sweep = function (net, opts = {}) {
@@ -6800,7 +6800,7 @@ er
 
   var sweep = {
     lib: lib$2,
-    api: api$4,
+    api: api$5,
     methods: {
       one: methods$5,
     }
@@ -8414,7 +8414,7 @@ yb
 `);
 
   // add our abbreviation list to our lexicon
-  const list = [
+  const list$1 = [
     [misc$2],
     [units, 'Unit'],
     [nouns$2, 'Noun'],
@@ -8426,16 +8426,16 @@ yb
   // create key-val for sentence-tokenizer
   const abbreviations = {};
   // add them to a future lexicon
-  const lexicon$2 = {};
+  const lexicon$3 = {};
 
-  list.forEach(a => {
+  list$1.forEach(a => {
     a[0].forEach(w => {
       // sentence abbrevs
       abbreviations[w] = true;
       // future-lexicon
-      lexicon$2[w] = 'Abbreviation';
+      lexicon$3[w] = 'Abbreviation';
       if (a[1] !== undefined) {
-        lexicon$2[w] = [lexicon$2[w], a[1]];
+        lexicon$3[w] = [lexicon$3[w], a[1]];
       }
     });
   });
@@ -8443,7 +8443,7 @@ yb
   // dashed prefixes that are not independent words
   //  'mid-century', 'pre-history', 'out-lived', 'ex-wife'
   // (not counter, mid, non, over, post, semi, super, ultra, under, whole)
-  var prefixes = toHash(toList(`
+  var prefixes$1 = toHash(toList(`
 anti
 bi
 co
@@ -8553,11 +8553,11 @@ designate
     one: {
       aliases,
       abbreviations,
-      prefixes,
+      prefixes: prefixes$1,
       suffixes,
       prePunctuation,
       postPunctuation,
-      lexicon: lexicon$2, //give this one forward
+      lexicon: lexicon$3, //give this one forward
       unicode,
       emoticons
     },
@@ -8744,7 +8744,7 @@ designate
     return this
   };
 
-  const api$3 = function (View) {
+  const api$4 = function (View) {
     View.prototype.autoFill = autoFill;
   };
 
@@ -8822,7 +8822,7 @@ designate
   };
   var typeahead = {
     model: model$2,
-    api: api$3,
+    api: api$4,
     lib,
     compute,
     hooks: ['typeahead']
@@ -8838,9 +8838,9 @@ designate
   nlp.extend(tokenize); //7kb
   nlp.extend(freeze); //
   nlp.plugin(cache$1); //~1kb
-  nlp.extend(lookup); //7kb
+  nlp.extend(lookup$1); //7kb
   nlp.extend(typeahead); //1kb
-  nlp.extend(lexicon$3); //1kb
+  nlp.extend(lexicon$4); //1kb
   nlp.extend(sweep); //1kb
 
   // generated in ./lib/lexicon
@@ -9999,6 +9999,10 @@ designate
     if (irregularComparatives[masc]) {
       return irregularComparatives[masc]
     }
+    // relational adjectives have no synthetic comparative - 'более русский'
+    if (/(ский|цкий)$/.test(masc)) {
+      return 'более ' + str
+    }
     const res = stemOf(masc);
     if (res === null) {
       return 'более ' + str
@@ -10018,13 +10022,59 @@ designate
     return stem + 'ее'
   };
 
-  // быстрый → самый быстрый, хороший → лучший
-  const toSuperlative = function (str = '') {
-    const masc = toMasculine(str);
-    if (irregularSuperlatives[masc]) {
-      return irregularSuperlatives[masc]
+  // every adjective ending, as the matching (hard-stem) ending of 'самый'.
+  // 'ым' and 'ой' are each several case-forms, but 'самый' is ambiguous in the same way
+  const hardEndings = {
+    'ыми': 'ыми', 'ими': 'ыми',
+    'ого': 'ого', 'его': 'ого',
+    'ому': 'ому', 'ему': 'ому',
+    'ый': 'ый', 'ий': 'ый',
+    'ая': 'ая', 'яя': 'ая',
+    'ое': 'ое', 'ее': 'ое',
+    'ые': 'ые', 'ие': 'ые',
+    'ую': 'ую', 'юю': 'ую',
+    'ым': 'ым', 'им': 'ым',
+    'ом': 'ом', 'ем': 'ом',
+    'ой': 'ой', 'ей': 'ой',
+    'ых': 'ых', 'их': 'ых',
+  };
+  const endingReg = /(ыми|ими|ого|его|ому|ему|ый|ий|ая|яя|ое|ее|ые|ие|ую|юю|ым|им|ом|ем|ой|ей|ых|их)$/;
+
+  // which form is this adjective in? - returns its stem, and the ending 'самый' takes beside it.
+  // stressed -ой is masculine ('большой дом') unless we're told it is feminine ('в большой комнате')
+  const parseForm = function (str, isFeminine) {
+    const m = str.match(endingReg);
+    if (m === null || str.length - m[0].length < 2) {
+      return null
     }
-    return 'самый ' + masc
+    const stem = str.slice(0, -m[0].length);
+    let ending = hardEndings[m[0]];
+    if (m[0] === 'ой' && ojStems.has(stem) && isFeminine !== true) {
+      ending = 'ый';
+    }
+    return { stem, ending }
+  };
+
+  // suppletive superlatives, by stem - these all have husher-stems (лучший, лучшая, лучшее, лучшего..)
+  const superlativeStems = {};
+  Object.keys(irregularSuperlatives).forEach(k => {
+    superlativeStems[k.slice(0, -2)] = irregularSuperlatives[k].slice(0, -2);
+  });
+  // spelling rules after a husher: ы → и, and unstressed о → е
+  const afterHusher = (ending) => ending.replace(/^ы/, 'и').replace(/^о/, 'е');
+
+  // быстрый → самый быстрый, хороший → лучший
+  // the adjective keeps its form, and 'самый' takes the same gender, number and case -
+  // красивая → самая красивая, красивую → самую красивую, хорошая → лучшая
+  const toSuperlative = function (str = '', isFeminine) {
+    const res = parseForm(str, isFeminine);
+    if (res === null) {
+      return 'самый ' + str
+    }
+    if (superlativeStems.hasOwnProperty(res.stem)) {
+      return superlativeStems[res.stem] + afterHusher(res.ending)
+    }
+    return 'сам' + res.ending + ' ' + str
   };
 
   var methods$1 = {
@@ -10185,6 +10235,315 @@ designate
     misc$1[w] = 'Adjective';
   });
 
+  // russian numerals decline for case - 'пять', 'пяти', 'пятью'
+  // and 'один' + 'два' agree in gender, too - 'одна', 'две'
+  const cases = ['nom', 'gen', 'dat', 'acc', 'ins', 'prep'];
+  const genders = ['m', 'f', 'n', 'pl'];
+
+  const list = str => str.split('|');
+
+  // 'ё' is often written as 'е' - all our lookups are ё-less
+  const noYo = str => str.replace(/ё/g, 'е');
+
+  // пять → пяти, пятью
+  const soft = function (nom, stem, ins) {
+    stem = stem || nom.replace(/ь$/, '');
+    ins = ins || stem + 'ью';
+    return [nom, stem + 'и', stem + 'и', nom, ins, stem + 'и']
+  };
+  // пятьдесят → пятидесяти, пятьюдесятью
+  const tens = a => [a[0] + 'десят', a[1] + 'десяти', a[2] + 'десяти', a[0] + 'десят', a[4] + 'десятью', a[5] + 'десяти'];
+  // пятьсот → пятисот, пятистам, пятьюстами, пятистах
+  const hundreds = function (a, nom) {
+    nom = nom || a[0] + 'сот';
+    return [nom, a[1] + 'сот', a[2] + 'стам', nom, a[4] + 'стами', a[5] + 'стах']
+  };
+
+  const two = list('два|двух|двум|два|двумя|двух');
+  const three = list('три|трёх|трём|три|тремя|трёх');
+  const four = list('четыре|четырёх|четырём|четыре|четырьмя|четырёх');
+  const five = soft('пять');
+  const six = soft('шесть');
+  const seven = soft('семь');
+  const eight = soft('восемь', 'восьм', 'восемью');
+  const nine = soft('девять');
+
+  // [value, kind, case-forms, ordinal, combining-form]
+  // the combining-form is used in 'двухтысячный' - it's the genitive, unless given
+  const numbers$1 = [
+    [1, 'unit', list('один|одного|одному|один|одним|одном'), 'первый', 'одно'],
+    [2, 'unit', two, 'второй'],
+    [3, 'unit', three, 'третий'],
+    [4, 'unit', four, 'четвёртый'],
+    [5, 'unit', five, 'пятый'],
+    [6, 'unit', six, 'шестой'],
+    [7, 'unit', seven, 'седьмой'],
+    [8, 'unit', eight, 'восьмой'],
+    [9, 'unit', nine, 'девятый'],
+    [10, 'teen', soft('десять'), 'десятый'],
+    [11, 'teen', soft('одиннадцать'), 'одиннадцатый'],
+    [12, 'teen', soft('двенадцать'), 'двенадцатый'],
+    [13, 'teen', soft('тринадцать'), 'тринадцатый'],
+    [14, 'teen', soft('четырнадцать'), 'четырнадцатый'],
+    [15, 'teen', soft('пятнадцать'), 'пятнадцатый'],
+    [16, 'teen', soft('шестнадцать'), 'шестнадцатый'],
+    [17, 'teen', soft('семнадцать'), 'семнадцатый'],
+    [18, 'teen', soft('восемнадцать'), 'восемнадцатый'],
+    [19, 'teen', soft('девятнадцать'), 'девятнадцатый'],
+    [20, 'ten', soft('двадцать'), 'двадцатый'],
+    [30, 'ten', soft('тридцать'), 'тридцатый'],
+    [40, 'ten', list('сорок|сорока|сорока|сорок|сорока|сорока'), 'сороковой'],
+    [50, 'ten', tens(five), 'пятидесятый'],
+    [60, 'ten', tens(six), 'шестидесятый'],
+    [70, 'ten', tens(seven), 'семидесятый'],
+    [80, 'ten', tens(eight), 'восьмидесятый'],
+    [90, 'ten', list('девяносто|девяноста|девяноста|девяносто|девяноста|девяноста'), 'девяностый', 'девяносто'],
+    [100, 'hundred', list('сто|ста|ста|сто|ста|ста'), 'сотый', 'сто'],
+    [200, 'hundred', hundreds(two, 'двести'), 'двухсотый'],
+    [300, 'hundred', hundreds(three, 'триста'), 'трёхсотый'],
+    [400, 'hundred', hundreds(four, 'четыреста'), 'четырёхсотый'],
+    [500, 'hundred', hundreds(five), 'пятисотый'],
+    [600, 'hundred', hundreds(six), 'шестисотый'],
+    [700, 'hundred', hundreds(seven), 'семисотый'],
+    [800, 'hundred', hundreds(eight), 'восьмисотый'],
+    [900, 'hundred', hundreds(nine), 'девятисотый'],
+  ];
+
+  // gendered forms of 'one' and 'two'
+  const gendered = {
+    1: {
+      f: list('одна|одной|одной|одну|одной|одной'),
+      n: list('одно|одного|одному|одно|одним|одном'),
+      pl: list('одни|одних|одним|одни|одними|одних'),
+    },
+    2: {
+      f: list('две|двух|двум|две|двумя|двух'),
+    },
+  };
+
+  const zero = {
+    forms: list('ноль|ноля|нолю|ноль|нолём|ноле'),
+    alt: list('нуль|нуля|нулю|нуль|нулём|нуле'),
+    ord: 'нулевой',
+  };
+
+  // миллион → миллиона, миллионов
+  const masc = function (num, w, abbr) {
+    return {
+      num,
+      gender: 'm',
+      sg: [w, w + 'а', w + 'у', w, w + 'ом', w + 'е'],
+      pl: [w + 'ы', w + 'ов', w + 'ам', w + 'ы', w + 'ами', w + 'ах'],
+      ord: w + 'ный',
+      abbr,
+    }
+  };
+  // these are nouns, and get counted - 'одна тысяча', 'две тысячи', 'пять тысяч'
+  const multiples = [
+    {
+      num: 1e3,
+      gender: 'f',
+      sg: list('тысяча|тысячи|тысяче|тысячу|тысячей|тысяче'),
+      pl: list('тысячи|тысяч|тысячам|тысячи|тысячами|тысячах'),
+      ord: 'тысячный',
+      abbr: 'тыс',
+      alt: ['тысячью'],
+    },
+    masc(1e6, 'миллион', 'млн'),
+    masc(1e9, 'миллиард', 'млрд'),
+    masc(1e12, 'триллион', 'трлн'),
+  ];
+
+  // words that we understand, but never write
+  const extras = [
+    // alternate instrumental forms of 'eight'
+    ['восьмью', 8, 'unit', 'ins'],
+    ['восьмьюдесятью', 80, 'ten', 'ins'],
+    ['восьмьюстами', 800, 'hundred', 'ins'],
+  ];
+  // collective numerals - 'двое детей', 'обе руки'
+  const collectives = [
+    [2, list('оба|обоих|обоим|оба|обоими|обоих'), 'm'],
+    [2, list('обе|обеих|обеим|обе|обеими|обеих'), 'f'],
+    [2, list('двое|двоих|двоим|двое|двоими|двоих')],
+    [3, list('трое|троих|троим|трое|троими|троих')],
+    [4, list('четверо|четверых|четверым|четверо|четверыми|четверых')],
+    [5, list('пятеро|пятерых|пятерым|пятеро|пятерыми|пятерых')],
+    [6, list('шестеро|шестерых|шестерым|шестеро|шестерыми|шестерых')],
+    [7, list('семеро|семерых|семерым|семеро|семерыми|семерых')],
+    [8, list('восьмеро|восьмерых|восьмерым|восьмеро|восьмерыми|восьмерых')],
+    [9, list('девятеро|девятерых|девятерым|девятеро|девятерыми|девятерых')],
+    [10, list('десятеро|десятерых|десятерым|десятеро|десятерыми|десятерых')],
+  ];
+  // one-and-a-half - 'полтора часа', 'полторы минуты'
+  const half = {
+    m: list('полтора|полутора|полутора|полтора|полутора|полутора'),
+    f: list('полторы|полутора|полутора|полторы|полутора|полутора'),
+  };
+
+  // --- ordinals are adjectives - 'пятый', 'пятая', 'пятого' ---
+  const ordEndings = {
+    m: list('|ого|ому||ым|ом'), // nominative keeps its -ый/-ой
+    f: list('ая|ой|ой|ую|ой|ой'),
+    n: list('ое|ого|ому|ое|ым|ом'),
+    pl: list('ые|ых|ым|ые|ыми|ых'),
+  };
+  // 'третий' has soft endings
+  const third$1 = {
+    m: list('третий|третьего|третьему|третий|третьим|третьем'),
+    f: list('третья|третьей|третьей|третью|третьей|третьей'),
+    n: list('третье|третьего|третьему|третье|третьим|третьем'),
+    pl: list('третьи|третьих|третьим|третьи|третьими|третьих'),
+  };
+
+  // put an ordinal into a gender + case - 'пятый' → 'пятую'
+  const declineOrdinal = function (lemma, gender, c) {
+    const i = Math.max(cases.indexOf(c), 0);
+    gender = ordEndings.hasOwnProperty(gender) ? gender : 'm';
+    if (lemma === 'третий') {
+      return third$1[gender][i]
+    }
+    const end = ordEndings[gender][i];
+    return end ? lemma.slice(0, -2) + end : lemma
+  };
+
+  // --- lookup tables ---
+  const byNum = {}; // 5 → { kind, forms, ord, comb }
+  const cardinals = {}; // 'пяти' → { num, kind, gender, case }
+  const ordinals = {}; // 'пятого' → { num, kind, gender, case }
+  const combining = {}; // 'пяти' → 5
+  const lexicon$2 = {}; // all our words → tags
+
+  const addWord = function (lookup, w, obj, tags) {
+    // first form wins - 'пяти' is genitive, before it is dative
+    if (!lookup.hasOwnProperty(noYo(w))) {
+      lookup[noYo(w)] = obj;
+    }
+    if (tags && !lexicon$2.hasOwnProperty(w)) {
+      lexicon$2[w] = tags;
+    }
+  };
+  const addForms = function (lookup, forms, obj, tags) {
+    forms.forEach((w, i) => {
+      addWord(lookup, w, Object.assign({ case: cases[i] }, obj), tags);
+    });
+  };
+  const addOrdinal = function (lemma, obj) {
+    genders.forEach(gender => {
+      cases.forEach(c => {
+        const w = declineOrdinal(lemma, gender, c);
+        addWord(ordinals, w, Object.assign({ gender, case: c }, obj), ['Ordinal', 'TextValue']);
+      });
+    });
+  };
+
+  const isCardinal = ['Cardinal', 'TextValue'];
+
+  numbers$1.forEach(a => {
+    const [num, kind, forms, ord, comb] = a;
+    const all = Object.assign({ m: forms }, gendered[num]);
+    byNum[num] = { num, kind, forms: all, ord, comb: comb || forms[1] };
+    combining[noYo(byNum[num].comb)] = num;
+    genders.forEach(gender => {
+      if (all[gender]) {
+        addForms(cardinals, all[gender], { num, kind, gender }, isCardinal);
+      }
+    });
+    addOrdinal(ord, { num, kind });
+  });
+
+  addForms(cardinals, zero.forms, { num: 0, kind: 'zero', gender: 'm' }, isCardinal);
+  addForms(cardinals, zero.alt, { num: 0, kind: 'zero', gender: 'm' }, isCardinal);
+  addOrdinal(zero.ord, { num: 0, kind: 'zero' });
+
+  multiples.forEach(o => {
+    const tags = ['Cardinal', 'TextValue', 'Multiple'];
+    // on its own, 'тысячи' is a plural - so those go first
+    addForms(cardinals, o.pl, { num: o.num, kind: 'multiple', gender: o.gender, plural: true }, tags);
+    addForms(cardinals, o.sg, { num: o.num, kind: 'multiple', gender: o.gender }, tags)
+    ;(o.alt || []).forEach(w => {
+      addWord(cardinals, w, { num: o.num, kind: 'multiple', gender: o.gender, case: 'ins' }, tags);
+    });
+    // 'тыс', 'млн'
+    addWord(cardinals, o.abbr, { num: o.num, kind: 'multiple', gender: o.gender, case: 'nom', abbr: true }, tags);
+    // 'тысячный', 'миллионный'
+    addOrdinal(o.ord, { num: o.num, kind: 'multiple', count: 1 });
+  });
+
+  extras.forEach(a => {
+    const [w, num, kind, c] = a;
+    addWord(cardinals, w, { num, kind, gender: 'm', case: c }, isCardinal);
+  });
+  collectives.forEach(a => {
+    const [num, forms, gender] = a;
+    addForms(cardinals, forms, { num, kind: 'unit', gender: gender || 'm', collective: true }, isCardinal);
+  });
+  Object.keys(half).forEach(gender => {
+    addForms(cardinals, half[gender], { num: 1.5, kind: 'half', gender }, isCardinal);
+  });
+
+  // 'семью' is usually 'the family' - the tagger decides this one from its neighbours
+  delete lexicon$2['семью'];
+
+  // --- compound ordinals, like 'двухтысячный' or 'двадцатипятимиллионный' ---
+  const byLength = (a, b) => b.length - a.length;
+  const ordSuffixes = {}; // 'ого' → { gender, case }
+  genders.forEach(gender => {
+    cases.forEach((c, i) => {
+      const end = ordEndings[gender][i] || 'ый';
+      ordSuffixes[end] = ordSuffixes[end] || { gender, case: c };
+    });
+  });
+  const stems = {}; // 'тысячн' → 1000
+  multiples.forEach(o => {
+    stems[o.ord.slice(0, -2)] = o.num;
+  });
+  const prefixes = Object.keys(combining).sort(byLength);
+  const compoundSrc =
+    `^((?:${prefixes.join('|')})+)` +
+    `(${Object.keys(stems).join('|')})` +
+    `(${Object.keys(ordSuffixes).sort(byLength).join('|')})$`;
+  // the tagger sees the 'ё's
+  const compoundReg = new RegExp(compoundSrc.replace(/е/g, '[её]'));
+  const compoundStrict = new RegExp(compoundSrc);
+  const order = { hundred: 3, ten: 2, teen: 2, unit: 1 };
+
+  // 'двадцатипятитысячного' → 25 x 1000
+  const parseCompound = function (str) {
+    const m = noYo(str).match(compoundStrict);
+    if (!m) {
+      return null
+    }
+    let rest = m[1];
+    let count = 0;
+    let last = 4;
+    while (rest) {
+      const found = prefixes.find(p => rest.startsWith(p));
+      const kind = byNum[combining[found]].kind;
+      // 'пятидвух..' is not a number
+      if (order[kind] >= last || (kind === 'unit' && last === 2 && count % 100 < 20)) {
+        return null
+      }
+      last = order[kind];
+      count += combining[found];
+      rest = rest.slice(found.length);
+    }
+    const form = ordSuffixes[m[3]];
+    return { num: stems[m[2]], kind: 'multiple', count, ordinal: true, gender: form.gender, case: form.case }
+  };
+
+  // what do we know about this word?
+  const lookup = function (str) {
+    str = noYo(str || '');
+    if (cardinals.hasOwnProperty(str)) {
+      return cardinals[str]
+    }
+    if (ordinals.hasOwnProperty(str)) {
+      return Object.assign({ ordinal: true }, ordinals[str])
+    }
+    return parseCompound(str)
+  };
+
   const { toPresent, toPast, toImperative, toGerund } = methods$1.verb;
   const perfective = result.perfective || {};
   const lexicon$1 = {};
@@ -10231,6 +10590,16 @@ designate
         addWords({ gerund: toGerund(w) }, 'Gerund', lexicon$1);
       }
     });
+  });
+
+  // every form of our number-words - 'пять', 'пяти', 'пятью', 'пятый', 'пятого'..
+  Object.keys(lexicon$1).forEach(w => {
+    if (lexicon$1[w] === 'Cardinal' || lexicon$1[w] === 'Ordinal') {
+      lexicon$1[w] = [lexicon$1[w], 'TextValue'];
+    }
+  });
+  Object.keys(lexicon$2).forEach(w => {
+    lexicon$1[w] = lexicon$2[w];
   });
 
   // hand-curated entries win over generated ones
@@ -10316,12 +10685,19 @@ designate
     return str
   };
 
+  const numberAbbreviations = ['тыс', 'млн', 'млрд', 'трлн'];
+
   var tokenizer = {
     mutate: (world) => {
       world.model.one.unicode = {};
       world.methods.one.killUnicode = killUnicode;
 
       world.model.one.contractions = contractions;
+
+      // these periods don't end a sentence - '5 тыс. рублей'
+      numberAbbreviations.forEach(str => {
+        world.model.one.abbreviations[str] = true;
+      });
 
       // 'que' -> 'quebec'
       delete world.model.one.lexicon.que;
@@ -10387,7 +10763,7 @@ designate
   };
 
   const min = 1400;
-  const max = 2100;
+  const max$1 = 2100;
 
   const dateWords = new Set(['pendant', 'dans', 'avant', 'apres', 'pour', 'en']);
 
@@ -10422,7 +10798,7 @@ designate
       const num = Number(term.normal);
       // number between 1400 and 2100
       if (num && !isNaN(num)) {
-        if (num > min && num < max) {
+        if (num > min && num < max$1) {
           if (seemsGood(terms[i - 1]) || seemsGood(terms[i + 1])) {
             setTag([term], 'Year', world, false, '1-tagYear');
             return true
@@ -10632,6 +11008,9 @@ designate
   };
 
   var regexNormal = [
+    // compound ordinals - 'двухтысячный', 'двадцатипятитысячного'
+    [compoundReg, ['Ordinal', 'TextValue'], 'двухтысячный'],
+
     // по-русски, по-моему, по-другому..
     [/^по-[а-яё]+$/, 'Adverb', 'по-русски'],
 
@@ -10672,7 +11051,7 @@ designate
   var regexNumbers = [
 
     // russian numeric ordinals - 5-й, 2-го, 1990-х
-    [/^[0-9]+-(?:го|му|ми|ых|ой|ое|ая|ий|ым|ом|[йяемхю])$/, ['Ordinal', 'NumericValue'], '5-й'],
+    [/^[0-9]+-(?:ого|ому|ыми|го|му|ми|ых|ой|ое|ая|ий|ый|ые|ую|ым|ом|[йяемхюи])$/, ['Ordinal', 'NumericValue'], '5-й'],
 
     [/^@1?[0-9](am|pm)$/i, 'Time', '3pm'],
     [/^@1?[0-9]:[0-9]{2}(am|pm)?$/i, 'Time', '3:30pm'],
@@ -10715,6 +11094,8 @@ designate
     [/^[-+]?[$£]?[0-9]([0-9,.])+(usd|eur|jpy|gbp|cad|aud|chf|cny|hkd|nzd|kr|rub)$/i, ['Money', 'Value'], '$400usd'],
 
     //numbers
+    // thousands grouped with periods - 1.234.567
+    [/^[-+]?[0-9]{1,3}(\.[0-9]{3}){2,}$/, ['Cardinal', 'NumericValue'], '1.234.567'],
     // 50 | -50 | 3.23  | 5,999.0  | 10+
     [/^[-+]?[0-9]+(,[0-9]{3})*(\.[0-9]+)?\+?$/, ['Cardinal', 'NumericValue'], '5,999'],
     [/^[-+]?[0-9]+(,[0-9]{3})*(\.[0-9]+)?(st|nd|rd|r?th|°)$/, ['Ordinal', 'NumericValue'], '53rd'],
@@ -10988,7 +11369,14 @@ designate
     hooks: ['preTagger']
   };
 
+  const num = ['Cardinal', 'TextValue'];
+
   var matches = [
+    // 'семью' is usually 'the family' - but it is 'seven', beside a number, or a plural instrumental
+    { match: '#Value [семью]', group: 0, tag: num, reason: 'двадцатью-семью' },
+    { match: '[семью] #Value', group: 0, tag: num, reason: 'семью-тысячами' },
+    { match: '[семью] /[а-яё](ами|ями|ьми)$/', group: 0, tag: num, reason: 'семью-книгами' },
+
     // мистер Кузнецов
     { match: '(мистер|миссис|господин|госпожа|товарищ|доктор|профессор) #ProperNoun', tag: 'Person', reason: 'honorific-name' },
 
@@ -11004,6 +11392,15 @@ designate
 
     // 'самый + adjective' superlative stays adjective
     { match: '(самый|самая|самое|самые) [#Noun]', group: 0, tag: 'Adjective', reason: 'самый-adj' },
+
+    // prepositional adjectives have no safe suffix-rule ('домом', 'столом') - 'в красивом доме'
+    {
+      match: '(в|во|на|о|об|обо|при) [/^[а-яё]{3,}(ом|ем)$/] /[а-яё](е|ии)$/',
+      group: 0,
+      notIf: '(#Pronoun|#Determiner|#Verb|#Value|#Adverb)',
+      tag: 'Adjective',
+      reason: 'в-красивом-доме',
+    },
   ];
 
   let net = null;
@@ -11523,6 +11920,916 @@ designate
     tags
   };
 
+  const hasDigit = /[0-9]/;
+  // '5-й', '2-го', '1990-х'
+  const isOrdinal = /[0-9]-[а-яё]{1,3}$/i;
+
+  // what part does this term play, in a number?
+  // { kind: 'numeric' | 'unit' | 'teen' | 'ten' | 'hundred' | 'multiple' | 'zero' | 'half' | 'sign' | 'unknown' }
+  const classify = function (term) {
+    if (hasDigit.test(term.text)) {
+      return { kind: 'numeric', ordinal: isOrdinal.test(term.text) }
+    }
+    if (term.normal === 'минус') {
+      return { kind: 'sign' }
+    }
+    return lookup(term.normal) || { kind: 'unknown' }
+  };
+
+  const fresh = () => ({ count: 0, digits: false, canGroup: false, h: false, t: false, u: false, mag: Infinity, afterMult: false, done: false });
+
+  // can this word continue the number we've got so far?
+  // 'двадцать пять' is one number, but 'пять шесть' is two
+  const fits = function (s, item, term) {
+    if (s.done) {
+      return false
+    }
+    const isFirst = s.count === 0;
+    let ok = false;
+    if (item.kind === 'numeric') {
+      const isSmall = /^[0-9]{1,3}$/.test(term.text);
+      if (isFirst) {
+        s.digits = true;
+        s.canGroup = isSmall;
+        ok = true;
+      } else if (s.canGroup && /^[0-9]{3}([.,][0-9]+|-[а-яё]{1,3})?$/i.test(term.text)) {
+        s.canGroup = isSmall; // '1 234,5' and '1 000-й' end here
+        ok = true; // '5 000'
+      } else if (s.afterMult && isSmall) {
+        s.canGroup = false;
+        ok = true; // '3 млн 200 тыс'
+      }
+      if (ok) {
+        s.h = true;
+        s.t = true;
+        s.u = true;
+        s.afterMult = false;
+      }
+    } else if (item.kind === 'multiple') {
+      // each one has to be smaller than the last - 'миллион двести тысяч'
+      ok = item.num < s.mag && (item.count === undefined || item.count === 1 || !(s.h || s.t || s.u));
+      if (ok) {
+        s.mag = item.num;
+        s.h = false;
+        s.t = false;
+        s.u = false;
+        s.afterMult = true;
+        s.canGroup = false;
+      }
+    } else if (s.digits && !s.afterMult && !isFirst) {
+      ok = false; // '5 пять'
+    } else {
+      if (item.kind === 'unknown' || item.kind === 'zero' || item.kind === 'half') {
+        ok = isFirst && !s.digits;
+        s.done = item.kind !== 'half';
+        s.h = true;
+        s.t = true;
+        s.u = true;
+      } else if (item.kind === 'hundred') {
+        ok = !s.h && !s.t && !s.u;
+        s.h = true;
+      } else if (item.kind === 'ten') {
+        ok = !s.t && !s.u;
+        s.t = true;
+      } else if (item.kind === 'teen') {
+        ok = !s.t && !s.u;
+        s.t = true;
+        s.u = true;
+      } else if (item.kind === 'unit') {
+        ok = !s.u;
+        s.u = true;
+      }
+      s.canGroup = false;
+      s.afterMult = false;
+    }
+    if (ok) {
+      s.count += 1;
+      // an ordinal is always the end - 'двадцать пятый'
+      if (item.ordinal || item.collective) {
+        s.done = true;
+      }
+    }
+    return ok
+  };
+
+  const isValue = term => term.tags.has('Value') && !term.tags.has('NumberRange');
+
+  // anything between two words breaks a number - 'пять, шесть'
+  const isBroken = function (before, after) {
+    const post = before.post.replace(/^\.(?=\s)/, match => (classify(before).abbr ? '' : match));
+    return /\S/.test(post) || /\S/.test(after.pre)
+  };
+
+  // find each number, as a [n, start, end] pointer
+  const findNumbers = function (view) {
+    const ptrs = [];
+    const document = view.document;
+    view.fullPointer.forEach(ptr => {
+      const [n, min, max] = ptr;
+      const terms = document[n];
+      let start = null;
+      let state = null;
+      let group = null; // where the words since the last 'тысяча' began
+      const close = function (end) {
+        if (start !== null) {
+          // '9km' is two terms, written as one
+          while (end < max && terms[end].text === '' && terms[end].implicit) {
+            end += 1;
+          }
+          ptrs.push([n, start, end]);
+        }
+        start = null;
+      };
+      for (let i = min; i < max; i += 1) {
+        const term = terms[i];
+        if (!isValue(term)) {
+          close(i);
+          continue
+        }
+        const item = classify(term);
+        if (start !== null && !isBroken(terms[i - 1], term)) {
+          if (fits(state, item, term)) {
+            if (item.kind === 'multiple') {
+              group = null;
+            } else if (group === null) {
+              group = i;
+            }
+            continue
+          }
+          // 'пять тысяч шесть тысяч' - that 'шесть' was the start of a new number
+          if (item.kind === 'multiple' && group !== null && group > start) {
+            close(group);
+            i = group - 1;
+            continue
+          }
+        }
+        // begin a new number
+        close(i);
+        start = i;
+        state = fresh();
+        fits(state, item, term);
+        group = item.kind === 'multiple' ? null : i;
+        // a written-out sign belongs to its number - 'минус пять градусов'
+        // (but 'десять минус пять' is a subtraction)
+        const sign = terms[i - 1];
+        if (i > min && sign.normal === 'минус' && !isBroken(sign, term)) {
+          if (i - 2 < min || !terms[i - 2].tags.has('Value')) {
+            start = i - 1;
+          }
+        }
+      }
+      close(max);
+    });
+    return view.update(ptrs)
+  };
+
+  const signs = /[-−]/;
+  const count = (str, char) => str.split(char).length - 1;
+
+  // which marks the decimal, and which groups the thousands?
+  // russian uses '3,5' and '1 234', but '3.5' and '1,234,567.5' show up, too
+  const readDigits = function (digits) {
+    let decimal = null;
+    let group = /\s/.test(digits) ? ' ' : null;
+    digits = digits.replace(/\s/g, '');
+    const commas = count(digits, ',');
+    const dots = count(digits, '.');
+    if (commas && dots) {
+      // the last one is the decimal - '1.234,5'
+      decimal = digits.lastIndexOf(',') > digits.lastIndexOf('.') ? ',' : '.';
+      group = decimal === ',' ? '.' : ',';
+    } else if (commas > 1 || dots > 1) {
+      group = commas ? ',' : '.'; // '1.234.567'
+    } else if (commas || dots) {
+      decimal = commas ? ',' : '.'; // '3,5'
+    }
+    let [int, fraction] = decimal ? digits.split(decimal) : [digits];
+    int = int.replace(/[.,]/g, '');
+    const num = Number(fraction ? int + '.' + fraction : int);
+    return { num, decimal, group }
+  };
+
+  // pull-apart a number written in digits - '-5', '1 234,5', '50%', '5-го'
+  const fromNumber = function (str, pre = '') {
+    const res = { num: null, prefix: '', suffix: '', hasComma: false, decimal: ',', separator: ' ', ending: null };
+    // split-up the '$', the digits, and the '%'
+    const begin = str.search(/[0-9]/);
+    if (begin === -1) {
+      return res
+    }
+    let prefix = str.slice(0, begin);
+    let digits = str.slice(begin).match(/^[0-9][0-9.,\s]*/)[0].replace(/[.,\s]+$/, '');
+    let suffix = str.slice(begin + digits.length);
+    // '.5' is a half
+    if (/^[.,]$/.test(prefix.slice(-1)) && !/[.,\s]/.test(digits)) {
+      digits = '0' + prefix.slice(-1) + digits;
+      prefix = prefix.slice(0, -1);
+    }
+    let { num, decimal, group } = readDigits(digits);
+    if (isNaN(num)) {
+      return res
+    }
+    // a fraction - '1/2'
+    const fraction = suffix.match(/^\/([0-9]+)$/);
+    if (fraction && Number(fraction[1]) !== 0) {
+      num /= Number(fraction[1]);
+      suffix = '';
+    }
+    // the sign may sit in the punctuation before the term - '(-5)'
+    const isNegative = signs.test(prefix) || /[-−]$/.test(pre);
+    res.num = isNegative ? num * -1 : num;
+    res.prefix = prefix.replace(/[-−]/g, '');
+    res.decimal = decimal || ',';
+    res.hasComma = group !== null;
+    res.separator = group || ' ';
+    // a numeric ordinal - '5-й', '2-го', '1990-х'
+    const ord = suffix.match(/^-([а-яё]{1,3})$/);
+    if (ord) {
+      res.ending = ord[1];
+      suffix = '';
+    }
+    res.suffix = suffix;
+    return res
+  };
+
+  const longCase = {
+    nom: 'nominative',
+    gen: 'genitive',
+    dat: 'dative',
+    acc: 'accusative',
+    ins: 'instrumental',
+    prep: 'prepositional',
+  };
+  const longGender = { m: 'masculine', f: 'feminine', n: 'neuter', pl: 'plural' };
+
+  // which form does a numeric ordinal's ending suggest? - '5-го' is 'пятого'
+  const endings = [
+    [/го$/, 'm', 'gen'],
+    [/му$/, 'm', 'dat'],
+    [/ми$/, 'pl', 'ins'],
+    [/[ыи]м$/, 'm', 'ins'],
+    [/м$/, 'm', 'prep'],
+    [/х$/, 'pl', 'gen'],
+    [/я$/, 'f', 'nom'],
+    [/ю$/, 'f', 'acc'],
+    [/(ые|ьи|и)$/, 'pl', 'nom'],
+    [/е$/, 'n', 'nom'],
+  ];
+  const fromEnding = function (str) {
+    const found = endings.find(a => a[0].test(str));
+    return found ? { gender: found[1], case: found[2] } : { gender: 'm', case: 'nom' }
+  };
+
+  // floating-point noise - 0.1 + 0.2
+  const tidy = num => Number(num.toPrecision(15));
+
+  // which case, and gender, was this number written in?
+  const getForm = function (items) {
+    const words = items.filter(o => o.case);
+    const last = words[words.length - 1];
+    if (!last) {
+      return { gender: 'm', case: 'nom' }
+    }
+    // 'двадцать пятого' - the ordinal does all of the agreeing
+    if (last.ordinal) {
+      return { gender: last.gender, case: last.case }
+    }
+    // 'двух тысяч' - the counted-word is in whatever case the count asks for
+    const first = words.find(o => o.kind !== 'multiple') || words[0];
+    let c = first.case;
+    // .. but on its own, 'тысячи' and 'миллионов' are just plurals
+    if (first.kind === 'multiple' && (first.abbr || (first.plural && c === 'gen'))) {
+      c = 'nom';
+    }
+    // only 'один' and 'два' have a gender - 'двадцать одна'
+    const isGendered = (last.kind === 'unit' && last.num <= 2) || last.kind === 'half';
+    return { gender: isGendered ? last.gender : 'm', case: c }
+  };
+
+  // everything we can tell about this number
+  const parseAll = function (m) {
+    const terms = m.docs[0] || [];
+    const items = terms.map(classify);
+    // how the digits were written
+    let digits = { prefix: '', suffix: '', hasComma: false, decimal: ',', separator: ' ', ending: null };
+    let sum = 0;
+    let carry = 0;
+    let found = false;
+    let hasSign = false;
+    let hasDigits = false;
+    for (let i = 0; i < terms.length; i += 1) {
+      const item = items[i];
+      if (item.kind === 'unknown') {
+        continue
+      }
+      if (item.kind === 'sign') {
+        hasSign = true;
+        continue
+      }
+      if (item.kind === 'numeric') {
+        // thousands may be split-up with a space - '5 000'
+        const pre = i === 0 ? terms[i].pre : '';
+        let str = terms[i].text;
+        let space = null;
+        while (items[i + 1] && items[i + 1].kind === 'numeric') {
+          space = space || (/\xa0/.test(terms[i].post) ? '\xa0' : ' ');
+          i += 1;
+          str += ' ' + terms[i].text;
+        }
+        const res = fromNumber(str, pre);
+        if (res.num === null) {
+          continue
+        }
+        // the first one is in charge of the formatting
+        if (!hasDigits) {
+          digits = res;
+          digits.separator = space || res.separator;
+        }
+        hasDigits = true;
+        found = true;
+        carry += res.num;
+        continue
+      }
+      found = true;
+      // 'тысяч', or 'двухтысячный'
+      if (item.kind === 'multiple') {
+        sum += (item.count > 1 ? item.count : carry || 1) * item.num;
+        carry = 0;
+        continue
+      }
+      carry += item.num;
+    }
+    let num = null;
+    if (found) {
+      num = tidy(sum + carry);
+      // 'минус пять'
+      if (hasSign && num > 0) {
+        num *= -1;
+      }
+    }
+    const hasText = items.some(o => o.kind !== 'numeric' && o.kind !== 'unknown' && o.kind !== 'sign');
+    return {
+      hasComma: digits.hasComma,
+      prefix: digits.prefix,
+      num,
+      suffix: digits.suffix,
+      isText: hasText && !hasDigits,
+      isOrdinal: m.has('#Ordinal'),
+      isFraction: m.has('#Fraction'),
+      isMoney: m.has('#Money'),
+      // internal details
+      hasText,
+      hasDigits,
+      decimal: digits.decimal,
+      separator: digits.separator,
+      form: hasDigits && digits.ending ? fromEnding(digits.ending) : getForm(items),
+    }
+  };
+
+  // the public result
+  const parseNumber = function (m) {
+    const res = parseAll(m);
+    return {
+      hasComma: res.hasComma,
+      prefix: res.prefix,
+      num: res.num,
+      suffix: res.suffix,
+      isText: res.isText,
+      isOrdinal: res.isOrdinal,
+      isFraction: res.isFraction,
+      isMoney: res.isMoney,
+      case: longCase[res.form.case],
+      gender: longGender[res.form.gender],
+    }
+  };
+
+  // largest first - триллион, миллиард, миллион, тысяча
+  const bigToSmall = multiples.slice().reverse();
+  const max = 1e15;
+
+  // 125 → [100, 20, 5]
+  const toPieces = function (num) {
+    const pieces = [];
+    const rest = num % 100;
+    if (num >= 100) {
+      pieces.push(num - rest);
+    }
+    if (rest >= 20) {
+      pieces.push(rest - (rest % 10));
+      if (rest % 10) {
+        pieces.push(rest % 10);
+      }
+    } else if (rest > 0) {
+      pieces.push(rest);
+    }
+    return pieces
+  };
+
+  // only 'один' and 'два' have genders - 'одна', 'две'
+  const toWord = function (num, gender, c) {
+    const forms = byNum[num].forms;
+    return (forms[gender] || forms.m)[cases.indexOf(c)]
+  };
+
+  // any number under 1,000
+  const smallNumber = function (num, gender, c) {
+    return toPieces(num).map(n => toWord(n, gender, c))
+  };
+
+  // russian counts things in three ways - 'одна тысяча', 'две тысячи', 'пять тысяч'
+  const countWord = function (mult, count, c) {
+    const i = cases.indexOf(c);
+    const one = count % 10 === 1 && count % 100 !== 11;
+    const few = count % 10 >= 2 && count % 10 <= 4 && (count % 100 < 12 || count % 100 > 14);
+    if (one) {
+      return mult.sg[i]
+    }
+    if (c === 'nom' || c === 'acc') {
+      return few ? mult.sg[1] : mult.pl[1]
+    }
+    return mult.pl[i]
+  };
+
+  // split 1,234,567 into [{count:1, mult:million}, {count:234, mult:thousand}], and 567
+  const toGroups = function (num) {
+    const groups = [];
+    bigToSmall.forEach(mult => {
+      const count = Math.floor(num / mult.num);
+      if (count > 0) {
+        groups.push({ count, mult });
+        num -= count * mult.num;
+      }
+    });
+    return { groups, rest: num }
+  };
+
+  // 'три тысячи', 'миллион'
+  const groupWords = function (groups, c) {
+    let words = [];
+    groups.forEach((o, i) => {
+      // a leading 'one' goes unsaid - 'тысяча двести'
+      if (o.count !== 1 || i !== 0) {
+        words = words.concat(smallNumber(o.count, o.mult.gender, c));
+      }
+      words.push(countWord(o.mult, o.count, c));
+    });
+    return words
+  };
+
+  const isOkay = num => typeof num === 'number' && Number.isInteger(num) && Math.abs(num) < max;
+
+  // 125 → ['сто', 'двадцать', 'пять']
+  const toText = function (num, form = {}) {
+    if (!isOkay(num)) {
+      return null
+    }
+    const c = cases.includes(form.case) ? form.case : 'nom';
+    if (num === 0) {
+      return [zero.forms[cases.indexOf(c)]]
+    }
+    let words = [];
+    if (num < 0) {
+      words.push('минус');
+      num = Math.abs(num);
+    }
+    // 'одни' only works by itself
+    const gender = form.gender === 'pl' && num !== 1 ? 'm' : form.gender;
+    const { groups, rest } = toGroups(num);
+    words = words.concat(groupWords(groups, c));
+    return words.concat(smallNumber(rest, gender, c))
+  };
+
+  // 125 → ['сто', 'двадцать', 'пятый']
+  // only the last word is an ordinal - the rest stay as they are
+  const toTextOrdinal = function (num, form = {}) {
+    if (!isOkay(num) || num < 0) {
+      return null
+    }
+    const { gender, case: c } = form;
+    if (num === 0) {
+      return [declineOrdinal(zero.ord, gender, c)]
+    }
+    const { groups, rest } = toGroups(num);
+    if (rest > 0) {
+      const pieces = toPieces(rest);
+      const last = pieces.pop();
+      const words = groupWords(groups, 'nom').concat(pieces.map(n => toWord(n, 'm', 'nom')));
+      words.push(declineOrdinal(byNum[last].ord, gender, c));
+      return words
+    }
+    // a round number squishes its count into one word - 'двадцатипятитысячный'
+    const last = groups.pop();
+    const words = groupWords(groups, 'nom');
+    let prefix = '';
+    if (last.count !== 1) {
+      prefix = toPieces(last.count).map(n => byNum[n].comb).join('');
+    }
+    words.push(declineOrdinal(prefix + last.mult.ord, gender, c));
+    return words
+  };
+
+  const vowels = /[аеёиоуыэюя]/;
+
+  // 'процент' is counted like anything else - 'один процент', 'два процента', 'пять процентов'
+  const percent = function (num) {
+    const n = Math.abs(num);
+    if (n % 10 === 1 && n % 100 !== 11) {
+      return 'процент'
+    }
+    if (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14)) {
+      return 'процента'
+    }
+    return 'процентов'
+  };
+
+  // the letters that follow a numeric ordinal - 'пятый' → '5-й', 'пятого' → '5-го'
+  // one letter after a vowel, and two after a consonant
+  const toEnding = function (word) {
+    const before = word.slice(-2, -1);
+    return vowels.test(before) || before === 'ь' ? word.slice(-1) : word.slice(-2)
+  };
+
+  // write the digits the way we found them - '3,5' or '1 234'
+  const toDigits = function (parsed) {
+    const num = Math.abs(parsed.num);
+    let str = String(num);
+    // leave '1e+21' alone
+    if (/^[0-9]+(\.[0-9]+)?$/.test(str)) {
+      let [int, fraction] = str.split('.');
+      if (parsed.hasComma) {
+        int = int.replace(/\B(?=([0-9]{3})+$)/g, parsed.separator || ' ');
+      }
+      str = fraction ? int + (parsed.decimal || ',') + fraction : int;
+    }
+    return (parsed.num < 0 ? '-' : '') + (parsed.prefix || '') + str
+  };
+
+  // write this number in one of our four formats
+  // returns '' when the number can't be written that way
+  const formatNumber = function (parsed, fmt) {
+    const { num, form } = parsed;
+    if (typeof num !== 'number' || !isFinite(num)) {
+      return ''
+    }
+    const suffix = parsed.suffix || '';
+    if (fmt === 'TextOrdinal') {
+      const words = parsed.prefix || suffix ? null : toTextOrdinal(num, form);
+      return words ? words.join(' ') : ''
+    }
+    if (fmt === 'TextCardinal') {
+      const words = toText(num, form);
+      if (!words || parsed.prefix) {
+        return ''
+      }
+      // '5%' → 'пять процентов'
+      if (suffix === '%') {
+        words.push(percent(num));
+      } else if (suffix) {
+        return '' // '9km'
+      }
+      return words.join(' ')
+    }
+    // '5-й'
+    if (fmt === 'Ordinal') {
+      const words = toTextOrdinal(Math.abs(num), form);
+      if (!words) {
+        return ''
+      }
+      return toDigits(parsed) + '-' + toEnding(words[words.length - 1]) + suffix
+    }
+    return toDigits(parsed) + suffix
+  };
+
+  // return the nth elem of a doc
+  const getNth$1 = (doc, n) => (typeof n === 'number' ? doc.eq(n) : doc);
+
+  // accept a number, or a russian number as a string - 'пять', '5', '1 234,5'
+  // returns null if it's not a number
+  const toNum = function (view, n) {
+    if (typeof n === 'number') {
+      return Number.isFinite(n) ? n : null
+    }
+    if (typeof n !== 'string' || !n.trim()) {
+      return null
+    }
+    const str = n.trim();
+    // plain digits, like '12' or '-2,5'
+    if (/^[-−+]?[0-9][0-9.,\s]*$/.test(str)) {
+      return fromNumber(str).num
+    }
+    // a written-out number, like 'двенадцать'
+    const doc = view.fromText(str);
+    const m = findNumbers(doc);
+    if (m.length !== 1 || m.terms().length !== doc.terms().length) {
+      return null
+    }
+    const num = parseAll(m).num;
+    return typeof num === 'number' && Number.isFinite(num) ? num : null
+  };
+
+  // make sure each new word has the right tags
+  const retag = function (val) {
+    val.terms().forEach(t => {
+      const item = classify(t.docs[0][0]);
+      // 'минус', or 'процентов'
+      if (item.kind === 'sign' || item.kind === 'unknown') {
+        t.unTag('Value');
+        t.tag('Noun');
+        return
+      }
+      if (item.kind !== 'numeric') {
+        t.unTag('Percent');
+      }
+      t.tag(item.kind === 'numeric' ? 'NumericValue' : 'TextValue');
+      t.tag(item.ordinal ? 'Ordinal' : 'Cardinal');
+      if (item.kind === 'multiple' && !item.ordinal) {
+        t.tag('Multiple');
+      }
+    });
+  };
+
+  // 'один' and 'два' agree with the thing they count - '1 книга' → 'одна книга'
+  // digits don't say which gender they are, but the next word often does
+  const nounGender = function (val, num) {
+    const [n, , end] = val.fullPointer[0];
+    const sentence = val.document[n];
+    const noun = sentence[end];
+    const count = Math.abs(num) % 100;
+    if (!noun || !noun.tags.has('Noun') || /\S/.test(sentence[end - 1].post) || count === 11 || count === 12) {
+      return null
+    }
+    const str = noun.normal;
+    if (count % 10 === 1) {
+      if (/[ую]$/.test(str)) {
+        return { gender: 'f', case: 'acc' } // 'одну книгу'
+      }
+      if (noun.tags.has('FemaleNoun') || /[ая]$/.test(str)) {
+        return { gender: 'f', case: 'nom' }
+      }
+      if (noun.tags.has('NeuterNoun') || /[оеё]$/.test(str)) {
+        return { gender: 'n', case: 'nom' }
+      }
+    }
+    // after 'two', the noun is a genitive - 'две книги', but 'два стола'
+    if (count % 10 === 2 && !noun.tags.has('MaleNoun') && (noun.tags.has('FemaleNoun') || /[ыи]$/.test(str))) {
+      return { gender: 'f', case: 'nom' }
+    }
+    return null
+  };
+
+  // swap-in the new form of this number
+  const replace = function (val, str) {
+    const [n, start, end] = val.fullPointer[0];
+    const sentence = val.document[n];
+    const first = sentence[start];
+    const last = sentence[end - 1];
+    // an abbreviation owns the period after it - '5 тыс. рублей' → 'пять тысяч рублей'
+    // (unless it looks like the end of the sentence, too)
+    const next = sentence[end];
+    if (classify(last).abbr && next && !/^[А-ЯЁA-Z]/.test(next.text) && !/(тыс|млн|млрд|трлн)$/.test(str)) {
+      last.post = last.post.replace(/^\./, '');
+    }
+    // keep a leading capital - 'Пять книг'
+    if (/^[А-ЯЁ][а-яё]/.test(first.text)) {
+      str = str.charAt(0).toUpperCase() + str.slice(1);
+    }
+    // a numeric sign can sit in the punctuation before the term - the new text brings its own
+    first.pre = first.pre.replace(/[-−]$/, '');
+    val.replaceWith(str, { tags: true });
+    // ...and make sure that a new sign was not lost with it - '(-5)'
+    const now = val.docs[0][0];
+    if (/^-/.test(str)) {
+      now.pre = now.pre.replace(/[-−]/g, '');
+      if (!/^-/.test(now.text)) {
+        now.pre += '-';
+      }
+    }
+    retag(val);
+  };
+
+  // re-write this number in a new format
+  const write = function (val, parsed, fmt) {
+    if (fmt === 'TextCardinal' && parsed.hasDigits && !parsed.hasText) {
+      parsed.form = nounGender(val, parsed.num) || parsed.form;
+    }
+    let str = formatNumber(parsed, fmt);
+    // a written number that has no words for it becomes digits - 'пять' + 0.5 → '5,5'
+    if (!str && fmt === 'TextCardinal' && parsed.isText) {
+      str = formatNumber(parsed, 'Cardinal');
+    }
+    if (str) {
+      replace(val, str);
+    }
+  };
+
+  // 'TextOrdinal', 'TextCardinal', 'Ordinal' or 'Cardinal'
+  const getFormat = function (isText, isOrdinal) {
+    const fmt = isOrdinal ? 'Ordinal' : 'Cardinal';
+    return isText ? 'Text' + fmt : fmt
+  };
+
+  // run a change on each number, and keep the original view pointing at the new terms
+  const mutate = function (view, fn) {
+    const res = view.map(val => {
+      const parsed = parseAll(val);
+      if (parsed.num !== null) {
+        fn(val, parsed);
+      }
+      return val
+    });
+    if (view.ptrs) {
+      view.ptrs = res.ptrs;
+    }
+    return res
+  };
+
+  // only compare real numbers - null is not less than 5
+  const compare = function (view, fn) {
+    return view.filter(val => {
+      const num = parseAll(val).num;
+      return num !== null && fn(num)
+    })
+  };
+
+  const api$3 = function (View) {
+    /**   */
+    class Numbers extends View {
+      constructor(document, pointer, groups) {
+        super(document, pointer, groups);
+        this.viewType = 'Numbers';
+      }
+      parse(n) {
+        return getNth$1(this, n).map(parseNumber, [])
+      }
+      get(n) {
+        return getNth$1(this, n).map(parseNumber, []).map(o => o.num)
+      }
+      json(n) {
+        // a number selects the nth match, anything else is json options
+        const opts = typeof n === 'number' ? undefined : n;
+        const doc = getNth$1(this, n);
+        return doc.map(p => {
+          const json = p.toView().json(opts)[0];
+          const parsed = parseNumber(p);
+          json.number = {
+            prefix: parsed.prefix,
+            num: parsed.num,
+            suffix: parsed.suffix,
+            hasComma: parsed.hasComma,
+          };
+          return json
+        }, [])
+      }
+      /** write each number in all six cases - 'пять', 'пяти', 'пятью' */
+      decline(n) {
+        return getNth$1(this, n).map(val => {
+          const parsed = parseAll(val);
+          const fmt = getFormat(true, parsed.isOrdinal);
+          const res = {};
+          cases.forEach(c => {
+            const form = { gender: parsed.form.gender, case: c };
+            res[longCase[c]] = formatNumber(Object.assign({}, parsed, { form, prefix: '', suffix: '' }), fmt);
+          });
+          return res.nominative ? res : null
+        }, [])
+      }
+      /** any known measurement unit, for the number */
+      units() {
+        return this.growRight('#Unit').match('#Unit$')
+      }
+      /** return only ordinal numbers */
+      isOrdinal() {
+        return this.if('#Ordinal')
+      }
+      /** return only cardinal numbers*/
+      isCardinal() {
+        // 'двадцать пятый' has a cardinal in it, too
+        return this.ifNo('#Ordinal')
+      }
+
+      /** convert to numeric form like '8' or '8-й' */
+      toNumber() {
+        // return only the numbers that were text
+        const m = this.filter(val => parseAll(val).hasText);
+        const res = mutate(m, (val, parsed) => {
+          parsed.hasComma = false;
+          write(val, parsed, getFormat(false, parsed.isOrdinal));
+        });
+        return new Numbers(res.document, res.pointer)
+      }
+      /** convert to text form like 'восемь' or 'восьмой' */
+      toText() {
+        const res = mutate(this, (val, parsed) => {
+          if (parsed.hasDigits) {
+            write(val, parsed, getFormat(true, parsed.isOrdinal));
+          }
+        });
+        return new Numbers(res.document, res.pointer)
+      }
+      /** convert ordinal to cardinal form, like 'восемь', or '8' */
+      toCardinal() {
+        const res = mutate(this, (val, parsed) => {
+          if (parsed.isOrdinal) {
+            write(val, parsed, getFormat(parsed.isText, false));
+          }
+        });
+        return new Numbers(res.document, res.pointer)
+      }
+      /** convert cardinal to ordinal form, like 'восьмой', or '8-й' */
+      toOrdinal() {
+        const res = mutate(this, (val, parsed) => {
+          if (!parsed.isOrdinal) {
+            write(val, parsed, getFormat(parsed.isText, true));
+          }
+        });
+        return new Numbers(res.document, res.pointer)
+      }
+
+      /** return only numbers that are == n */
+      isEqual(n) {
+        return compare(this, num => num === n)
+      }
+      /** return only numbers that are > n*/
+      greaterThan(n) {
+        return compare(this, num => num > n)
+      }
+      /** return only numbers that are < n*/
+      lessThan(n) {
+        return compare(this, num => num < n)
+      }
+      /** return only numbers > min and < max */
+      between(min, max) {
+        return compare(this, num => num > min && num < max)
+      }
+      /** set these number to n */
+      set(n) {
+        if (n === undefined) {
+          return this // don't bother
+        }
+        n = toNum(this, n);
+        if (n === null) {
+          return this // not a number
+        }
+        const res = mutate(this, (val, parsed) => {
+          parsed.num = n;
+          write(val, parsed, getFormat(parsed.isText, parsed.isOrdinal));
+        });
+        return new Numbers(res.document, res.pointer)
+      }
+      /** increase each number by n */
+      add(n) {
+        n = toNum(this, n);
+        if (!n) {
+          return this // don't bother
+        }
+        const res = mutate(this, (val, parsed) => {
+          parsed.num = Number((parsed.num + n).toPrecision(15));
+          write(val, parsed, getFormat(parsed.isText, parsed.isOrdinal));
+        });
+        return new Numbers(res.document, res.pointer)
+      }
+      /** decrease each number by n*/
+      subtract(n) {
+        n = toNum(this, n);
+        if (!n) {
+          return this // don't bother
+        }
+        return this.add(n * -1)
+      }
+      /** increase each number by 1 */
+      increment() {
+        return this.add(1)
+      }
+      /** decrease each number by 1 */
+      decrement() {
+        return this.add(-1)
+      }
+      // overloaded - keep Numbers class
+      update(pointer) {
+        const m = new Numbers(this.document, pointer);
+        m._cache = this._cache; // share this full thing
+        return m
+      }
+    }
+    // aliases
+    Numbers.prototype.isBetween = Numbers.prototype.between;
+    Numbers.prototype.minus = Numbers.prototype.subtract;
+    Numbers.prototype.plus = Numbers.prototype.add;
+    Numbers.prototype.equals = Numbers.prototype.isEqual;
+
+    View.prototype.numbers = function (n) {
+      let m = findNumbers(this);
+      m = getNth$1(m, n);
+      return new Numbers(this.document, m.pointer)
+    };
+    // alias
+    View.prototype.values = View.prototype.numbers;
+  };
+
+  var numbers = {
+    api: api$3,
+  };
+
   const getNth = (doc, n) => (typeof n === 'number' ? doc.eq(n) : doc);
 
   // get root form of verb
@@ -11925,7 +13232,13 @@ designate
     api: api$1,
   };
 
-  const keep = { tags: true };
+  // keep the tags, and a sentence-initial capital - 'Новый дом' → 'Новые дом'
+  const keep = { tags: true, case: true };
+
+  // every form of 'самый' - an adjective beside one is already superlative
+  const samyj = /^сам(ый|ая|ое|ые|ого|ому|ую|ым|ом|ой|ых|ыми)$/;
+  // endings that a feminine noun takes in the oblique cases - 'комнаты', 'комнате', 'дверью'
+  const femOblique = /([ыие]|ью)$/;
 
   const swapWith = function (view, n, fn) {
     return getNth(view, n).map(m => {
@@ -11960,7 +13273,21 @@ designate
         return swapWith(this, n, this.methods.two.transform.adjective.toComparative)
       }
       toSuperlative(n) {
-        return swapWith(this, n, this.methods.two.transform.adjective.toSuperlative)
+        const { toSuperlative } = this.methods.two.transform.adjective;
+        return getNth(this, n).map(m => {
+          const str = m.text('normal');
+          // 'самая красивая' is already there
+          if (samyj.test(m.lookBehind('.$').text('normal'))) {
+            return m
+          }
+          // 'большой' is masculine, or an oblique feminine - 'в большой комнате'
+          const isFeminine = femOblique.test(m.lookAhead('^#Noun').text('normal'));
+          const out = toSuperlative(str, isFeminine);
+          if (out !== str) {
+            m = m.replaceWith(out, keep);
+          }
+          return m
+        })
       }
     }
 
@@ -11989,7 +13316,7 @@ designate
   nlp.plugin(nouns);
   nlp.plugin(adjectives);
   nlp.plugin(verbs);
-  // nlp.plugin(numbers)
+  nlp.plugin(numbers);
 
 
   const es = function (txt, lex) {

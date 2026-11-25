@@ -137,6 +137,10 @@ const toComparative = function (str = '') {
   if (irregularComparatives[masc]) {
     return irregularComparatives[masc]
   }
+  // relational adjectives have no synthetic comparative - 'более русский'
+  if (/(ский|цкий)$/.test(masc)) {
+    return 'более ' + str
+  }
   const res = stemOf(masc)
   if (res === null) {
     return 'более ' + str
@@ -156,13 +160,59 @@ const toComparative = function (str = '') {
   return stem + 'ее'
 }
 
-// быстрый → самый быстрый, хороший → лучший
-const toSuperlative = function (str = '') {
-  const masc = toMasculine(str)
-  if (irregularSuperlatives[masc]) {
-    return irregularSuperlatives[masc]
+// every adjective ending, as the matching (hard-stem) ending of 'самый'.
+// 'ым' and 'ой' are each several case-forms, but 'самый' is ambiguous in the same way
+const hardEndings = {
+  'ыми': 'ыми', 'ими': 'ыми',
+  'ого': 'ого', 'его': 'ого',
+  'ому': 'ому', 'ему': 'ому',
+  'ый': 'ый', 'ий': 'ый',
+  'ая': 'ая', 'яя': 'ая',
+  'ое': 'ое', 'ее': 'ое',
+  'ые': 'ые', 'ие': 'ые',
+  'ую': 'ую', 'юю': 'ую',
+  'ым': 'ым', 'им': 'ым',
+  'ом': 'ом', 'ем': 'ом',
+  'ой': 'ой', 'ей': 'ой',
+  'ых': 'ых', 'их': 'ых',
+}
+const endingReg = /(ыми|ими|ого|его|ому|ему|ый|ий|ая|яя|ое|ее|ые|ие|ую|юю|ым|им|ом|ем|ой|ей|ых|их)$/
+
+// which form is this adjective in? - returns its stem, and the ending 'самый' takes beside it.
+// stressed -ой is masculine ('большой дом') unless we're told it is feminine ('в большой комнате')
+const parseForm = function (str, isFeminine) {
+  const m = str.match(endingReg)
+  if (m === null || str.length - m[0].length < 2) {
+    return null
   }
-  return 'самый ' + masc
+  const stem = str.slice(0, -m[0].length)
+  let ending = hardEndings[m[0]]
+  if (m[0] === 'ой' && ojStems.has(stem) && isFeminine !== true) {
+    ending = 'ый'
+  }
+  return { stem, ending }
+}
+
+// suppletive superlatives, by stem - these all have husher-stems (лучший, лучшая, лучшее, лучшего..)
+const superlativeStems = {}
+Object.keys(irregularSuperlatives).forEach(k => {
+  superlativeStems[k.slice(0, -2)] = irregularSuperlatives[k].slice(0, -2)
+})
+// spelling rules after a husher: ы → и, and unstressed о → е
+const afterHusher = (ending) => ending.replace(/^ы/, 'и').replace(/^о/, 'е')
+
+// быстрый → самый быстрый, хороший → лучший
+// the adjective keeps its form, and 'самый' takes the same gender, number and case -
+// красивая → самая красивая, красивую → самую красивую, хорошая → лучшая
+const toSuperlative = function (str = '', isFeminine) {
+  const res = parseForm(str, isFeminine)
+  if (res === null) {
+    return 'самый ' + str
+  }
+  if (superlativeStems.hasOwnProperty(res.stem)) {
+    return superlativeStems[res.stem] + afterHusher(res.ending)
+  }
+  return 'сам' + res.ending + ' ' + str
 }
 
 export {

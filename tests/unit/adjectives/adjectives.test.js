@@ -68,6 +68,75 @@ test('adjective superlative:', function (t) {
   t.end()
 })
 
+// 'самый' takes the gender, number and case of its adjective
+test('superlative agreement:', function (t) {
+  const list = [
+    ['красивая девушка', 'самая красивая девушка'],
+    ['красивая книга', 'самая красивая книга'],
+    ['красивое окно', 'самое красивое окно'],
+    ['новое окно', 'самое новое окно'],
+    ['красивые дома', 'самые красивые дома'],
+    ['старые дома', 'самые старые дома'],
+    ['синяя птица', 'самая синяя птица'],
+    // oblique cases
+    ['красивую книгу', 'самую красивую книгу'],
+    ['в красивом доме', 'в самом красивом доме'],
+    ['о новом здании', 'о самом новом здании'],
+    ['нового дома', 'самого нового дома'],
+    ['старому дому', 'самому старому дому'],
+    ['красивых домов', 'самых красивых домов'],
+    ['новыми домами', 'самыми новыми домами'],
+    // stressed -ой is masculine, or an oblique feminine
+    ['большой дом', 'самый большой дом'],
+    ['в большой комнате', 'в самой большой комнате'],
+    // suppletive forms agree, too
+    ['хорошая книга', 'лучшая книга'],
+    ['хорошие дни', 'лучшие дни'],
+    ['плохое кино', 'худшее кино'],
+    ['плохую книгу', 'худшую книгу'],
+    ['в хорошем доме', 'в лучшем доме'],
+    // already superlative
+    ['самая красивая книга', 'самая красивая книга'],
+  ]
+  list.forEach(a => {
+    const [from, want] = a
+    const doc = nlp(from)
+    doc.adjectives().toSuperlative()
+    t.equal(doc.text(), want, here + from + ' → ' + want)
+  })
+  t.end()
+})
+
+// relational adjectives have no synthetic comparative
+test('analytic comparative:', function (t) {
+  const list = [
+    ['русский', 'более русский'],
+    ['русская', 'более русская'],
+    ['немецкий', 'более немецкий'],
+  ]
+  list.forEach(a => {
+    const [from, want] = a
+    const doc = nlp(from)
+    doc.adjectives().toComparative()
+    t.equal(doc.text(), want, here + from + ' → ' + want)
+  })
+  t.end()
+})
+
+// a sentence-initial capital survives a transformation
+test('keeps titlecase:', function (t) {
+  let doc = nlp('Новый дом стоит здесь.')
+  doc.adjectives().toPlural()
+  t.equal(doc.text(), 'Новые дом стоит здесь.', here + 'Новый → Новые')
+  doc = nlp('Красивая девушка пришла.')
+  doc.adjectives().toSuperlative()
+  t.equal(doc.text(), 'Самая красивая девушка пришла.', here + 'Красивая → Самая красивая')
+  doc = nlp('Тихий')
+  doc.adjectives().toComparative()
+  t.equal(doc.text(), 'Тише', here + 'Тихий → Тише')
+  t.end()
+})
+
 test('adjectives in a sentence:', function (t) {
   // only the adjectives change
   let doc = nlp('красивый старый дом')

@@ -6,6 +6,9 @@
 - **[new]** - ordinals in every form ('пятого', 'двадцать первая'), numeric ordinals ('5-й', '2-го', '1990-х') and compound ordinals ('двухтысячный', 'двадцатипятитысячный')
 - **[new]** - russian digit formats - '3,5', '5 000', '1.234.567', and '5 тыс.', '3 млн', '2 млрд'
 - **[new]** - number-words are tagged `#TextValue` in every case-form, and 'тысяча'/'миллион' as `#Multiple`
+- **[fix]** - `adjectives().toSuperlative()` keeps the gender, number and case of the adjective - 'красивая книга' → 'самая красивая книга', 'в красивом доме' → 'в самом красивом доме', 'хорошая' → 'лучшая'
+- **[fix]** - adjective transformations keep a sentence-initial capital, and `toComparative()` is analytic for -ский adjectives ('более русский')
+- **[change]** - prepositional adjectives are tagged `#Adjective` after в/на/о/при ('в красивом доме')
 - **[change]** - 'тыс.', 'млн.', 'млрд.' and 'трлн.' no longer end a sentence
 - **[breaking]** - `nlp.TypedPlugin` type is removed
 - **[change]** - typescript types rewritten from the real api - core `View` types now come from `compromise`, and the document type is `RuView`
