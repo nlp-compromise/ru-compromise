@@ -21,13 +21,4 @@ export default [
 
   // 'самый + adjective' superlative stays adjective
   { match: '(самый|самая|самое|самые) [#Noun]', group: 0, tag: 'Adjective', reason: 'самый-adj' },
-
-  // prepositional adjectives have no safe suffix-rule ('домом', 'столом') - 'в красивом доме'
-  {
-    match: '(в|во|на|о|об|обо|при) [/^[а-яё]{3,}(ом|ем)$/] /[а-яё](е|ии)$/',
-    group: 0,
-    notIf: '(#Pronoun|#Determiner|#Verb|#Value|#Adverb)',
-    tag: 'Adjective',
-    reason: 'в-красивом-доме',
-  },
 ]

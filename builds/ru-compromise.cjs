@@ -8848,6 +8848,7 @@ designate
     "Conjunction": "true¦:!1:#:от;аIбHеEиCкакBм8о2ум#1ыбHьт0ятох;ох,се #;оп,эH;би4г#то,кандо,н3т0;аз,дуб,ч0;! 0;кAум#D;!волс,неми;!л;еч0#и1ёчи1;!и0;рп;! к4;!л0;ежен,и,се;дг,ж0;к0#;ат;#ч;!д1к0;оп;!гок",
     "Preposition": "true¦!1:#$%&():ре,ст,од,за,из,ле;бQвLдK&,(IкHмEнаAо9п3раMс0у,че#з;!в1квозь,о0пу$я,#L;!гласно;ерх,ыше;е#дOо2р0;и,о0;!т7;!дL&Fми8с0;),#д0;и,$вом;!бIколо,тI;!в$#чу,дHкануне,п1сч0;ет,ёт;е#кор,%обие,рот0;ив;еж1и0;мо;!ду;!о,роме;!-0о;&,п%;ля,о;!бл(и,доль,ме$о,н2о1пе#0р%е,с)д;ди;!з),круг,п#ки;е,утр0;и,ь;ез1л0;аг%аря,(;!о",
     "Adverb": "true¦:!1:#$%&()*+./<=>?@[]^_`~:ре,оп,ем,тс,ад,ар,ел,аз,ен,он,еч,ур,ин,ач,ту,ок,ан,нд,ед,бо,од;а0Mг=дв,д0Iе06з>в,и02йо00мUо8#миTс?й7@т,у4х#вв,ц.[],ь1юь0я^ог7ёще;неK&/л$,ч/;дуб>-(гHн<о,#пет,с_з,т0;уч0япо;!-ь@ч;дюсв,з1меом-$,х#в0;],в;)с,иY;ес;вJгGкFламHмяEн6р5т1х0шорох;ит,олп;-1с0;?,оB;(0_г,как,ум<$;г5ук;[с,&ыб;),в(.,д6жомзSне4#ми7тюлосба,ч2ьл0;е0овA;дто,тив&й_;.0ы`;[;`0лд%,ш#E;со;з$,=т;рп;г*,дер,*(,зиRморг;л1/м0;!.;~;а0*S;рпR;ат,е3о0ё^;дяр,кшилс,р1т0;*,$;<U@;^,с0т+;вос;м0нсR;из,~;д+с,кс1т0;а&к,чM;йилгна-Lс=-L;нв;дAж7н6/#вE&%в,ш2щ0;`0е;ов;чул,ь0;л1н0;),%;(,об;й)к,ло6;зBи1у0;!х;лб;гGзA;+2е0ё0;#0;пв;];вDд6л?аEм4р0;<в1тв+0;!*с1;!+0;$;~,ьс0;ев;г2у0юс1;к3т0;!то;е2о0;к0ни;>;св;)пс,е1о0;нс;лс",
+    "Adjective": "true¦:!1:#$%&()*+-./<=>?@[]^_`~:тс,ар,ер,ев,бо,ло,рт,ос,ил,ор,ел,лс,од,ок,ан,ур,вс,ен,рё,ем,ад,уд;й0;и0Fо07ы0;б05в01д^вт,лYмиXн4р2т0;агоб,лёж,с0ыс;ач,ич,)т;а#,(д,ес,ком,#0;о,ыб;валг,дOжMзLиKй>оJ)п,мIнB^ч,с8т5ч3ш$#,ьл0ёлез;а0едто,ис;иц0ноиц?,*нец;еG+;-0у?,ыD;!з$;$Bс0;е0@г;взи,м,ч;а0%етни,укв;по,рк0;!%п;$#,е1-д,я0;в%Vлке#;в#1лд_,м0ов;ак,%в+;(с,е0ни4р`усог;#е,щ0;(;.го,у,ёт;пс;де;$,/еж,ярг,ёьрес;ав,о0ун;<,мзов;еб,о0у*;([,)1р?0;!~жN;г,х;бюл,дох(];а#у,г@к,е1им,пёт,т&с,ё0;жят,с&;б,мс,ц;аS/,и1о0т^м,ёшB;н,р=з,тZ;л0нKс$к;ж&,#ачс;а<,+о;в5кс4н1т0шь)бW;о)з,я[;в]д,м1сFт&ц,ч0;%,он;ез;д.Qжум,рZ;е7ол0;ед;г0Dж0BкKн7хит,чярNш2щ0;(,~уб,ю~/с,яо#0;?;д3.ох,ра#,сXчул,ь0;л1н0;_;об;алм,ух;вBд8ж6ис,йаQмиз,н2речXт1хрXш0ьD;ам=,]в,-;/;$,е0;*у1с0;&,о;!нв;е0иS;рп;аз,е0зE;<Dр0с9;еп,с;`,%д;гPдNзLиJмоIнHоEпеDрCс4т.>,ц_3ь1ё0;л`;н/ам,р0;ог;];в>с6еч3зуцн$ф,й-гна,н2с@,те0;в0д;+;еж;&олеч,и0;мон>э,ро#и,т-0;оп;ом;аж,я;рк;бу1риш,с0;ыв;лг;от;рг;д,л0;&;и0у;лб,н;а0%;<;ям,ёл;е0ыр;[;л1.0;#;=",
     "Pronoun": "true¦:!1:#$%:св,но,ин;а$,еLиHйFмB$,о5саKум9х4ы3ьдуб%-7ю2я1ё0;еL#;!беLнем;еJоD#;в,м,т;еEиH;г3$,т0;-0к7ч6э;от0;к,ч;е0ок4;!н,#,ч2;а8е0иAок,ён;к1н,#,ч0;%;!%;е6о0;бо6нм;м0$;а1е0и3;#;в,н;бе1е0нм,#;!н;с,т",
     "FemaleNoun": "true¦:!1:#$%&(:ре,ом,рг,ем,ол;ь0;в04д01жYзWлMнFпеE#вд,сDт4ч1шNщ0;ев,$Q;е1о0;д,н;п,р;а6ес,ин,#5с0ямап;а2еч,о0#ш;вон,дар,к,пе5р0;аBокс;л0порп,рAч;бо,в;втеч,мс;во0м,чH;рк;о,ыр;тс,ц;а5е1з0одал;ак,елоб,иж;л2п0рис,со,т;е0у0;тс;!ез;д,кт,%;а5е2о1с0ып;ым;б,р,с;!б&,т0щ;&,с0;оп;д2т1ч0;еп;ед,с;!&;ам,я0;вс,%;е1о0ё1;л,р;д($;а1е0у%;м,#чо;ртет,ш(,щ(п;о0убо;бюл,кр1р0;б,к;ец,$",
     "AnimateNoun": "true¦!1:#$%&()*+-./<=>?@[]^_`~:ен,ст,ка,ер,ра,на,ри,ел,ни,ль,ок,ин,ар,са,кт,ит,ве,па,ца,от,ва,да;а29б21в1Rг1Kд1Gе1Eж18з16и12к0Pл0Lм0D)ча.-к,о07пVрSсHтFуBфAх7ц4ч1шофUщ#/,эле?*к,ю0яще0Qёж;ноша,*$;е0@а1W;ло[к,мпиLр0;вь,е]H;а0ыплV;пля,р0;и^,ь;о0удож-к;зя0мяк;<,й%;&м&,_ог10;л@%,т%,ч0;#и1@+ь0;!-^;к,^;е0игр,о`*щ,у*$,юлWётя;лJтя;в8е7л6о4порт1Lт0уд9ын;=1р0уд#т4;аус,ои1E;ик,у0;ха;ба%,`,кол,л~т,сед0;!%;он;крет=ь,$(;<0ящ#-к;ья;абFе0ыбак;б6~1Gжисс0;&,ёр;а8е6и5о3р0тиVч+а,ёс;е1о0;г(мми$,~вCфессор;зидеG$упнV;вZдруга,ку]0Yпугай,рос0эт;#/,ён/;л_,нгв<,>0W;в0реводчRс,т3;ец,иN;н~,],р7с0;>жир,т0;ух;безья),вJл4р+,с3т2фиц1х0;_нL;&,иа5;ец;+,ёл;#ь;а6е4и-$р,о3у0ышь;ж1зы%0([й,ха;нт;!чиW;)х,рж;д0ханB;[4се$(;.ч9ма,ть;е1и>,о0яг0Lётч8;сь,ша1;бе0оп=д,тч6;дь;абан,#гуру,нязь,о5р2у0;*0;^;о0ы>;кодил,л0;ик;з5лле4м3нь,ро1смо)вт,т0ш%;!#8ён8;`,л0;е`,ь;=;га;а,+,ёл;гр2н0;дюк,ж#0;&;/;аяц,[0ебLмея;рь;#3и2у0;к,р0;авO)ли$;(ф;а,щи0;);ж,н0;_;е1иреTо0руг,ядя;?Yчь;в0дO.ф5путW;очOушO;е5ид,о0усь;лубь,*л3с0;по0ть;д0жа;<;ла;н&ал,рой;&блюд,ну8о2(1ыд0;(;г,ч;ди3лк,р0;!о0;б0);ей;те0;.;к,ч7;а2+6изне1о0рDык;бр,г;см#;б2нк1р0;ан,сук;ир;уш0;%;вт6дв/5и4?2нг1рх@е0;?5;+;&,*0ёр;>;$;ат;ор",
@@ -9357,7 +9358,7 @@ designate
   };
 
   // an array of every inflection, for '{inf}' syntax
-  const all = function (str) {
+  const all$1 = function (str) {
     let res = [str].concat(
       Object.values(toPresent$1(str)),
       Object.values(toPast$1(str)),
@@ -9868,35 +9869,53 @@ designate
     'больш', 'молод', 'дорог', 'прост', 'плох', 'жив', 'зл', 'чуж', 'родн',
     'голуб', 'сед', 'сух', 'глух', 'прям', 'крут', 'густ', 'пуст', 'слеп',
     'смешн', 'больн', 'основн', 'миров', 'втор', 'восьм', 'друг', 'как', 'так',
+    'золот', 'ночн', 'дневн', 'лесн', 'морск', 'речн', 'земн', 'городск', 'мужск',
+    'свят', 'делов', 'боев', 'небольш', 'цветн',
   ]);
 
   const isVelar = (c) => /[кгх]/.test(c);
   const isHusher = (c) => /[жчшщ]/.test(c);
 
-  // normalize any nominative form to masculine
-  const toMasculine = function (str = '') {
-    if (/(ый|ий|ой)$/.test(str)) {
-      return str
-    }
-    let stem = null;
-    if (/(ая|яя|ое|ее|ые|ие)$/.test(str)) {
-      stem = str.slice(0, -2);
-    }
-    if (stem === null) {
-      return str
-    }
+  // the masculine form of a stem - 'нов' → 'новый'
+  const withStem = function (stem, isSoft) {
     if (ojStems.has(stem)) {
       return stem + 'ой'
     }
     // синяя → синий, хорошее → хороший, маленькие → маленький
-    if (/(яя|ее|ие)$/.test(str) || isVelar(stem.slice(-1)) || isHusher(stem.slice(-1))) {
+    if (isSoft || isVelar(stem.slice(-1)) || isHusher(stem.slice(-1))) {
       return stem + 'ий'
     }
     return stem + 'ый'
   };
 
+  // normalize any nominative form to masculine
+  const fromNominative = function (str = '') {
+    if (/(ый|ий|ой)$/.test(str)) {
+      return str
+    }
+    if (/(ая|яя|ое|ее|ые|ие)$/.test(str)) {
+      return withStem(str.slice(0, -2), /(яя|ее|ие)$/.test(str))
+    }
+    return str
+  };
+
+  // any nominative form, or the feminine accusative, to masculine.
+  // 'красивую' → 'красивый' keeps its case - an (inanimate) masculine accusative is the nominative form.
+  // the other oblique endings are each several cases, so they are left alone
+  const toMasculine = function (str = '') {
+    if (/[а-яё]{2}(ую|юю)$/.test(str)) {
+      return withStem(str.slice(0, -2), str.endsWith('юю'))
+    }
+    return fromNominative(str)
+  };
+
+  // nominative forms only - so that a change of gender or number is never a change of case
   const stemOf = function (str) {
-    const masc = toMasculine(str);
+    const masc = fromNominative(str);
+    // 'большой' is a nominative - but 'красивой' is an oblique feminine
+    if (masc.endsWith('ой') && !ojStems.has(masc.slice(0, -2))) {
+      return null
+    }
     if (/(ый|ий|ой)$/.test(masc)) {
       return { stem: masc.slice(0, -2), soft: masc.endsWith('ий') }
     }
@@ -10077,6 +10096,47 @@ designate
     return 'сам' + res.ending + ' ' + str
   };
 
+  // the 'hard' spelling of each ending → its 'soft' spelling ('ого' → 'его')
+  const softEndings = {};
+  Object.keys(hardEndings).forEach(k => {
+    if (hardEndings[k] !== k) {
+      softEndings[hardEndings[k]] = k;
+    }
+  });
+
+  // every case, gender and number form of an adjective, from its masculine form -
+  // новый → новая, новое, новые, нового, новому, новым, новом, новой, новую, новых, новыми
+  const all = function (str = '') {
+    if (str.length < 4 || /(ый|ий|ой)$/.test(str) === false) {
+      return [str]
+    }
+    const stem = str.slice(0, -2);
+    const velar = isVelar(stem.slice(-1));
+    const husher = isHusher(stem.slice(-1));
+    const soft = str.endsWith('ий') && !velar && !husher;
+    const stressed = str.endsWith('ой');
+    const forms = Object.keys(softEndings).map(end => {
+      // the masculine nominative is the only form that hears the stress
+      if (end === 'ый') {
+        return str
+      }
+      // синий → синяя, синего, синюю
+      if (soft) {
+        return stem + softEndings[end]
+      }
+      // spelling rules: no 'ы' after a velar or a husher (тихий → тихие, тихим)
+      if (end.startsWith('ы') && (velar || husher)) {
+        return stem + softEndings[end]
+      }
+      // and no unstressed 'о' after a husher (хороший → хорошего, but большой → большого)
+      if (end.startsWith('о') && husher && !stressed) {
+        return stem + softEndings[end]
+      }
+      return stem + end
+    });
+    return Array.from(new Set(forms))
+  };
+
   var methods$1 = {
     verb: {
       toPresent: toPresent$1,
@@ -10089,7 +10149,7 @@ designate
       fromPresent,
       fromPast,
       fromImperative,
-      all: all,
+      all: all$1,
     },
     noun: {
       toPlural: toPlural$1,
@@ -10106,6 +10166,7 @@ designate
       toPlural: toPlural,
       toComparative,
       toSuperlative,
+      all: all,
     },
   };
 
@@ -10191,6 +10252,12 @@ designate
     'сила', 'скала', 'стрела', 'акула', 'юла', 'стая', 'зала', 'пила',
     'дела', 'тела', 'дело', 'тело', 'сало', 'мыло', 'одеяло', 'зеркало', 'покрывало', 'начало',
     'детали', 'медали', 'недели', 'качели', 'дому',
+    // masculine nouns that end like an oblique adjective (музей ~ синей, паром ~ старом)
+    'музей', 'бой', 'покой', 'строй', 'слой', 'рой', 'зной', 'прибой', 'конвой', 'застой',
+    'отбой', 'разбой', 'настрой', 'покрой', 'запой', 'трофей', 'лицей', 'хоккей', 'юбилей',
+    'мавзолей', 'ручей', 'улей', 'клей', 'злодей', 'соловей',
+    'паром', 'альбом', 'диплом', 'приём', 'объём', 'подъём', 'водоём', 'проём', 'аэродром',
+    'синдром', 'симптом', 'перелом', 'разгром', 'гастроном', 'роддом', 'модем', 'гарем',
   ];
 
   // --- common adjectives ending in stressed -ой (no reliable suffix-rule) ---
@@ -10545,8 +10612,12 @@ designate
   };
 
   const { toPresent, toPast, toImperative, toGerund } = methods$1.verb;
+  // case-forms of our adjectives that are more often a noun - 'со злом', 'с долгом', 'золотом'
+  const nounLike = new Set(['добром', 'злом', 'долгом', 'золотом', 'правом', 'теплом']);
   const perfective = result.perfective || {};
   const lexicon$1 = {};
+  // our adjectives are kept apart, for the tagger - see below
+  let adjectives$1 = [];
 
   const personMap = {
     first: 'FirstPerson',
@@ -10571,6 +10642,10 @@ designate
 
   Object.keys(lexData).forEach(tag => {
     const wordsObj = unpack(lexData[tag]);
+    if (tag === 'Adjective') {
+      adjectives$1 = Object.keys(wordsObj);
+      return
+    }
     Object.keys(wordsObj).forEach(w => {
       // animacy stacks with a gender-tag (гусь is MaleNoun + AnimateNoun),
       // in either processing-order
@@ -10615,6 +10690,23 @@ designate
         lexicon$1[plain] = lexicon$1[w];
       }
     }
+  });
+
+  // every case, gender and number of our adjectives - 'красивой', 'синей', 'новом', 'хорошему'.
+  // these endings are shared with nouns ('книгой', 'друзей', 'домом'), so there is no suffix-rule for them.
+  // they are looked-up after the lexicon and the titlecase-rule, so that a name stays a name - 'Максим Горький'
+  const adjectiveForms = {};
+  adjectives$1 = adjectives$1.concat(Object.keys(misc$1).filter(w => misc$1[w] === 'Adjective'));
+  adjectives$1.forEach(w => {
+    methods$1.adjective.all(w).forEach(form => {
+      const plain = form.replace(/ё/g, 'е');
+      if (!lexicon$1[form] && !nounLike.has(plain)) {
+        adjectiveForms[form] = true;
+        if (!lexicon$1[plain]) {
+          adjectiveForms[plain] = true;
+        }
+      }
+    });
   });
 
   // tag-name → conjugation-model key
@@ -10664,6 +10756,9 @@ designate
   var lexicon = {
     words: lexicon$1,
     compute: { root: root },
+    model: {
+      two: { adjectiveForms }
+    },
     methods: {
       two: {
         transform: methods$1
@@ -10898,6 +10993,18 @@ designate
     return null
   };
 
+  // is this a form of an adjective that we know? - 'красивой', 'синей', 'новом'
+  const adjectiveLookup = function (terms, i, world) {
+    const term = terms[i];
+    const forms = world.model.two.adjectiveForms || {};
+    if (term.tags.size === 0 && forms.hasOwnProperty(term.normal)) {
+      world.methods.one.setTag([term], 'Adjective', world, false, '2-adjective-form');
+      term.confidence = 0.9;
+      return true
+    }
+    return null
+  };
+
   // const isTitleCase = function (str) {
   //   return /^[A-ZÄÖÜ][a-z'\u00C0-\u00FF]/.test(str) || /^[A-ZÄÖÜ]$/.test(str)
   // }
@@ -10911,7 +11018,9 @@ designate
     const term = terms[i];
     if (term.tags.size === 0) {
       setTag([term], 'Noun', world, false, '2-fallback');
+      return true
     }
+    return null
   };
 
   //sweep-through all suffixes
@@ -10957,8 +11066,91 @@ designate
     return null
   };
 
+  // some adjective-endings are shared with nouns, so they have no suffix-rule -
+  //   '-ой'/'-ей' - 'красивой', but 'книгой', 'друзей', 'герой', 'музей'
+  //   '-ом'/'-ем' - 'красивом', but 'домом', 'столом', 'паром'
+  // the adjectives that we know are in the lexicon, in every form.
+  // an unknown word is an adjective only when the words beside it say so.
+
+  // prepositions that take the prepositional case
+  const prepositional = ['в', 'во', 'на', 'о', 'об', 'обо', 'при'];
+  // ..or the dative - but never the genitive ('друзей')
+  const noGenitive = prepositional.concat(['к', 'ко', 'по']);
+  // ..and all that never take the instrumental - an '-ой' word after one is no 'книгой'
+  const noInstr = noGenitive.concat([
+    'у', 'от', 'ото', 'до', 'из', 'изо', 'из-за', 'из-под', 'без', 'безо', 'для', 'около',
+    'после', 'возле', 'вокруг', 'кроме', 'против', 'среди', 'вместо',
+  ]);
+
+  // endings of a feminine noun, in the cases where its adjective takes '-ой'/'-ей'
+  // (the genitive-plural is '-ей' too - 'друзей', 'ночей', 'дней' - so only the safe ones)
+  const femInstr$1 = /(ой|ёй|ью|ою|[иьцеаоу]ей)$/;
+  const femOblique$1 = /[ыие]$/;
+  const prepCase = /(е|ии)$/;
+
+  // stems that are (almost) always an adjective - 'советской', 'греческой', 'деревянной', 'звёздной'
+  const adjStem = /([^аеёиоуыэюя]ской|ческой|цкой|нной|[бвгджзклмпрстфхцчшщь]ной)$/;
+  const nounStem = /^(сосн|волн|десн|казн|блесн|копн|бездн|княжн)ой$/;
+  // soft participles and superlatives - 'работающей', 'бывшей', 'ближайшей', 'искренней', 'вчерашней'
+  const softAdj = /([а-яё]{3}[аяую]щей|[а-яё]{2}[вд]шей|[ае]йшей|нней|[яр]ашней|ешней)$/;
+
+  const hasPunct = /[,;:.!?()«»"—–]/;
+
+  const isNoun = function (term) {
+    return term.tags.has('Noun') && !term.tags.has('Pronoun')
+  };
+
+  // is this unknown word an adjective, for the noun after it?
+  const isAdjective = function (str, before, noun) {
+    const next = noun.normal;
+    const proper = noun.tags.has('ProperNoun');
+    if (str.endsWith('ой')) {
+      // 'с деревянной ложкой' - but not 'с подругой Мариной'
+      if (femInstr$1.test(next) && !proper) {
+        return true
+      }
+      if (femOblique$1.test(next)) {
+        // 'у деревянной двери', 'в деревянной лодке'
+        // 'советской власти' - but not 'с книгой подруги'
+        return noInstr.includes(before) || (adjStem.test(str) && !nounStem.test(str))
+      }
+      return false
+    }
+    if (str.endsWith('ей')) {
+      // 'бывшей жены', 'с ближайшей станцией'
+      if (softAdj.test(str)) {
+        return femOblique$1.test(next) || (femInstr$1.test(next) && !proper)
+      }
+      // 'в рыжей шубе' - but not 'у друзей семьи'
+      return noGenitive.includes(before) && prepCase.test(next)
+    }
+    // 'в деревянном доме' - but 'с домом', 'над столом'
+    if (/^[а-яё]{3,}(ом|ем)$/.test(str)) {
+      return prepositional.includes(before) && prepCase.test(next)
+    }
+    return false
+  };
+
+  // look at the neighbours of a word that had no tag, and fell-back to a noun
+  const adjectiveContext = function (terms, i, world) {
+    const term = terms[i];
+    const noun = terms[i + 1];
+    if (!noun || !isNoun(noun) || noun.normal.length < 3 || hasPunct.test(term.post)) {
+      return null
+    }
+    let before = '';
+    if (terms[i - 1] && terms[i - 1].tags.has('Preposition') && !hasPunct.test(terms[i - 1].post)) {
+      before = terms[i - 1].normal;
+    }
+    if (isAdjective(term.normal, before, noun)) {
+      world.methods.one.setTag([term], 'Adjective', world, false, '3-adjective-context');
+      term.confidence = 0.6;
+      return true
+    }
+    return null
+  };
+
   // 1st pass
-  // 3rd
   // import guessNounGender from './3rd-pass/noun-gender.js'
   // import guessPlural from './3rd-pass/noun-plural.js'
   // import adjPlural from './3rd-pass/adj-plural.js'
@@ -10977,12 +11169,24 @@ designate
       tagYear(terms, i, world);
     }
   };
+  // returns the words that nothing was known about
   const secondPass = function (terms, world) {
+    const unknown = [];
     for (let i = 0; i < terms.length; i += 1) {
-      isAcronym(terms, i, world) ||
-        suffixCheck(terms, i, world) ||
-        // neighbours(terms, i, world) ||
-        fallback(terms, i, world);
+      const found = isAcronym(terms, i, world) || adjectiveLookup(terms, i, world) || suffixCheck(terms, i, world);
+      // neighbours(terms, i, world) ||
+      if (!found && fallback(terms, i, world)) {
+        unknown.push(i);
+      }
+    }
+    return unknown
+  };
+
+  // these methods look at word-neighbours, for our unknown words.
+  // right-to-left, so that the word after is already decided - 'с картой звёздной системы'
+  const thirdPass = function (terms, unknown, world) {
+    for (let n = unknown.length - 1; n >= 0; n -= 1) {
+      adjectiveContext(terms, unknown[n], world);
     }
   };
 
@@ -11001,8 +11205,8 @@ designate
     const world = view.world;
     view.docs.forEach(terms => {
       firstPass(terms, world);
-      secondPass(terms, world);
-      // thirdPass(terms, world)
+      const unknown = secondPass(terms, world);
+      thirdPass(terms, unknown, world);
     });
     return view
   };
@@ -11392,15 +11596,6 @@ designate
 
     // 'самый + adjective' superlative stays adjective
     { match: '(самый|самая|самое|самые) [#Noun]', group: 0, tag: 'Adjective', reason: 'самый-adj' },
-
-    // prepositional adjectives have no safe suffix-rule ('домом', 'столом') - 'в красивом доме'
-    {
-      match: '(в|во|на|о|об|обо|при) [/^[а-яё]{3,}(ом|ем)$/] /[а-яё](е|ии)$/',
-      group: 0,
-      notIf: '(#Pronoun|#Determiner|#Verb|#Value|#Adverb)',
-      tag: 'Adjective',
-      reason: 'в-красивом-доме',
-    },
   ];
 
   let net = null;
@@ -13239,10 +13434,27 @@ designate
   const samyj = /^сам(ый|ая|ое|ые|ого|ому|ую|ым|ом|ой|ых|ыми)$/;
   // endings that a feminine noun takes in the oblique cases - 'комнаты', 'комнате', 'дверью'
   const femOblique = /([ыие]|ью)$/;
+  // ..and in the instrumental - 'комнатой', 'неделей', 'семьёй'
+  const femInstr = /(ой|ей|ёй|ою|ею)$/;
 
-  const swapWith = function (view, n, fn) {
+  // is the noun after this adjective a feminine one, in an oblique case?
+  const beforeFeminine = function (m) {
+    const noun = m.lookAhead('^#Noun');
+    const str = noun.text('normal');
+    if (femOblique.test(str)) {
+      return true
+    }
+    // 'большой комнатой' - but 'большой герой' and 'большой музей' are nouns that we know
+    return femInstr.test(str) && !m.world.model.one.lexicon.hasOwnProperty(str)
+  };
+
+  const swapWith = function (view, n, fn, keepCase) {
     return getNth(view, n).map(m => {
       const str = m.text('normal');
+      // 'в большой комнате' is not a nominative - a new gender or number must not change the case
+      if (keepCase && str.endsWith('ой') && beforeFeminine(m)) {
+        return m
+      }
       const out = fn(str);
       if (out !== str) {
         m = m.replaceWith(out, keep);
@@ -13258,16 +13470,16 @@ designate
         this.viewType = 'Adjectives';
       }
       toMasculine(n) {
-        return swapWith(this, n, this.methods.two.transform.adjective.toMasculine)
+        return swapWith(this, n, this.methods.two.transform.adjective.toMasculine, true)
       }
       toFeminine(n) {
-        return swapWith(this, n, this.methods.two.transform.adjective.toFeminine)
+        return swapWith(this, n, this.methods.two.transform.adjective.toFeminine, true)
       }
       toNeuter(n) {
-        return swapWith(this, n, this.methods.two.transform.adjective.toNeuter)
+        return swapWith(this, n, this.methods.two.transform.adjective.toNeuter, true)
       }
       toPlural(n) {
-        return swapWith(this, n, this.methods.two.transform.adjective.toPlural)
+        return swapWith(this, n, this.methods.two.transform.adjective.toPlural, true)
       }
       toComparative(n) {
         return swapWith(this, n, this.methods.two.transform.adjective.toComparative)
@@ -13281,8 +13493,7 @@ designate
             return m
           }
           // 'большой' is masculine, or an oblique feminine - 'в большой комнате'
-          const isFeminine = femOblique.test(m.lookAhead('^#Noun').text('normal'));
-          const out = toSuperlative(str, isFeminine);
+          const out = toSuperlative(str, beforeFeminine(m));
           if (out !== str) {
             m = m.replaceWith(out, keep);
           }

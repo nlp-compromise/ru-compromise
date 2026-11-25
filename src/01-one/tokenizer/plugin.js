@@ -1,4 +1,8 @@
 import contractions from './contractions.js'
+import build from './sentences.js'
+import sentenceRules from './abbreviations.js'
+
+const { isSentence, wrap, abbreviations } = build(sentenceRules)
 
 const killUnicode = function (str) {
   // а́ е́ и́ о́ у́ ы́ э́ ю́ я́ - strip stress-marks (combining acute/grave accents)
@@ -10,8 +14,6 @@ const killUnicode = function (str) {
   return str
 }
 
-const numberAbbreviations = ['тыс', 'млн', 'млрд', 'трлн']
-
 export default {
   mutate: (world) => {
     world.model.one.unicode = {}
@@ -19,10 +21,10 @@ export default {
 
     world.model.one.contractions = contractions
 
-    // these periods don't end a sentence - '5 тыс. рублей'
-    numberAbbreviations.forEach(str => {
-      world.model.one.abbreviations[str] = true
-    })
+    // our own abbreviations, and sentence-boundary rules
+    world.model.one.abbreviations = { ...abbreviations }
+    world.methods.one.tokenize.isSentence = isSentence
+    world.methods.one.tokenize.splitSentences = wrap(world.methods.one.tokenize.splitSentences)
 
     // 'que' -> 'quebec'
     delete world.model.one.lexicon.que

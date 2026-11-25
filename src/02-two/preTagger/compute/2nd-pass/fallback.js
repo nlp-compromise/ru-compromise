@@ -11,6 +11,8 @@ const fallback = function (terms, i, world) {
   const term = terms[i]
   if (term.tags.size === 0) {
     setTag([term], 'Noun', world, false, '2-fallback')
+    return true
   }
+  return null
 }
 export default fallback

@@ -7,10 +7,27 @@ const keep = { tags: true, case: true }
 const samyj = /^сам(ый|ая|ое|ые|ого|ому|ую|ым|ом|ой|ых|ыми)$/
 // endings that a feminine noun takes in the oblique cases - 'комнаты', 'комнате', 'дверью'
 const femOblique = /([ыие]|ью)$/
+// ..and in the instrumental - 'комнатой', 'неделей', 'семьёй'
+const femInstr = /(ой|ей|ёй|ою|ею)$/
 
-const swapWith = function (view, n, fn) {
+// is the noun after this adjective a feminine one, in an oblique case?
+const beforeFeminine = function (m) {
+  const noun = m.lookAhead('^#Noun')
+  const str = noun.text('normal')
+  if (femOblique.test(str)) {
+    return true
+  }
+  // 'большой комнатой' - but 'большой герой' and 'большой музей' are nouns that we know
+  return femInstr.test(str) && !m.world.model.one.lexicon.hasOwnProperty(str)
+}
+
+const swapWith = function (view, n, fn, keepCase) {
   return getNth(view, n).map(m => {
     const str = m.text('normal')
+    // 'в большой комнате' is not a nominative - a new gender or number must not change the case
+    if (keepCase && str.endsWith('ой') && beforeFeminine(m)) {
+      return m
+    }
     const out = fn(str)
     if (out !== str) {
       m = m.replaceWith(out, keep)
@@ -26,16 +43,16 @@ const api = function (View) {
       this.viewType = 'Adjectives'
     }
     toMasculine(n) {
-      return swapWith(this, n, this.methods.two.transform.adjective.toMasculine)
+      return swapWith(this, n, this.methods.two.transform.adjective.toMasculine, true)
     }
     toFeminine(n) {
-      return swapWith(this, n, this.methods.two.transform.adjective.toFeminine)
+      return swapWith(this, n, this.methods.two.transform.adjective.toFeminine, true)
     }
     toNeuter(n) {
-      return swapWith(this, n, this.methods.two.transform.adjective.toNeuter)
+      return swapWith(this, n, this.methods.two.transform.adjective.toNeuter, true)
     }
     toPlural(n) {
-      return swapWith(this, n, this.methods.two.transform.adjective.toPlural)
+      return swapWith(this, n, this.methods.two.transform.adjective.toPlural, true)
     }
     toComparative(n) {
       return swapWith(this, n, this.methods.two.transform.adjective.toComparative)
@@ -49,8 +66,7 @@ const api = function (View) {
           return m
         }
         // 'большой' is masculine, or an oblique feminine - 'в большой комнате'
-        const isFeminine = femOblique.test(m.lookAhead('^#Noun').text('normal'))
-        const out = toSuperlative(str, isFeminine)
+        const out = toSuperlative(str, beforeFeminine(m))
         if (out !== str) {
           m = m.replaceWith(out, keep)
         }

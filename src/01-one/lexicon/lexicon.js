@@ -6,8 +6,12 @@ import misc from './misc.js'
 import { lexicon as numbers } from '../../03-three/numbers/data.js'
 
 const { toPresent, toPast, toImperative, toGerund } = methods.verb
+// case-forms of our adjectives that are more often a noun - 'со злом', 'с долгом', 'золотом'
+const nounLike = new Set(['добром', 'злом', 'долгом', 'золотом', 'правом', 'теплом'])
 const perfective = model.perfective || {}
 const lexicon = {}
+// our adjectives are kept apart, for the tagger - see below
+let adjectives = []
 
 const personMap = {
   first: 'FirstPerson',
@@ -32,6 +36,10 @@ const addWords = function (obj, tag, lex, extraMap) {
 
 Object.keys(lexData).forEach(tag => {
   const wordsObj = unpack(lexData[tag])
+  if (tag === 'Adjective') {
+    adjectives = Object.keys(wordsObj)
+    return
+  }
   Object.keys(wordsObj).forEach(w => {
     // animacy stacks with a gender-tag (гусь is MaleNoun + AnimateNoun),
     // in either processing-order
@@ -78,5 +86,23 @@ Object.keys(lexicon).forEach(w => {
   }
 })
 
+// every case, gender and number of our adjectives - 'красивой', 'синей', 'новом', 'хорошему'.
+// these endings are shared with nouns ('книгой', 'друзей', 'домом'), so there is no suffix-rule for them.
+// they are looked-up after the lexicon and the titlecase-rule, so that a name stays a name - 'Максим Горький'
+const adjectiveForms = {}
+adjectives = adjectives.concat(Object.keys(misc).filter(w => misc[w] === 'Adjective'))
+adjectives.forEach(w => {
+  methods.adjective.all(w).forEach(form => {
+    const plain = form.replace(/ё/g, 'е')
+    if (!lexicon[form] && !nounLike.has(plain)) {
+      adjectiveForms[form] = true
+      if (!lexicon[plain]) {
+        adjectiveForms[plain] = true
+      }
+    }
+  })
+})
+
 // console.log(lexicon['бежать'])
+export { adjectiveForms }
 export default lexicon

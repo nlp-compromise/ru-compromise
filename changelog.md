@@ -8,6 +8,11 @@
 - **[new]** - number-words are tagged `#TextValue` in every case-form, and 'тысяча'/'миллион' as `#Multiple`
 - **[fix]** - `adjectives().toSuperlative()` keeps the gender, number and case of the adjective - 'красивая книга' → 'самая красивая книга', 'в красивом доме' → 'в самом красивом доме', 'хорошая' → 'лучшая'
 - **[fix]** - adjective transformations keep a sentence-initial capital, and `toComparative()` is analytic for -ский adjectives ('более русский')
+- **[fix]** - feminine oblique adjectives are tagged `#Adjective`, not `#Noun` - 'красивой девушки', 'с новой книгой', 'в синей комнате', 'к хорошей подруге'
+- **[fix]** - common adjectives are known in every case, gender and number ('красивой', 'синей', 'новом', 'хорошему') - unknown ones in -ой/-ей/-ом/-ем are found by the noun beside them ('у пушистой кошки')
+- **[fix]** - nouns that end like an adjective stay nouns - 'на паром компании', 'в альбом сестре', 'музей истории', 'с книгой подруги', 'у друзей семьи'
+- **[fix]** - `adjectives().toSuperlative()` agrees in the feminine oblique cases - 'красивой девушки' → 'самой красивой девушки', 'большой комнатой' → 'самой большой комнатой'
+- **[fix]** - `adjectives().toMasculine()` understands the feminine accusative ('красивую' → 'красивый'), and `toFeminine()`, `toNeuter()`, `toPlural()` leave an oblique adjective in its case
 - **[change]** - prepositional adjectives are tagged `#Adjective` after в/на/о/при ('в красивом доме')
 - **[change]** - 'тыс.', 'млн.', 'млрд.' and 'трлн.' no longer end a sentence
 - **[breaking]** - `nlp.TypedPlugin` type is removed

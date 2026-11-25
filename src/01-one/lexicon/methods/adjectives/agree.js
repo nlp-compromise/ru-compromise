@@ -6,35 +6,53 @@ const ojStems = new Set([
   'больш', 'молод', 'дорог', 'прост', 'плох', 'жив', 'зл', 'чуж', 'родн',
   'голуб', 'сед', 'сух', 'глух', 'прям', 'крут', 'густ', 'пуст', 'слеп',
   'смешн', 'больн', 'основн', 'миров', 'втор', 'восьм', 'друг', 'как', 'так',
+  'золот', 'ночн', 'дневн', 'лесн', 'морск', 'речн', 'земн', 'городск', 'мужск',
+  'свят', 'делов', 'боев', 'небольш', 'цветн',
 ])
 
 const isVelar = (c) => /[кгх]/.test(c)
 const isHusher = (c) => /[жчшщ]/.test(c)
 
-// normalize any nominative form to masculine
-const toMasculine = function (str = '') {
-  if (/(ый|ий|ой)$/.test(str)) {
-    return str
-  }
-  let stem = null
-  if (/(ая|яя|ое|ее|ые|ие)$/.test(str)) {
-    stem = str.slice(0, -2)
-  }
-  if (stem === null) {
-    return str
-  }
+// the masculine form of a stem - 'нов' → 'новый'
+const withStem = function (stem, isSoft) {
   if (ojStems.has(stem)) {
     return stem + 'ой'
   }
   // синяя → синий, хорошее → хороший, маленькие → маленький
-  if (/(яя|ее|ие)$/.test(str) || isVelar(stem.slice(-1)) || isHusher(stem.slice(-1))) {
+  if (isSoft || isVelar(stem.slice(-1)) || isHusher(stem.slice(-1))) {
     return stem + 'ий'
   }
   return stem + 'ый'
 }
 
+// normalize any nominative form to masculine
+const fromNominative = function (str = '') {
+  if (/(ый|ий|ой)$/.test(str)) {
+    return str
+  }
+  if (/(ая|яя|ое|ее|ые|ие)$/.test(str)) {
+    return withStem(str.slice(0, -2), /(яя|ее|ие)$/.test(str))
+  }
+  return str
+}
+
+// any nominative form, or the feminine accusative, to masculine.
+// 'красивую' → 'красивый' keeps its case - an (inanimate) masculine accusative is the nominative form.
+// the other oblique endings are each several cases, so they are left alone
+const toMasculine = function (str = '') {
+  if (/[а-яё]{2}(ую|юю)$/.test(str)) {
+    return withStem(str.slice(0, -2), str.endsWith('юю'))
+  }
+  return fromNominative(str)
+}
+
+// nominative forms only - so that a change of gender or number is never a change of case
 const stemOf = function (str) {
-  const masc = toMasculine(str)
+  const masc = fromNominative(str)
+  // 'большой' is a nominative - but 'красивой' is an oblique feminine
+  if (masc.endsWith('ой') && !ojStems.has(masc.slice(0, -2))) {
+    return null
+  }
   if (/(ый|ий|ой)$/.test(masc)) {
     return { stem: masc.slice(0, -2), soft: masc.endsWith('ий') }
   }
@@ -215,7 +233,49 @@ const toSuperlative = function (str = '', isFeminine) {
   return 'сам' + res.ending + ' ' + str
 }
 
+// the 'hard' spelling of each ending → its 'soft' spelling ('ого' → 'его')
+const softEndings = {}
+Object.keys(hardEndings).forEach(k => {
+  if (hardEndings[k] !== k) {
+    softEndings[hardEndings[k]] = k
+  }
+})
+
+// every case, gender and number form of an adjective, from its masculine form -
+// новый → новая, новое, новые, нового, новому, новым, новом, новой, новую, новых, новыми
+const all = function (str = '') {
+  if (str.length < 4 || /(ый|ий|ой)$/.test(str) === false) {
+    return [str]
+  }
+  const stem = str.slice(0, -2)
+  const velar = isVelar(stem.slice(-1))
+  const husher = isHusher(stem.slice(-1))
+  const soft = str.endsWith('ий') && !velar && !husher
+  const stressed = str.endsWith('ой')
+  const forms = Object.keys(softEndings).map(end => {
+    // the masculine nominative is the only form that hears the stress
+    if (end === 'ый') {
+      return str
+    }
+    // синий → синяя, синего, синюю
+    if (soft) {
+      return stem + softEndings[end]
+    }
+    // spelling rules: no 'ы' after a velar or a husher (тихий → тихие, тихим)
+    if (end.startsWith('ы') && (velar || husher)) {
+      return stem + softEndings[end]
+    }
+    // and no unstressed 'о' after a husher (хороший → хорошего, but большой → большого)
+    if (end.startsWith('о') && husher && !stressed) {
+      return stem + softEndings[end]
+    }
+    return stem + end
+  })
+  return Array.from(new Set(forms))
+}
+
 export {
+  all,
   toMasculine,
   toFeminine,
   toNeuter,
