@@ -1,5 +1,6 @@
 import test from 'tape'
 import nlp from '../../_lib.js'
+import { tagSet as shared } from 'compromise/shared'
 const here = '[ru-aliases] '
 
 // every alias, and the tag it stands for
@@ -125,7 +126,9 @@ test('aliases match a tagged term:', function (t) {
 test('every alias in the tagset is tested, and titlecase:', function (t) {
   const { tagSet } = nlp.world().model.one
   Object.keys(tagSet).forEach(tag => {
-    const names = (tagSet[tag].aliases || []).filter(name => name !== null)
+    // english aliases, like #NN, come from the shared tagset
+    const english = shared[tag]?.aliases || []
+    const names = (tagSet[tag].aliases || []).filter(name => name !== null && !english.includes(name))
     names.forEach(name => {
       t.equal(aliases[name], tag, here + `#${name} is listed for #${tag}`)
       t.ok(/^\p{Lu}/u.test(name), here + `#${name} is titlecase`)
@@ -211,5 +214,24 @@ test('english tag names are unchanged:', function (t) {
   const tags = doc.json()[0].terms[1].tags
   t.ok(tags.includes('Noun'), here + 'json has #Noun')
   t.notOk(tags.includes('Существительное'), here + 'json has no #Существительное')
+  t.end()
+})
+
+test('english short aliases work too:', function (t) {
+  const arr = [
+    ['NN', 'Noun'],
+    ['Prop', 'ProperNoun'],
+    ['Pers', 'Person'],
+    ['Org', 'Organization'],
+    ['Hon', 'Honorific'],
+    ['Adj', 'Adjective'],
+    ['Val', 'Value'],
+    ['Prep', 'Preposition'],
+    ['Conj', 'Conjunction'],
+  ]
+  const { tagAliases } = nlp.world().model.one
+  arr.forEach(a => {
+    t.equal(tagAliases[a[0]], a[1], here + `#${a[0]} is #${a[1]}`)
+  })
   t.end()
 })

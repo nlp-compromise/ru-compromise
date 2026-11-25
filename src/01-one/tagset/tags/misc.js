@@ -1,9 +1,7 @@
-const anything = ['Noun', 'Verb', 'Adjective', 'Adverb', 'Value', 'QuestionWord']
-
+// only our own tags, and what differs from the shared tagset - see ../plugin.js
 export default {
   Adjective: {
     aliases: [null, 'Прилагательное'],
-    not: ['Noun', 'Verb', 'Adverb', 'Value'],
   },
   FemaleAdjective: {
     aliases: [null, 'ПрилагательноеЖенскогоРода'],
@@ -26,58 +24,49 @@ export default {
     not: ['PluralAdjective'],
   },
   Comparable: {
-    is: 'Adjective',
   },
   Comparative: {
     aliases: [null, 'СравнительнаяСтепень'],
-    is: 'Adjective',
   },
   Superlative: {
     aliases: [null, 'ПревосходнаяСтепень'],
-    is: 'Adjective',
-    not: ['Comparative'],
   },
   NumberRange: {
     aliases: [null, 'ЧисловойДиапазон'],
   },
   Adverb: {
     aliases: [null, 'Наречие'],
-    not: ['Noun', 'Verb', 'Adjective', 'Value'],
   },
-
   Determiner: {
     aliases: [null, 'Определитель'],
-    not: ['Noun', 'Verb', 'Adjective', 'Adverb', 'QuestionWord', 'Conjunction'], //allow 'a' to be a Determiner/Value
   },
-  // же, ли, бы, ведь..
   Particle: {
     aliases: [null, 'Частица'],
+    is: undefined,
     not: ['Noun', 'Verb', 'Adjective', 'Adverb'],
   },
-  // не, ни, нет
   Negative: {
     aliases: [null, 'Отрицание'],
     not: ['Noun', 'Adjective', 'Value'],
   },
   Conjunction: {
     aliases: [null, 'Союз'],
-    not: anything,
+    is: undefined,
+    not: ['Noun', 'Verb', 'Adjective', 'Adverb', 'Value', 'QuestionWord'],
   },
   Preposition: {
     aliases: [null, 'Предлог'],
+    is: undefined,
     not: ['Noun', 'Verb', 'Adjective', 'Adverb', 'QuestionWord'],
   },
   QuestionWord: {
     aliases: [null, 'ВопросительноеСлово'],
-    not: ['Determiner'],
   },
   Currency: {
     aliases: [null, 'Валюта'],
-    is: 'Noun',
   },
   Expression: {
     aliases: [null, 'Междометие'],
-    not: ['Noun', 'Adjective', 'Verb', 'Adverb'],
   },
   Abbreviation: {
     aliases: [null, 'Сокращение'],
@@ -95,7 +84,6 @@ export default {
   },
   AtMention: {
     aliases: [null, 'Упоминание'],
-    is: 'Noun',
     not: ['HashTag', 'Email'],
   },
   Emoji: {
@@ -116,6 +104,6 @@ export default {
   },
   Condition: {
     aliases: [null, 'Условие'],
-    not: ['Verb', 'Adjective', 'Noun', 'Value'],
+    is: undefined,
   },
 }

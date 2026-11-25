@@ -97,7 +97,7 @@
     return this.update(this.fullPointer.filter(wrap$2(this, cb)))
   };
 
-  const find = function (cb) {
+  const find$6 = function (cb) {
     const found = this.fullPointer.find(wrap$2(this, cb));
     if (found === undefined) {
       return this.update([])
@@ -120,7 +120,7 @@
     ptrs = ptrs.slice(r, r + n);
     return this.update(ptrs)
   };
-  var loops = { forEach, map, filter, find, some: some$1, random };
+  var loops = { forEach, map, filter, find: find$6, some: some$1, random };
 
   // small helpers shared by the View class and its methods
 
@@ -543,6 +543,8 @@
   const blue = color(34);
   const cyan = color(36);
   const yellow = color(33);
+  // used by name, from the tagset colors
+  const magenta = color(35);
   const dim = color(2);
   const i$1 = color(3);
   const b = color(1);
@@ -558,6 +560,7 @@
     green: green,
     grey: grey,
     i: i$1,
+    magenta: magenta,
     red: red,
     ul: ul,
     yellow: yellow
@@ -921,7 +924,7 @@
     }
   };
 
-  var cache$1 = {
+  var cache$3 = {
     api: addAPI$3,
     compute: compute$6,
     methods: methods$m,
@@ -980,6 +983,70 @@
   const toTitleCase = str => str.replace(/^\p{Ll}/u, x => x.toUpperCase());
   const toLowerCase = str => str.replace(/^\p{Lu}/u, x => x.toLowerCase());
 
+  // give a new word the case of the one it replaced: 'Danes' -> 'Dane', 'DANES' -> 'DANE'
+  const matchCase = (original, str) => {
+    if (original.length > 1 && original === original.toUpperCase() && original !== original.toLowerCase()) {
+      return str.toUpperCase()
+    }
+    return /^\p{Lu}/u.test(original) ? toTitleCase(str) : str
+  };
+
+  // Heal the edges of a sentence, when its first or last words change.
+  // Shared by insert and remove, and by the noun and verb conversions.
+
+  // a capital of its own, not the sentence's - 'Spencer', 'NASA', 'I', or 'Plan B'
+  const ownsCapital = function (term) {
+    if (term.tags.has('ProperNoun') || term.tags.has('Acronym')) {
+      return true
+    }
+    return term.text.length === 1 || !isTitleCase$1(term.text)
+  };
+
+  // the first word of a sentence lends its capital to a new first word
+  const passCapital = function (from, to, drop) {
+    if (!/^\p{Lu}/u.test(from.text)) {
+      return
+    }
+    to.text = toTitleCase(to.text);
+    if (drop && !ownsCapital(from)) {
+      from.text = toLowerCase(from.text);
+    }
+  };
+
+  // quotes, brackets and newlines open a phrase, so they stay in front of it
+  const passOpening = function (from, to) {
+    to.pre = from.pre + to.pre;
+    from.pre = '';
+  };
+
+  // a bare hyphen joins two words - 'well-fed'
+  const isJoiner = post => /^[-–]$/.test(post);
+
+  // "dogs' bowls" - with no opening quote before it, an apostrophe belongs to its word
+  const isPossessive = function (terms, i) {
+    if (!/^['’]/.test(terms[i].post)) {
+      return false
+    }
+    return !terms.slice(0, i + 1).some(term => /['‘]/.test(term.pre))
+  };
+
+  // periods, commas, closing quotes and brackets end a phrase, so they stay behind it
+  const passClosing = function (terms, i, to) {
+    const from = terms[i];
+    // nothing to move, or it is part of the word
+    if (!from.post || isJoiner(from.post) || isPossessive(terms, i)) {
+      return false
+    }
+    let post = from.post;
+    // the new words may bring their own ending - 'loudly!'
+    if (/[.?!…]/.test(to.post)) {
+      post = post.replace(/^[.?!…]+/, '');
+    }
+    to.post = to.post.trimEnd() + post;
+    from.post = ' ';
+    return true
+  };
+
   // splice an array into an array
   const spliceArr = (parent, index, child) => {
     // tag them as dirty
@@ -1000,44 +1067,8 @@
     }
   };
 
-  // sentence-ending punctuation should move in append
-  const movePunct = (source, end, needle) => {
-    const juicy = /[-.?!,;:)–—'"]/g;
-    const wasLast = source[end - 1];
-    if (!wasLast) {
-      return
-    }
-    const post = wasLast.post;
-    if (juicy.test(post)) {
-      const punct = post.match(juicy).join(''); //not perfect
-      const last = needle.at(-1);
-      last.post = punct + last.post;
-      // remove it, from source
-      wasLast.post = wasLast.post.replace(juicy, '');
-    }
-  };
-
-
-  const moveTitleCase = function (home, start, needle) {
-    const from = home[start];
-    // should we bother?
-    if (start !== 0 || !isTitleCase$1(from.text)) {
-      return
-    }
-    // titlecase new first term
-    needle[0].text = toTitleCase(needle[0].text);
-    // should we un-titlecase the old word?
-    const old = home[start];
-    if (old.tags.has('ProperNoun') || old.tags.has('Acronym')) {
-      return
-    }
-    if (isTitleCase$1(old.text) && old.text.length > 1) {
-      old.text = toLowerCase(old.text);
-    }
-  };
-
   // put these words before the others
-  const cleanPrepend = function (home, ptr, needle, document) {
+  const cleanPrepend = function (home, ptr, needle, document, agree) {
     const [n, start, end] = ptr;
     // introduce spaces appropriately
     if (start === 0) {
@@ -1051,25 +1082,28 @@
       endSpace(needle);
       endSpace([home[ptr[1]]]);
     }
-    moveTitleCase(home, start, needle);
-    // movePunct(home, end, needle)
+    if (agree) {
+      // '"dogs' -> '"the dogs'
+      passOpening(home[start], needle[0]);
+      // 'Dogs' -> 'The dogs'
+      if (start === 0) {
+        passCapital(home[start], needle[0], true);
+      }
+    }
     spliceArr(home, start, needle);
   };
 
-  const cleanAppend = function (home, ptr, needle, document) {
+  const cleanAppend = function (home, ptr, needle, document, agree) {
     const [n, , end] = ptr;
     const total = (document[n] || []).length;
-    if (end < total) {
-      // are we in the middle?
-      // add trailing space on self
-      movePunct(home, end, needle);
+    // 'bark.' -> 'bark loudly.'
+    const moved = agree && home[end - 1] && passClosing(home, end - 1, needle.at(-1));
+    if (!moved && end < total) {
+      // in the middle - add trailing space on self
       endSpace(needle);
-    } else if (total === end) {
-      // are we at the end?
-      // add a space to predecessor
+    } else if (!moved) {
+      // at the end - add a space to predecessor
       endSpace(home);
-      // very end, move period
-      movePunct(home, end, needle);
       // is there another sentence after?
       if (document[n + 1]) {
         needle.at(-1).post += ' ';
@@ -1175,7 +1209,9 @@
     return []
   };
 
-  const insert = function (input, view, prepend) {
+  // {agree: false} skips moving any capitals or punctuation
+  const insert = function (input, view, prepend, opts = {}) {
+    const agree = opts.agree !== false;
     const { document, world } = view;
     view.uncache();
     // insert words at end of each doc
@@ -1194,10 +1230,10 @@
       terms = addIds$2(terms);
       if (prepend) {
         expandContraction(view.update([ptr]).firstTerm());
-        cleanPrepend(home, ptr, terms, document);
+        cleanPrepend(home, ptr, terms, document, agree);
       } else {
         expandContraction(view.update([ptr]).lastTerm());
-        cleanAppend(home, ptr, terms, document);
+        cleanAppend(home, ptr, terms, document, agree);
       }
       // harden the pointer
       if (document[n]?.[ptr[1]]) {
@@ -1217,11 +1253,11 @@
   };
 
   const fns$3 = {
-    insertAfter: function (input) {
-      return insert(input, this, false)
+    insertAfter: function (input, opts) {
+      return insert(input, this, false, opts)
     },
-    insertBefore: function (input) {
-      return insert(input, this, true)
+    insertBefore: function (input, opts) {
+      return insert(input, this, true, opts)
     },
   };
   fns$3.append = fns$3.insertAfter;
@@ -1267,6 +1303,7 @@
       pre: terms[0].pre,
       post: last.post,
       isTitleCase: isTitleCase$1(terms[0].text),
+      text: terms[0].text,
       isPossessive: last.tags.has('Possessive'),
       tags: terms.map(term => Array.from(term.tags)),
     }
@@ -1330,7 +1367,9 @@
     if (typeof input === 'string') {
       input = this.fromText(input).compute('id');
     }
-    main.insertAfter(input);
+    // {agree: false} swaps the words, and nothing else
+    const agree = keep.agree !== false;
+    main.insertAfter(input, { agree });
     // New terms follow each old match; stop at an existing term to separate nearby matches.
     if (replacements) {
       replacements.forEach(group => {
@@ -1347,10 +1386,15 @@
       more.contractions().expand();
     }
     // delete the original terms
-    main.delete(original); //science.
+    // (we restore the start of the phrase ourselves, below)
+    // the new words take the sentence's capital, unless {case: false}
+    // (we restore the punctuation ourselves, below)
+    main.delete(original, { agree, start: keep.case !== false, end: false }); //science.
 
     // main now points at only the new terms
-    main.docs.forEach((terms, i) => restoreOriginal(terms, originals[i], keep));
+    if (agree) {
+      main.docs.forEach((terms, i) => restoreOriginal(terms, originals[i], keep));
+    }
 
     // what should we return?
     const m = retag$1(main.toView(), ['index']);
@@ -1364,7 +1408,8 @@
     if (keep.case) {
       m.docs.forEach((terms, i) => {
         const transformCase = originals[i].isTitleCase ? toTitleCase : toLowerCase;
-        terms[0].text = transformCase(terms[0].text);
+        // 'DOGS' -> 'CATS'
+        terms[0].text = matchCase(originals[i].text, transformCase(terms[0].text));
       });
     }
     // Transfer plugin metadata after replacement text, punctuation, and case are finalized.
@@ -1377,7 +1422,7 @@
   };
 
   fns$2.replace = function (match, input, keep) {
-    if (match && !input) {
+    if (match && input === undefined) {
       return this.replaceWith(match, keep)
     }
     const m = this.match(match);
@@ -1412,22 +1457,68 @@
     const to = terms[last - len];
     if (to && from) {
       to.post += from.post; //this isn't perfect.
-      to.post = removeRunBefore(to.post, ' ', '.?!,;:');
+      to.post = removeRunBefore(to.post, ' ', '.?!,;:"”)]');
       // don't allow any silly punctuation outcomes like ',!'
       to.post = removeRunBefore(to.post, ',;:', '.?!');
     }
   };
 
+  const pairs$2 = { '(': ')', '[': ']', '"': '"', '“': '”', '‘': '’' };
+
+  // a quote or bracket that opens and closes on the removed words leaves with them - '(loudly)'
+  const dropPairs = function (terms, start, end) {
+    const first = terms[start];
+    const last = terms[end - 1];
+    Object.keys(pairs$2).forEach(open => {
+      if (first.pre.includes(open) && last.post.includes(pairs$2[open])) {
+        first.pre = first.pre.replace(open, '');
+        last.post = last.post.replace(pairs$2[open], '');
+      }
+    });
+  };
+
+  // the word before us becomes the end of the phrase - 'bark loudly, and' -> 'bark, and'
+  const repairEnd = function (terms, start, end) {
+    const prev = terms[start - 1];
+    const post = terms[end - 1].post;
+    // is there anything to keep, and room to keep it?
+    if (prev && /\S/.test(post) && !/\S/.test(prev.post)) {
+      prev.post = post;
+    }
+  };
+
+  // the words after us become the start of the phrase
+  const repairStart = function (terms, start, end) {
+    const next = terms[end];
+    if (!next) {
+      return
+    }
+    // '"the dogs' -> '"dogs'
+    passOpening(terms[start], next);
+    // 'The dogs' -> 'Dogs'
+    if (start === 0) {
+      passCapital(terms[start], next);
+    }
+  };
+
   // remove terms from document json
-  const pluckOut = function (document, nots) {
+  const pluckOut = function (document, nots, opts = {}) {
     nots.forEach(ptr => {
       const [n, start, end] = ptr;
       const len = end - start;
       if (!document[n]) {
         return // weird!
       }
-      if (end === document[n].length && end > 1) {
-        repairPunct(document[n], len);
+      if (opts.agree !== false) {
+        dropPairs(document[n], start, end);
+        if (end === document[n].length && end > 1) {
+          repairPunct(document[n], len);
+        } else if (opts.end !== false) {
+          repairEnd(document[n], start, end);
+        }
+        if (opts.start !== false) {
+          repairStart(document[n], start, end);
+        }
       }
       document[n].splice(start, len); // replaces len terms at index start
     });
@@ -1489,9 +1580,14 @@
   };
 
   const methods$k = {
-    /** */
-    remove: function (reg) {
+    // {agree: false} skips moving any capitals or punctuation
+    remove: function (reg, opts) {
       const { indexN } = this.methods.one.pointer;
+      // allow .remove({agree: false})
+      if (reg && Object.hasOwn(reg, 'agree')) {
+        opts = reg;
+        reg = undefined;
+      }
       this.uncache();
       // two modes:
       //  - a. remove self, from full parent
@@ -1511,7 +1607,7 @@
       const gonePtrs = indexN(nots);
       const emptied = getEmptied(gonePtrs, this.document);
       // remove them from the actual document)
-      const document = pluckOut(this.document, nots);
+      const document = pluckOut(this.document, nots, opts);
       // repair our pointers
       ptrs = fixPointers$1(ptrs, gonePtrs, emptied);
       // clean up our original inputs
@@ -1647,8 +1743,8 @@
   /** count the # of terms in each match - most first */
   const wordCount$1 = (a, b) => b.words - a.words;
 
-  /** count the # of terms in each match */
-  const sequential = (a, b) => b[0] - a[0] || (a[1] > b[1] ? 1 : -1);
+  /** document order - sentence, then start, then end of each match */
+  const sequential = (a, b) => a.pointer[0] - b.pointer[0] || a.pointer[1] - b.pointer[1] || a.pointer[2] - b.pointer[2];
 
   /** sort by # of duplicates in the document*/
   const byFreq = function (arr) {
@@ -1843,7 +1939,7 @@
   };
 
   // one 'word:out words' per line - decoded once into { [key]: word, out: [...] }
-  const parse$2 = (str, key) =>
+  const parse$3 = (str, key) =>
     str
       .trim()
       .split('\n')
@@ -1856,7 +1952,7 @@
     // that's and let's are decided here, before any tagging
     // (step 1 of the 's decision - the list is in 2-two/contraction-two/compute/index.js)
     // simple mappings
-    ...parse$2(
+    ...parse$3(
       `
 @:at
 arent:are not
@@ -1900,7 +1996,7 @@ o'er:over
       'word'
     ),
     // contraction-part mappings
-    ...parse$2(
+    ...parse$3(
       `
 ll:will
 ve:have
@@ -1910,7 +2006,7 @@ m:am
       'after'
     ),
     // french contractions - t'aime
-    ...parse$2(
+    ...parse$3(
       `
 c:ce
 m:me
@@ -1922,7 +2018,7 @@ t:tu
       'before'
     ),
     // missing apostrophes, apostrophe-d
-    ...parse$2(
+    ...parse$3(
       `
 shouldnt:should not
 couldnt:could not
@@ -2334,7 +2430,7 @@ er
 
   var compute$4 = { contractions: contractions$1 };
 
-  const plugin = {
+  const plugin$1 = {
     model: model$5,
     compute: compute$4,
     hooks: ['contractions'],
@@ -2739,7 +2835,7 @@ er
     return view.update(results)
   };
 
-  function api$6 (View) {
+  function api$e (View) {
 
     /** find all matches in this document */
     View.prototype.lookup = function (input, opts = {}) {
@@ -2796,7 +2892,7 @@ er
   lib$4.compile = lib$4.buildTrie;
 
   var lookup$1 = {
-    api: api$6,
+    api: api$e,
     lib: lib$4
   };
 
@@ -5222,7 +5318,7 @@ er
   };
   // console.log(md5('food-safety'))
 
-  const defaults$1 = {
+  const defaults$3 = {
     text: true,
     terms: true,
   };
@@ -5270,7 +5366,7 @@ er
     if (typeof option === 'string') {
       option = {};
     }
-    option = { ...defaults$1, ...option };
+    option = { ...defaults$3, ...option };
     // run any necessary upfront steps
     if (option.offset) {
       view.compute('offset');
@@ -5536,8 +5632,9 @@ er
         if (!Object.hasOwn(model.one.tagSet, tag)) {
           return tag
         }
-        const c = model.one.tagSet[tag].color || 'blue';
-        return cli[c](tag)
+        // an unknown color should not break the output
+        const paint = cli[model.one.tagSet[tag].color] || blue;
+        return paint(tag)
       });
     }
     return tags.join(', ')
@@ -5677,9 +5774,86 @@ er
     highlight: showHighlight,
   };
 
+  const lastBrace = /\{(?=[^{]*$)/; // split on the last { only
+  const comment = /\}[ \t]*#(.*)$/s; // an optional '# comment' after the last {tags} block
+
+
+  // parse the spec output
+  const parseLine = function (line = '') {
+    let [text, tags] = line.split(lastBrace); // eslint-disable-line prefer-const
+    if (tags === undefined) {
+      const note = text.match(/\s#(.*)$/s)?.[1] || '';
+      // no {tags} block on this line
+      return { text: text.replace(/\s#.*$/s, '').trim(), tags: null, comment: note.trim() }
+    }
+    const note = (tags.match(comment)?.[1] || '').trim();
+    tags = tags.replace(comment, '}'); // drop the comment - only ever one, always last
+    tags = tags.split(',').map(tag => tag.trim());
+    const lastTag = tags[tags.length - 1];
+    tags[tags.length - 1] = lastTag.replace(/\}$/, '');
+    tags = tags.map(tag => tag.split('|').map(t => t.trim()));
+    if (tags.length === 1 && tags[0].length === 1 && tags[0][0] === '') {
+      tags = []; // empty '{}'; retain empty slots in nonempty lists
+    }
+    return { text: text.trim(), tags, comment: note }
+  };
+
+  // parse a whole spec into [{ line, text, tags, comment }], skipping blank and comment lines
+  const parseSpec = function (spec = '') {
+    const list = [];
+    spec.split('\n').forEach((str, i) => {
+      if (str.trim() && !/^\s*#/.test(str)) {
+        list.push({ line: i + 1, ...parseLine(str) });
+      }
+    });
+    return list
+  };
+
+  // make a match syntax looping through the arrays of tags
+  const toMatchString = function (tags, aliases) {
+    // Slots accept tags and '.', never match-syntax quantifiers or groups.
+    if (tags.some(slot => slot.some(tag => tag !== '.' && !/^!?#?[a-z][a-z0-9]*$/i.test(tag)))) {
+      return null
+    }
+    return tags.map(arr => {
+      arr = arr.map(str => {
+        if (str === '.') {
+          return '.'
+        }
+        const negative = str.startsWith('!');
+        const tag = str.replace(/^!?#?/, '');
+        const prefix = negative ? '!#' : '#';
+        return prefix + (aliases[tag] || tag)
+      });
+      if (arr.length > 1) {
+        return `(${arr.join(' && ')})`
+      }
+      return arr[0]
+    }).join(' ')
+  };
+
+  // Apply only positive constraints; negatives remain assertions.
+  const applyTags = (doc, slots, aliases) => {
+    const terms = doc.terms();
+    // Tokenization can supply structural tags; literal slots replace them.
+    doc.docs.flat().forEach(term => term.tags.clear());
+    slots?.forEach((slot, i) => {
+      const tags = slot.filter(tag => tag !== '.' && !tag.startsWith('!')).map(tag => {
+        tag = tag.replace(/^#/, '');
+        return aliases[tag] || tag
+      });
+      terms.eq(i).tag(tags, 'fromSpec');
+    });
+  };
+
   // Diagnostics describe the original parse, before the returned View is mutated.
-  const specFailures = (doc, slots, patterns, aliases) => {
+  const specFailures = (doc, slots, aliases) => {
     const terms = doc.docs.flat();
+    const patterns = slots.map(slot => toMatchString([slot], aliases));
+    const pattern = toMatchString(slots, aliases);
+    if (terms.length === slots.length && pattern !== null && doc.has(pattern)) {
+      return [] // valid
+    }
     const failures = [];
     if (terms.length !== slots.length) {
       failures.push({
@@ -5774,64 +5948,6 @@ er
     return `${green('✓')} ${green(dim(text))}${dim(block)}`
   };
 
-  const lastBrace = /\{(?=[^{]*$)/; // split on the last { only
-  const comment = /\}[ \t]*#.*$/s; // an optional '# comment' after the last {tags} block
-
-
-  // parse the spec output
-  const parseLine = function (line = '') {
-    let [text, tags] = line.split(lastBrace); // eslint-disable-line prefer-const
-    if (tags === undefined) {
-      return { text: text.replace(/\s#.*$/s, '').trimEnd(), tags: null } // no {tags} block on this line
-    }
-    tags = tags.replace(comment, '}'); // drop the comment - only ever one, always last
-    tags = tags.split(',').map(tag => tag.trim());
-    const lastTag = tags[tags.length - 1];
-    tags[tags.length - 1] = lastTag.replace(/\}$/, '');
-    tags = tags.map(tag => tag.split('|').map(t => t.trim()));
-    if (tags.length === 1 && tags[0].length === 1 && tags[0][0] === '') {
-      tags = []; // empty '{}'; retain empty slots in nonempty lists
-    }
-    return { text, tags }
-  };
-
-  // make a match syntax looping through the arrays of tags
-  const toMatchString = function (tags, aliases) {
-    // Slots accept tags and '.', never match-syntax quantifiers or groups.
-    if (tags.some(slot => slot.some(tag => tag !== '.' && !/^!?#?[a-z][a-z0-9]*$/i.test(tag)))) {
-      return null
-    }
-    return tags.map(arr => {
-      arr = arr.map(str => {
-        if (str === '.') {
-          return '.'
-        }
-        const negative = str.startsWith('!');
-        const tag = str.replace(/^!?#?/, '');
-        const prefix = negative ? '!#' : '#';
-        return prefix + (aliases[tag] || tag)
-      });
-      if (arr.length > 1) {
-        return `(${arr.join(' && ')})`
-      }
-      return arr[0]
-    }).join(' ')
-  };
-
-  // Apply only positive constraints; negatives remain assertions.
-  const applyTags = (doc, slots, aliases) => {
-    const terms = doc.terms();
-    // Tokenization can supply structural tags; literal slots replace them.
-    doc.docs.flat().forEach(term => term.tags.clear());
-    slots?.forEach((slot, i) => {
-      const tags = slot.filter(tag => tag !== '.' && !tag.startsWith('!')).map(tag => {
-        tag = tag.replace(/^#/, '');
-        return aliases[tag] || tag
-      });
-      terms.eq(i).tag(tags, 'fromSpec');
-    });
-  };
-
   const fromSpec = function (spec, { tags: tagMode = 'ignore', failures: failureMode = 'ignore', verbose = false } = {}) {
     if (!['ignore', 'use'].includes(tagMode) || !['ignore', 'throw', 'retain', 'log'].includes(failureMode)) {
       throw new Error('Invalid fromSpec options')
@@ -5839,29 +5955,24 @@ er
     const aliases = this.world().model.one.tagAliases;
     const result = this('');
     result.failures = [];
-    spec.split('\n').forEach((line, index) => {
-      if (!line.trim() || /^\s*#/.test(line)) {
-        return
-      }
-      const { text, tags } = parseLine(line);
+    parseSpec(spec).forEach(({ line, text, tags }) => {
       const doc = tagMode === 'use' ? this.tokenize(text) : this(text);
       let failures = [];
       if (tags !== null && (tagMode === 'use' || failureMode !== 'ignore')) {
         const count = doc.docs.reduce((sum, terms) => sum + terms.length, 0);
-        const patterns = tags.map(slot => toMatchString([slot], aliases));
         const pattern = toMatchString(tags, aliases);
         // Assigning slots is unsafe when the shape or syntax is invalid.
         const canApply = count === tags.length && pattern !== null;
         if (tagMode === 'use' && !canApply && failureMode !== 'log') {
-          const invalid = specFailures(doc, tags, patterns, aliases);
-          throw new Error(`${text.trim()} - ${invalid.map(failure => failure.message).join('; ')}`)
+          const invalid = specFailures(doc, tags, aliases);
+          throw new Error(`${text} - ${invalid.map(failure => failure.message).join('; ')}`)
         }
         if (tagMode === 'use') {
           applyTags(doc, canApply ? tags : null, aliases);
         }
-        if (failureMode !== 'ignore' && (count !== tags.length || pattern === null || !doc.has(pattern))) {
-          failures = specFailures(doc, tags, patterns, aliases)
-            .map(failure => ({ line: index + 1, text: text.trim(), ...failure }));
+        if (failureMode !== 'ignore') {
+          failures = specFailures(doc, tags, aliases)
+            .map(failure => ({ line, text, ...failure }));
           result.failures.push(...failures);
         }
       } else if (tagMode === 'use') {
@@ -5874,7 +5985,7 @@ er
         console.log(logLine(text, tags, detail)); //eslint-disable-line no-console
       }
       if (failures.length > 0 && failureMode === 'throw') {
-        throw new Error(`${text.trim()} - ${detail}`)
+        throw new Error(`${text} - ${detail}`)
       }
       if (failureMode === 'retain' && tags !== null && failures.length === 0) {
         return
@@ -5911,6 +6022,7 @@ er
       one: {
         hash: md5,
         debug,
+        parseSpec,
       },
     },
   };
@@ -6227,7 +6339,7 @@ er
     }
   };
 
-  const api$5 = function (View) {
+  const api$d = function (View) {
 
     /** speedy match a sequence of matches */
     View.prototype.sweep = function (net, opts = {}) {
@@ -6249,7 +6361,7 @@ er
           o.pointer = [
             term.index[0],
             term.index[1],
-            ptr[1] + len
+            term.index[1] + len
           ];
         }
         return o
@@ -6413,7 +6525,7 @@ er
     return { wants, count }
   };
 
-  const parse$1 = function (matches, world) {
+  const parse$2 = function (matches, world) {
     const parseMatch = world.methods.one.parseMatch;
     matches.forEach(obj => {
       resolveAliases(obj, world.model.one.tagAliases);
@@ -6490,7 +6602,7 @@ er
   // do some indexing on the list of matches
   const buildNet = function (matches, world) {
     // turn match-syntax into json
-    matches = parse$1(matches, world);
+    matches = parse$2(matches, world);
 
     // collect by wants and needs
     const hooks = {};
@@ -6736,7 +6848,7 @@ er
   // is this tag consistent with the tags they already have?
   const canBe = (terms, tag, model) => terms.every(term => canBe$1(term, tag, model.one.tagSet));
 
-  const tagger$1 = function (list, document, world) {
+  const tagger$2 = function (list, document, world) {
     const { model, methods } = world;
     const { getDoc, setTag, unTag } = methods.one;
     const looksPlural = methods.two.looksPlural;
@@ -6795,12 +6907,12 @@ er
   var methods$5 = {
     buildNet,
     bulkMatch: sweep$1,
-    bulkTagger: tagger$1
+    bulkTagger: tagger$2
   };
 
   var sweep = {
     lib: lib$2,
-    api: api$5,
+    api: api$d,
     methods: {
       one: methods$5,
     }
@@ -7615,47 +7727,59 @@ er
     return sentences
   };
 
-  /* eslint-disable regexp/no-dupe-characters-character-class */
-
   // merge embedded quotes into 1 sentence
   // like - 'he said "no!" and left.'
-  const MAX_QUOTE = 280;// ¯\_(ツ)_/¯
+  const MAX_QUOTE = 280; // ¯\_(ツ)_/¯
+  const MAX_AHEAD = 5;
 
+  // each opening quote, and the marks that may close it
+  // (some marks open a quote in one language, and close it in another)
+  // a third mark means 'not an opener, when that one is around'
   // don't support single-quotes for multi-sentences
-  const pairs = {
-    '\u0022': '\u0022', // 'StraightDoubleQuotes'
-    '\uFF02': '\uFF02', // 'StraightDoubleQuotesWide'
-    // '\u0027': '\u0027', // 'StraightSingleQuotes'
-    '\u201C': '\u201D', // 'CommaDoubleQuotes'
-    // '\u2018': '\u2019', // 'CommaSingleQuotes'
-    '\u201F': '\u201D', // 'CurlyDoubleQuotesReversed'
-    // '\u201B': '\u2019', // 'CurlySingleQuotesReversed'
-    '\u201E': '\u201D', // 'LowCurlyDoubleQuotes'
-    '\u2E42': '\u201D', // 'LowCurlyDoubleQuotesReversed'
-    '\u201A': '\u2019', // 'LowCurlySingleQuotes'
-    '\u00AB': '\u00BB', // 'AngleDoubleQuotes'
-    '\u2039': '\u203A', // 'AngleSingleQuotes'
-    '\u2035': '\u2032', // 'PrimeSingleQuotes'
-    '\u2036': '\u2033', // 'PrimeDoubleQuotes'
-    '\u2037': '\u2034', // 'PrimeTripleQuotes'
-    '\u301D': '\u301E', // 'PrimeDoubleQuotes'
-    // '\u0060': '\u00B4', // 'PrimeSingleQuotes'
-    '\u301F': '\u301E', // 'LowPrimeDoubleQuotesReversed'
-    '\u300C': '\u300D', // 'CornerBrackets' 「」
-    '\u300E': '\u300F', // 'WhiteCornerBrackets' 『』
-  };
-  const openQuote = RegExp('[' + Object.keys(pairs).join('') + ']', 'g');
-  const closeQuote = RegExp('[' + Object.values(pairs).join('') + ']', 'g');
+  const pairs$1 = [
+    ['\u0022', '\u0022'], // straight
+    ['\uFF02', '\uFF02'], // wide
+    ['\u201C', '\u201D', '\u201E'], // english (but it closes a german one)
+    ['\u201F', '\u201D'], // reversed
+    ['\u201E', '\u201D\u201C'], // polish, german
+    ['\u2E42', '\u201D'], // low-reversed
+    ['\u201A', '\u2019\u2018'], // low-single, german
+    ['\u00AB', '\u00BB'], // french
+    ['\u00BB', '\u00AB'], // german
+    ['\u2039', '\u203A'], // single
+    ['\u203A', '\u2039'], // single, reversed
+    ['\u2035', '\u2032'], // prime
+    ['\u2036', '\u2033'], // double-prime
+    ['\u2037', '\u2034'], // triple-prime
+    ['\u301D', '\u301E'], // prime
+    ['\u301F', '\u301E'], // low-prime
+    ['\u300C', '\u300D'], // corner
+    ['\u300E', '\u300F'], // white-corner
+  ];
 
-  const closesQuote = function (str) {
-    if (!str) {
-      return false
+  const count$1 = function (str, chars) {
+    let n = 0;
+    for (const c of str) {
+      if (chars.includes(c)) {
+        n += 1;
+      }
     }
-    const m = str.match(closeQuote);
-    if (m !== null && m.length === 1) {
-      return true
-    }
-    return false
+    return n
+  };
+
+  // is there a quotation here, that hasn't closed yet?
+  const isOpen = function (str) {
+    return pairs$1.some(([open, close, unless]) => {
+      const n = count$1(str, open);
+      if (n === 0 || (unless && str.includes(unless))) {
+        return false
+      }
+      // the same mark opens and closes
+      if (open === close) {
+        return n % 2 === 1
+      }
+      return n > count$1(str, close)
+    })
   };
 
   // allow micro-sentences when inside a quotation, like:
@@ -7663,40 +7787,25 @@ er
   const quoteMerge = function (splits) {
     const arr = [];
     for (let i = 0; i < splits.length; i += 1) {
-      const split = splits[i];
-      // do we have an open-quote and not a closed one?
-      const m = split.match(openQuote);
-      if (m !== null && m.length === 1) {
-        // is the quote already closed in this chunk? - '“Yes!” said Tom. “No!” said Ann.'
-        const closed = split.match(closeQuote);
-        if (closed !== null && closed[0] !== m[0]) {
-          arr.push(split);
-          continue
-        }
-
-        // look at the next sentence for a closing quote,
-        if (closesQuote(splits[i + 1]) && splits[i + 1].length < MAX_QUOTE) {
-          splits[i] += splits[i + 1];// merge them
-          arr.push(splits[i]);
-          splits[i + 1] = '';
-          i += 1;
-          continue
-        }
-        // look at n+2 for a closing quote,
-        if (closesQuote(splits[i + 2])) {
-          const toAdd = splits[i + 1] + splits[i + 2];// merge them all
+      let str = splits[i];
+      if (isOpen(str)) {
+        // look ahead for the sentence that closes it
+        let toAdd = '';
+        for (let n = i + 1; n < splits.length && n - i <= MAX_AHEAD; n += 1) {
+          toAdd += splits[n];
           //make sure it's not too-long
-          if (toAdd.length < MAX_QUOTE) {
-            splits[i] += toAdd;
-            arr.push(splits[i]);
-            splits[i + 1] = '';
-            splits[i + 2] = '';
-            i += 2;
-            continue
+          if (toAdd.length >= MAX_QUOTE) {
+            break
+          }
+          if (!isOpen(str + toAdd)) {
+            // merge them all
+            str += toAdd;
+            i = n;
+            break
           }
         }
       }
-      arr.push(splits[i]);
+      arr.push(str);
     }
     return arr
   };
@@ -7705,18 +7814,18 @@ er
 
   // support unicode variants?
   // https://stackoverflow.com/questions/13535172/list-of-all-unicodes-open-close-brackets
-  const hasOpen = /[(\uFF08]/g;
-  const hasClosed = /[)\uFF09]/g;
+  const hasOpen$2 = /[(\uFF08]/g;
+  const hasClosed$2 = /[)\uFF09]/g;
   const mergeParens = function (splits) {
     const arr = [];
     for (let i = 0; i < splits.length; i += 1) {
       const split = splits[i];
-      const m = split.match(hasOpen);
+      const m = split.match(hasOpen$2);
       if (m !== null && m.length === 1) {
         // look at next sentence, for closing parenthesis
         if (splits[i + 1] && splits[i + 1].length < MAX_LEN) {
-          const m2 = splits[i + 1].match(hasClosed);
-          if (m2 !== null && m.length === 1 && !hasOpen.test(splits[i + 1])) {
+          const m2 = splits[i + 1].match(hasClosed$2);
+          if (m2 !== null && m.length === 1 && !hasOpen$2.test(splits[i + 1])) {
             // merge in 2nd sentence
             splits[i] += splits[i + 1];
             arr.push(splits[i]);
@@ -8094,7 +8203,7 @@ er
   };
 
   // turn a string input into a 'document' json format
-  const parse = function (input, world) {
+  const parse$1 = function (input, world) {
     const { methods, model } = world;
     const { splitSentences, splitTerms, splitWhitespace } = methods.one.tokenize;
     input ||= '';
@@ -8118,7 +8227,9 @@ er
   const hasEllipse = /(?:\u2026|\.{2}) *$/; // '...'
   const hasLetter = /\p{L}/u;
   const hasPeriod = /\. *$/;
-  const leadInit = /^[A-Z]\. $/; // "W. Kensington"
+  const leadInit = /^\p{Lu}\. $/u; // "W. Kensington"
+  // an initial in any alphabet - 'А. С. Пушкин'
+  const isInitial = /[ .]\p{Lu}\. *$/u;
 
   /** does this look like a sentence? - str can be the end of it, if foundLetter is given */
   const isSentence = function (str, abbrevs, foundLetter = hasLetter.test(str)) {
@@ -8127,7 +8238,7 @@ er
       return false
     }
     // check for 'F.B.I.'
-    if (isAcronym$1.test(str)) {
+    if (isAcronym$1.test(str) || isInitial.test(str)) {
       return false
     }
     // check for leading initial - "W. Kensington"
@@ -8160,12 +8271,12 @@ er
         isSentence,
         splitTerms: splitWords,
         splitWhitespace: parseTerm,
-        fromString: parse,
+        fromString: parse$1,
       },
     },
   };
 
-  const aliases = {
+  const aliases$1 = {
     '&': 'and',
     '@': 'at',
     '%': 'percent',
@@ -8178,7 +8289,7 @@ er
   // pl=plural, pp=pages, qt=quarter, fr=french, nee=given name at birth, ss=ship or sections,
   // ver=version, fem/masc, eng=engineering/english, adj/vb/rb/inf=grammar, situ/vivo/vitro=in situ..
   // wr=world record
-  var misc$2 = toList(`
+  var misc$4 = toList(`
 approx
 apt
 bc
@@ -8233,7 +8344,7 @@ wr
 `);
 
   // (not miss, misses)
-  var honorifics = toList(`
+  var honorifics$1 = toList(`
 adj
 adm
 adv
@@ -8294,7 +8405,7 @@ nov
 dec
 `);
 
-  var nouns$2 = toList(`
+  var nouns$3 = toList(`
 ad
 al
 arc
@@ -8415,23 +8526,23 @@ yb
 
   // add our abbreviation list to our lexicon
   const list$1 = [
-    [misc$2],
+    [misc$4],
     [units, 'Unit'],
-    [nouns$2, 'Noun'],
-    [honorifics, 'Honorific'],
+    [nouns$3, 'Noun'],
+    [honorifics$1, 'Honorific'],
     [months, 'Month'],
     [organizations, 'Organization'],
     [places, 'Place'],
   ];
   // create key-val for sentence-tokenizer
-  const abbreviations = {};
+  const abbreviations$1 = {};
   // add them to a future lexicon
   const lexicon$3 = {};
 
   list$1.forEach(a => {
     a[0].forEach(w => {
       // sentence abbrevs
-      abbreviations[w] = true;
+      abbreviations$1[w] = true;
       // future-lexicon
       lexicon$3[w] = 'Abbreviation';
       if (a[1] !== undefined) {
@@ -8551,8 +8662,8 @@ designate
 
   var model$3 = {
     one: {
-      aliases,
-      abbreviations,
+      aliases: aliases$1,
+      abbreviations: abbreviations$1,
       prefixes: prefixes$1,
       suffixes,
       prePunctuation,
@@ -8563,7 +8674,7 @@ designate
     },
   };
 
-  const hasSlash = /\//;
+  const hasSlash$1 = /\//;
   const hasDomain = /[a-z]\.[a-z]/i;
   const isMath = /[0-9]/;
   // const hasSlash = /[a-z\u00C0-\u00FF] ?\/ ?[a-z\u00C0-\u00FF]/
@@ -8578,8 +8689,8 @@ designate
       term.alias.push(aliases[str]);
     }
     // support slashes as aliases
-    if (hasSlash.test(str) && !hasDomain.test(str) && !isMath.test(str)) {
-      const arr = str.split(hasSlash);
+    if (hasSlash$1.test(str) && !hasDomain.test(str) && !isMath.test(str)) {
+      const arr = str.split(hasSlash$1);
       // don't split urls and things
       if (arr.length <= 3) {
         arr.forEach(word => {
@@ -8744,7 +8855,7 @@ designate
     return this
   };
 
-  const api$4 = function (View) {
+  const api$c = function (View) {
     View.prototype.autoFill = autoFill;
   };
 
@@ -8786,14 +8897,14 @@ designate
     return index
   };
 
-  const defaults = {
+  const defaults$2 = {
     safe: true,
     min: 3,
   };
 
   const prepare = function (words = [], opts = {}) {
     const model = this.model();
-    opts = { ...defaults, ...opts };
+    opts = { ...defaults$2, ...opts };
     if (isObject(words)) {
       Object.assign(model.one.lexicon, words);
       words = Object.keys(words);
@@ -8822,7 +8933,7 @@ designate
   };
   var typeahead = {
     model: model$2,
-    api: api$4,
+    api: api$c,
     lib,
     compute,
     hooks: ['typeahead']
@@ -8834,10 +8945,10 @@ designate
   nlp.extend(match); //10kb
   nlp.extend(pointers); //2kb
   nlp.extend(tag); //2kb
-  nlp.plugin(plugin); //~6kb
+  nlp.plugin(plugin$1); //~6kb
   nlp.extend(tokenize); //7kb
   nlp.extend(freeze); //
-  nlp.plugin(cache$1); //~1kb
+  nlp.plugin(cache$3); //~1kb
   nlp.extend(lookup$1); //7kb
   nlp.extend(typeahead); //1kb
   nlp.extend(lexicon$4); //1kb
@@ -8870,7 +8981,7 @@ designate
   const BASE = 36;
   const seq = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
-  const cache = seq.split('').reduce(function (h, c, i) {
+  const cache$2 = seq.split('').reduce(function (h, c, i) {
     h[c] = i;
     return h
   }, {});
@@ -8893,8 +9004,8 @@ designate
   };
 
   const fromAlphaCode = function (s) {
-    if (cache[s] !== undefined) {
-      return cache[s]
+    if (cache$2[s] !== undefined) {
+      return cache$2[s]
     }
     let n = 0;
     let places = 1;
@@ -10172,7 +10283,7 @@ designate
 
   // hand-curated words with multiple tags, plus ambiguity-pins.
   // these win over the packed lexicon and generated conjugations.
-  const misc$1 = {};
+  const misc$3 = {};
 
   // --- быть (to be) ---
   const bytForms = {
@@ -10269,38 +10380,1655 @@ designate
   ];
 
   Object.keys(bytForms).forEach(w => {
-    misc$1[w] = bytForms[w];
+    misc$3[w] = bytForms[w];
   });
   possessives.forEach(w => {
-    misc$1[w] = ['Pronoun', 'Possessive'];
+    misc$3[w] = ['Pronoun', 'Possessive'];
   });
   determiners.forEach(w => {
-    misc$1[w] = 'Determiner';
+    misc$3[w] = 'Determiner';
   });
   particles.forEach(w => {
-    misc$1[w] = 'Particle';
+    misc$3[w] = 'Particle';
   });
   negatives.forEach(w => {
-    misc$1[w] = 'Negative';
+    misc$3[w] = 'Negative';
   });
   modals.forEach(w => {
-    misc$1[w] = 'Modal';
+    misc$3[w] = 'Modal';
   });
   questionAdverbs.forEach(w => {
-    misc$1[w] = 'Adverb';
+    misc$3[w] = 'Adverb';
   });
   expressions.forEach(w => {
-    misc$1[w] = 'Expression';
+    misc$3[w] = 'Expression';
   });
   currencies.forEach(w => {
-    misc$1[w] = ['Noun', 'Currency'];
+    misc$3[w] = ['Noun', 'Currency'];
   });
   nounPins.forEach(w => {
-    misc$1[w] = 'Noun';
+    misc$3[w] = 'Noun';
   });
   ojAdjectives.forEach(w => {
-    misc$1[w] = 'Adjective';
+    misc$3[w] = 'Adjective';
   });
+
+  const getWords = function (net) {
+    return Object.keys(net.hooks).filter(w => !w.startsWith('#') && !w.startsWith('%'))
+  };
+
+  const maybeMatch = function (doc, net) {
+    // must have *atleast* one of these words
+    const words = getWords(net);
+    if (words.length === 0) {
+      return doc
+    }
+    if (!doc._cache) {
+      doc.cache();
+    }
+    const cache = doc._cache;
+    // return sentences that have one of our needed words
+    return doc.filter((_m, i) => {
+      return words.some(str => cache[i].has(str))
+    })
+  };
+
+  // tokenize first, then only tag sentences required
+  const lazy = function (input, reg) {
+    let net = reg;
+    if (typeof reg === 'string') {
+      net = this.buildNet([{ match: reg }]);
+    }
+    const doc = this.tokenize(input);
+    const m = maybeMatch(doc, net);
+    if (m.found) {
+      m.compute(['index', 'tagger']);
+      return m.match(reg)
+    }
+    return doc.none()
+  };
+
+  var lazy$1 = {
+    lib: {
+      lazy,
+    },
+  };
+
+  // Preferred alias identifiers holding canonical tag names.
+  // NN is the umbrella noun tag; Sing is specifically singular.
+  const NN = 'Noun';
+  const Sing = 'Singular';
+  const Plur = 'Plural';
+  const Prop = 'ProperNoun';
+  const Pron = 'Pronoun';
+
+  const Adj = 'Adjective';
+  const Comp = 'Comparative';
+  const Adv = 'Adverb';
+  const Det = 'Determiner';
+
+  const Vb = 'Verb';
+  const Inf = 'Infinitive';
+  const Past = 'PastTense';
+  const Ger = 'Gerund';
+  const Pres = 'PresentTense';
+  const Fut = 'FutureTense';
+
+  const Cop = 'Copula';
+  const Phrasal = 'PhrasalVerb';
+  const Conj = 'Conjunction';
+  const Prep = 'Preposition';
+  const Expr = 'Expression';
+  const QW = 'QuestionWord';
+
+  const Pers = 'Person';
+  const Place = 'Place';
+  const Org = 'Organization';
+  const First = 'FirstName';
+  const Last = 'LastName';
+  const MaleName = 'MaleName';
+  const FemaleName = 'FemaleName';
+  const Uncountable = 'Uncountable';
+  const SportsTeam = 'SportsTeam';
+  const Country = 'Country';
+  const City = 'City';
+  const Region = 'Region';
+
+  const Val = 'Value';
+  const Card = 'Cardinal';
+  const Ord = 'Ordinal';
+  const TxtNum = 'TextValue';
+  const Numeric = 'NumericValue';
+  const RomanNumeral = 'RomanNumeral';
+  const Frac = 'Fraction';
+
+  const Date = 'Date';
+  const WeekDay = 'WeekDay';
+  const Year = 'Year';
+  const FinancialQuarter = 'FinancialQuarter';
+  const Season = 'Season';
+  const Time = 'Time';
+  const Timezone = 'Timezone';
+
+  const Connector = 'Connector';
+  const Abbr = 'Abbreviation';
+  const Acronym = 'Acronym';
+  const HashTag = 'HashTag';
+  const AtMention = 'AtMention';
+
+  const Emoji = 'Emoji';
+  const Emoticon = 'Emoticon';
+  const SlashedTerm = 'SlashedTerm';
+  const Email = 'Email';
+  const PhoneNumber = 'PhoneNumber';
+  const Url = 'Url';
+
+  const entity = [Pers, Place, Org];
+
+  var nouns$2 = {
+    Noun: {
+      aliases: [null, 'NN'],
+      not: [Vb, Adj, Adv, Val, Det],
+    },
+    Singular: {
+      aliases: [null, 'Sing', 'SG', 'NN1'],
+      is: NN,
+      not: [Plur, Uncountable],
+    },
+    // 'Canada'
+    ProperNoun: {
+      aliases: ['Prop', 'NNP', 'PROPN', 'NP0'],
+      is: NN,
+    },
+    Person: {
+      aliases: [null, 'Pers'],
+      is: Sing,
+      also: [Prop],
+      not: [Place, Org, Date],
+    },
+    FirstName: {
+      aliases: [null, 'First'],
+      is: Pers,
+    },
+    MaleName: {
+      is: First,
+      not: [FemaleName, Last],
+    },
+    FemaleName: {
+      is: First,
+      not: [MaleName, Last],
+    },
+    LastName: {
+      aliases: [null, 'Last'],
+      is: Pers,
+      not: [First],
+    },
+    // 'dr.'
+    Honorific: {
+      aliases: ['Hon'],
+      is: Pers,
+      not: [First, Last, Val],
+    },
+    Place: {
+      is: Sing,
+      not: [Pers, Org],
+    },
+    Country: {
+      is: Place,
+      also: [Prop],
+      not: [City],
+    },
+    City: {
+      is: Place,
+      also: [Prop],
+      not: [Country],
+    },
+    // 'california'
+    Region: {
+      is: Place,
+      also: [Prop],
+    },
+    Address: {
+      aliases: ['Addr'],
+      // is: 'Place',
+    },
+    Organization: {
+      aliases: ['Org'],
+      is: Prop,
+      not: [Pers, Place],
+    },
+    SportsTeam: {
+      aliases: [null, 'Team'],
+      is: Org,
+    },
+    School: {
+      is: Org,
+    },
+    Company: {
+      is: Org,
+    },
+    Plural: {
+      aliases: [null, 'Plur', 'NNS', 'PL', 'NN2'],
+      is: NN,
+      not: [Sing, Uncountable],
+    },
+    // 'gravity'
+    Uncountable: {
+      is: NN,
+    },
+    // 'it'
+    Pronoun: {
+      aliases: [null, 'Pron', 'PRP', 'PRON'],
+      is: NN,
+      not: entity,
+    },
+    // 'swimmer'
+    Actor: {
+      is: NN,
+      not: [Place, Org],
+    },
+    // walking
+    Activity: {
+      is: NN,
+      not: [Pers, Place],
+    },
+    // kilometres
+    Unit: {
+      is: NN,
+      not: entity,
+    },
+    // canadian
+    Demonym: {
+      aliases: [null, 'Dem'],
+      is: NN,
+      also: [Prop],
+      not: entity,
+    },
+    // [spencer's] hat
+    Possessive: {
+      aliases: ['Poss'],
+      is: NN,
+    },
+    // 'yourself'
+    Reflexive: {
+      aliases: [null, 'Refl'],
+      is: Pron,
+    },
+  };
+
+  var verbs$2 = {
+    Verb: {
+      aliases: ['Vb', 'V', 'VB'],
+      not: [NN, Adj, Adv, Val, Expr],
+    },
+    // 'he [walks]'
+    PresentTense: {
+      aliases: ['Pres', 'PRS'],
+      is: Vb,
+      not: [Past, Fut],
+    },
+    // 'will [walk]'
+    Infinitive: {
+      aliases: ['Inf', 'VVI'],
+      is: Pres,
+      not: [Ger],
+    },
+    // '[walk] now!'
+    Imperative: {
+      aliases: ['Imp'],
+      is: Vb,
+      not: [Past, Ger, Cop],
+    },
+    // walking
+    Gerund: {
+      aliases: ['Ger', 'VBG'],
+      is: Pres,
+      not: [Cop],
+    },
+    // walked
+    PastTense: {
+      aliases: ['Past', 'VBD', 'PST'],
+      is: Vb,
+      not: [Pres, Ger, Fut],
+    },
+    // will walk
+    FutureTense: {
+      aliases: ['Fut'],
+      is: Vb,
+      not: [Pres, Past],
+    },
+    // is/was
+    Copula: {
+      aliases: [null, 'Cop'],
+      is: Vb,
+    },
+    // '[could] walk'
+    Modal: {
+      aliases: [null, 'Mod', 'MD'],
+      is: Vb,
+      not: [Inf],
+    },
+    // 'awaken'
+    Participle: {
+      aliases: [null, 'VBN'],
+      is: Past,
+    },
+    // '[will have had] walked'
+    Auxiliary: {
+      aliases: ['Aux'],
+      is: Vb,
+      not: [Past, Pres, Ger, Conj],
+    },
+    // 'walk out'
+    PhrasalVerb: {
+      aliases: ['Phrasal', 'PhrV'],
+      is: Vb,
+    },
+    // 'walk [out]'
+    Particle: {
+      aliases: [null, 'RP'],
+      is: Phrasal,
+      not: [Past, Pres, Cop, Ger],
+    },
+    // 'walked by'
+    Passive: {
+      aliases: [null, 'Pass'],
+      is: Vb,
+    },
+  };
+
+  // Written format is independent of quantity types such as Fraction or Money.
+  var values$1 = {
+    Value: {
+      aliases: ['Val', 'Num'],
+      not: [Vb, Adj, Adv],
+    },
+    Ordinal: {
+      aliases: [null, 'Ord'],
+      is: Val,
+      not: [Card],
+    },
+    Cardinal: {
+      aliases: [null, 'Card', 'CD'],
+      is: Val,
+      not: [Ord],
+    },
+    Fraction: {
+      aliases: [null, 'Frac'],
+      is: Val,
+      not: [NN],
+    },
+    Multiple: {
+      aliases: [null, 'Mult'],
+      is: TxtNum,
+    },
+    RomanNumeral: {
+      aliases: [null, 'RomNum'],
+      is: Card,
+    },
+    TextValue: {
+      aliases: [null, 'TxtNum'],
+      is: Val,
+      not: [Numeric, RomanNumeral],
+    },
+    NumericValue: {
+      aliases: ['Numeric'],
+      is: Val,
+      not: [RomanNumeral],
+    },
+    Money: {
+      is: Card,
+    },
+    Percent: {
+      aliases: [null, 'Perc', 'Pct'],
+      is: Val,
+    },
+  };
+
+  // Calendar/clock components are distinct. Holiday and Duration describe spans
+  // that can overlap components or one another (for example, 'Christmas Day').
+  // Each exclusion pair is declared once; the tag compiler supplies reciprocity.
+  var dates$1 = {
+    Date: {
+      not: [Vb, Adv, Adj],
+    },
+    Month: {
+      is: Date,
+      also: [NN],
+      not: [WeekDay, Year, FinancialQuarter, Season, Time, Timezone],
+    },
+    WeekDay: {
+      is: Date,
+      also: [NN],
+      not: [Year, FinancialQuarter, Season, Time, Timezone],
+    },
+    Year: {
+      is: Date,
+      not: [RomanNumeral, FinancialQuarter, Season, Time, Timezone],
+    },
+    FinancialQuarter: {
+      is: Date,
+      aliases: [null, 'Quarter'],
+      not: [Frac, Season, Time, Timezone],
+    },
+    // 'easter'
+    Holiday: {
+      is: Date,
+      also: [NN],
+    },
+    // 'summer'
+    Season: {
+      is: Date,
+      not: [Time, Timezone],
+    },
+    Timezone: {
+      is: Date,
+      aliases: [null, 'Tz'],
+      also: [NN],
+      not: [Prop],
+    },
+    Time: {
+      is: Date,
+      not: [AtMention, Timezone],
+    },
+    // 'months'
+    Duration: {
+      aliases: [null, 'Dur'],
+      is: Date,
+      also: [NN],
+    },
+  };
+
+  const anything = [NN, Vb, Adj, Adv, Val, QW];
+
+  var misc$2 = {
+    Adjective: {
+      aliases: ['Adj', 'JJ', 'ADJ', 'AJ0'],
+      not: [NN, Vb, Adv, Val],
+    },
+    Comparable: {
+      is: Adj,
+    },
+    Comparative: {
+      aliases: [null, 'Comp', 'JJR', 'AJC'],
+      is: Adj,
+    },
+    Superlative: {
+      aliases: [null, 'Sup', 'JJS', 'AJS'],
+      is: Adj,
+      not: [Comp],
+    },
+    NumberRange: {
+      aliases: [null, 'NumRange'],
+    },
+    Adverb: {
+      aliases: ['Adv', 'RB', 'ADV'],
+      not: [NN, Vb, Adj, Val],
+    },
+
+    Determiner: {
+      aliases: ['Det', 'DT', 'DET'],
+      not: [NN, Vb, Adj, Adv, QW, Conj], //allow 'a' to be a Determiner/Value
+    },
+    Connector: {
+      not: [NN, Vb, Adj, Adv, QW, Det],
+    },
+    Conjunction: {
+      aliases: ['Conj', 'CC'],
+      is: Connector,
+      not: anything.concat([Prep]),
+    },
+    Preposition: {
+      aliases: ['Prep', 'IN', 'ADP'],
+      is: Connector,
+      not: [NN, Vb, Adj, Adv, QW, Det, Conj],
+    },
+    QuestionWord: {
+      aliases: [null, 'QW'],
+      not: [Det],
+    },
+    Currency: {
+      is: NN,
+    },
+    Expression: {
+      aliases: ['Expr'],
+      not: [NN, Adj, Vb, Adv],
+    },
+    Abbreviation: {
+      aliases: ['Abbr'],
+    },
+    Url: {
+      aliases: [null, 'URL'],
+      not: [HashTag, Vb, Adj, Val, SlashedTerm, Email, PhoneNumber, AtMention, Emoji, Emoticon],
+    },
+    PhoneNumber: {
+      not: [HashTag, Vb, Adj, Val, AtMention, Emoji, Emoticon],
+    },
+    HashTag: {},
+    AtMention: {
+      is: NN,
+      not: [HashTag, Emoji, Emoticon],
+    },
+    Emoji: {
+      not: [HashTag, Vb, Adj, Val, Emoticon],
+    },
+    Emoticon: {
+      not: [HashTag, Vb, Adj, Val, SlashedTerm],
+    },
+    SlashedTerm: {
+      not: [Emoticon, Url, Val]
+    },
+    Email: {
+      not: [HashTag, Vb, Adj, Val, PhoneNumber, AtMention, Emoji, Emoticon],
+    },
+    Acronym: {
+      not: [RomanNumeral, Pron, Date],
+    },
+    Negative: {
+      aliases: [null, 'Neg'],
+      not: [NN, Adj, Val, Expr],
+    },
+    Condition: {
+      is: Connector,
+      aliases: [null, 'Cond'],
+      not: [Vb, Adj, NN, Val],
+    },
+    // existential 'there'
+    There: {
+      aliases: [null, 'EX'],
+      not: [Vb, Adj, NN, Val, Conj, Prep],
+    },
+    // 'co-wrote'
+    Prefix: {
+      not: [Abbr, Acronym, Prop],
+    },
+    // hard-nosed, bone-headed
+    Hyphenated: {},
+  };
+
+  const allTags = { ...nouns$2, ...verbs$2, ...values$1, ...dates$1, ...misc$2 };
+
+  // Some finders retain the caller's document; others use the selected view's.
+  const select = (View, find, originalDocument = false) => function (n) {
+    const matches = typeof find === 'string' ? this.match(find) : find(this);
+    const selected = matches.getNth(n);
+    return new View(originalDocument ? this.document : selected.document, selected.pointer)
+  };
+
+  // name the View subclass, and have .update() return it, sharing the match cache
+  const keepClass = (Cls, name) => {
+    Cls.prototype.viewType = name;
+    Cls.prototype.update = function (pointer) {
+      const m = new this.constructor(this.document, pointer);
+      m._cache = this._cache;
+      m.world = this.world;
+      return m
+    };
+  };
+
+  // the json of each match, plus a parsed form under one key
+  const jsonWith = (view, n, key, fn) => {
+    const opts = typeof n === 'object' ? n : {};
+    return view.getNth(n).map(p => {
+      const json = p.toView().json(opts)[0];
+      json[key] = fn(p);
+      return json
+    }, [])
+  };
+
+  const find$5 = function (doc) {
+    let m = doc.splitAfter('@hasComma');
+    m = m.match('#Hon+? #Pers+');
+    // Spencer's King - but keep 'John Smith's' together
+    const poss = m.match('#Poss+').notIf('(his|her)'); //her majesty ...
+    m = m.splitAfter(poss);
+    return m
+  };
+
+  const parse = function (m) {
+    const res = {};
+    res.firstName = m.match('#First+');
+    res.lastName = m.match('#Last+');
+    res.honorific = m.match('#Hon+');
+
+    const last = res.lastName;
+    const first = res.firstName;
+    if (!first.found || !last.found) {
+      // let p = m.clone()
+      // assume 'Mr Springer', or 'Vice President Springer' is a last-name
+      if (!first.found && !last.found && m.has('^#Hon #Hon? .$')) {
+        res.lastName = m.match('.$');
+        return res
+      }
+    }
+    return res
+  };
+
+  // gendered pronouns
+  const she = '(she|her|hers)';
+
+  /*
+    Important notice - 
+    this method makes many assumptions about gender-identity, in-order to assign grammatical gender.
+    it should not be used for any other purposes, other than resolving pronouns in english
+  */
+  const m = 'male';
+  const f = 'female';
+
+  // known gendered honorifics
+  const honorifics = {
+    mr: m,
+    mrs: f,
+    miss: f,
+    madam: f,
+
+    // british stuff
+    king: m,
+    queen: f,
+    duke: m,
+    duchess: f,
+    baron: m,
+    baroness: f,
+    count: m,
+    countess: f,
+    prince: m,
+    princess: f,
+    sire: m,
+    dame: f,
+    lady: f,
+
+    ayatullah: m, //i think?
+
+    congressman: m,
+    congresswoman: f,
+    'first lady': f,
+
+    // marked as non-binary
+    mx: null,
+  };
+
+  const predictGender = function (parsed, person) {
+    const { firstName, honorific } = parsed;
+    // use first-name as signal-signal
+    if (firstName.has('#FemaleName')) {
+      return f
+    }
+    if (firstName.has('#MaleName')) {
+      return m
+    }
+    // use honorics as gender-signal
+    if (honorific.found) {
+      let hon = honorific.text('normal');
+      hon = hon.replace(/\./g, ''); //clean it up a bit
+      if (Object.hasOwn(honorifics, hon)) {
+        return honorifics[hon]
+      }
+      // her excelency
+      if (/^her /.test(hon)) {
+        return f
+      }
+      if (/^his /.test(hon)) {
+        return m
+      }
+    }
+    // offer used-pronouns as a signal
+    const after = person.after();
+    if (!after.has('#Pers') && after.has('#Pron')) {
+      const pro = after.match('#Pron');
+      // manual use of gender-neutral
+      if (pro.has('(they|their)')) {
+        return null
+      }
+      const hasMasc = pro.has('(he|his)');
+      const hasFem = pro.has(she);
+      if (hasMasc && !hasFem) {
+        return m
+      }
+      if (hasFem && !hasMasc) {
+        return f
+      }
+    }
+    return null
+  };
+
+  const addMethod = function (View) {
+    /**
+     *
+     */
+    class People extends View {
+      parse(n) {
+        return this.getNth(n).map(parse, [])
+      }
+      json(n) {
+        return jsonWith(this, n, 'person', p => {
+          // read the names from a copy, without its possessive - "Biden's" → 'biden'
+          const tmp = p.clone();
+          tmp.possessives().strip();
+          const parsed = parse(tmp);
+          return {
+            firstName: parsed.firstName.text('normal'),
+            lastName: parsed.lastName.text('normal'),
+            honorific: parsed.honorific.text('normal'),
+            presumed_gender: predictGender(parsed, p),
+          }
+        })
+      }
+      // used for co-reference resolution only
+      presumedMale() {
+        return this.filter(m => {
+          return m.has('(#MaleName|mr|mister|sr|jr|king|pope|prince|sir)')//todo configure these in .world
+        })
+      }
+      presumedFemale() {
+        return this.filter(m => {
+          return m.has('(#FemaleName|mrs|miss|queen|princess|madam)')
+        })
+      }
+    }
+    keepClass(People, 'People');
+
+    View.prototype.people = select(People, find$5, true);
+  };
+
+  const find$4 = function (doc) {
+    let m = doc.match('(#Place|#Address)+');
+
+    // split all commas except for 'paris, france'
+    let splits = m.match('@hasComma');
+    splits = splits.filter(c => {
+      // split 'europe, china'
+      if (c.has('(asia|africa|europe|america)$')) {
+        return true
+      }
+      // don't split 'paris, france'
+      if (c.has('(#City|#Region|#Prop)$') && c.after('^(#Country|#Region)').found) {
+        return false
+      }
+      return true
+    });
+    m = m.splitAfter(splits);
+    return m
+  };
+
+  //combine them with .topics() method
+  const find$3 = function (n) {
+    // builds without the chunker have no .clauses()
+    const r = this.clauses ? this.clauses() : this;
+    // Find entities and acronyms without duplicating acronyms inside entities.
+    let m = r.people();
+    m = m.concat(r.places());
+    m = m.concat(r.organizations());
+    m = m.concat(r.match('#Acronym').ifNo(m));
+    m = m.not('(someone|man|woman|mother|brother|sister|father)');
+    //return them to normal ordering
+    m = m.sort('seq');
+    // m = m.unique()
+    m = m.getNth(n);
+    return m
+  };
+
+  const api$b = function (View) {
+    View.prototype.topics = find$3;
+  };
+
+  const api$a = function (View) {
+    addMethod(View);
+
+    View.prototype.places = function (n) {
+      const m = find$4(this);
+      return m.getNth(n)
+    };
+    View.prototype.organizations = function (n) {
+      const m = this.match('#Org+');
+      return m.getNth(n)
+    };
+    api$b(View);
+  };
+  var topics = { api: api$a };
+
+  // key order is the order they are redacted in
+  const defaults$1 = {
+    people: true,
+    places: true,
+    organizations: true,
+    emails: true,
+    money: true,
+    percentages: true,
+    fractions: true,
+    phoneNumbers: true,
+    atMentions: true,
+    acronyms: true,
+    urls: true,
+    // off by default
+    properNouns: false,
+    dates: false,
+    numbers: false,
+    pronouns: false,
+  };
+
+  // remove these specific tags when redacting, which may leak information
+  const hideTags = {
+    people: [MaleName, FemaleName, First, Last],
+    places: [City, 'State', Country, Region],
+    organizations: [SportsTeam, 'Company', 'School'],
+  };
+  hideTags.pronouns = [...hideTags.people, ...hideTags.places, ...hideTags.organizations];
+
+  // replace text with blockStr but keep tags
+  const redactMatch = function (m, blockStr, keep = true) {
+    m = m.notIf('#Redacted');
+    m.replaceWith(blockStr, keep);
+    m.tag('Redacted');
+    return m
+  };
+
+  const redact = function (opts = {}, blockStr = '██████████', keep = true) {
+    opts = { ...defaults$1, ...opts };
+    // each key is also the View method that finds them
+    Object.keys(defaults$1).forEach(k => {
+      // skip finders that this build or language does not have
+      if (opts[k] !== false && this[k]) {
+        const m = redactMatch(this[k](), blockStr, keep);
+        if (hideTags[k]) {
+          m.unTag(hideTags[k]);
+        }
+      }
+    });
+    return this
+  };
+
+  const plugin = {
+    model: {
+      one: {
+        tagSet: {
+          Redacted: true
+        }
+      }
+    },
+    api: function (View) {
+      View.prototype.redact = redact;
+    }
+  };
+
+  // remove a regex match from the text of each term
+  const stripper = reg => view => {
+    eachTerm(view.docs, term => {
+      term.text = term.text.replace(reg, '');
+      term.normal = term.normal.replace(reg, '');
+    });
+    return view
+  };
+
+  const strip$3 = stripper(/\./g);
+
+  const api$9 = function (View) {
+
+    class Acronyms extends View {
+      strip() {
+        return strip$3(this)
+      }
+      addPeriods() {
+        strip$3(this);
+        eachTerm(this.docs, term => {
+          // Reuse the sentence period so strip() still preserves punctuation.
+          const ending = term.post.startsWith('.') ? '' : '.';
+          term.text = term.text.split('').join('.') + ending;
+          term.normal = term.normal.split('').join('.') + ending;
+        });
+        return this
+      }
+    }
+    Acronyms.prototype.viewType = 'Acronyms';
+
+    View.prototype.acronyms = select(Acronyms, '#Acronym');
+  };
+
+  // select spans wrapped by paired punctuation held in term.pre / term.post
+  const findPairs = (hasOpen, findEnd) => doc => {
+    const ptrs = [];
+    doc.docs.forEach(terms => {
+      for (let i = 0; i < terms.length; i += 1) {
+        const term = terms[i];
+        if (term.pre && hasOpen.test(term.pre)) {
+          const end = findEnd(terms, i);
+          if (end !== null) {
+            const [n, start] = terms[i].index;
+            // i and end are relative to this view, but start is not
+            ptrs.push([n, start, start + end - i + 1, terms[i].id]);
+            i = end;
+          }
+        }
+      }
+    });
+    return doc.update(ptrs)
+  };
+
+  // remove the opening and closing punctuation from each span
+  const stripPairs = (hasOpen, hasClosed) => m => {
+    m.docs.forEach(terms => {
+      terms[0].pre = terms[0].pre.replace(hasOpen, '');
+      const last = terms[terms.length - 1];
+      last.post = last.post.replace(hasClosed, '');
+    });
+    return m
+  };
+
+  const hasOpen$1 = /\(/;
+  const hasClosed$1 = /\)/;
+
+  const findEnd$1 = function (terms, i) {
+    for (; i < terms.length; i += 1) {
+      if (terms[i].post && hasClosed$1.test(terms[i].post)) {
+        return i
+      }
+    }
+    return null
+  };
+
+  const find$2 = findPairs(hasOpen$1, findEnd$1);
+  const strip$2 = stripPairs(hasOpen$1, hasClosed$1);
+
+  const api$8 = function (View) {
+    class Parentheses extends View {
+      strip() {
+        return strip$2(this)
+      }
+    }
+    Parentheses.prototype.viewType = 'Parentheses';
+
+    View.prototype.parentheses = select(Parentheses, find$2);
+  };
+
+  const stripS = stripper(/['’]s$/);
+  const leadApostrophe = /^['’]/;
+
+  // spencer's, spencer’s - and the flanders', whose apostrophe is in .post
+  const strip$1 = function (view) {
+    stripS(view);
+    eachTerm(view.docs, t => {
+      if (t.text.endsWith('s') && leadApostrophe.test(t.post)) {
+        t.post = t.post.replace(leadApostrophe, '');
+      }
+    });
+    return view
+  };
+
+  // #Possessive is decided upstream, in steps - the list is in 2-two/contraction-two/compute/index.js
+  const find$1 = function (doc) {
+    let m = doc.match('#Poss+');
+    // expand it to include 'john smith's'
+    if (m.has('#Pers')) {
+      m = m.growLeft('#Pers+');
+    }
+    if (m.has('#Place')) {
+      m = m.growLeft('#Place+');
+    }
+    if (m.has('#Org')) {
+      m = m.growLeft('#Org+');
+    }
+    return m
+  };
+
+
+  const api$7 = function (View) {
+
+    class Possessives extends View {
+      strip() {
+        return strip$1(this)
+      }
+    }
+    Possessives.prototype.viewType = 'Possessives';
+
+    View.prototype.possessives = select(Possessives, find$1);
+  };
+
+  /* eslint-disable regexp/no-dupe-characters-character-class */
+
+  const pairs = {
+    '\u0022': '\u0022', // 'StraightDoubleQuotes'
+    '\uFF02': '\uFF02', // 'StraightDoubleQuotesWide'
+    '\u0027': '\u0027', // 'StraightSingleQuotes'
+    '\u201C': '\u201D', // 'CommaDoubleQuotes'
+    '\u2018': '\u2019', // 'CommaSingleQuotes'
+    '\u201F': '\u201D', // 'CurlyDoubleQuotesReversed'
+    '\u201B': '\u2019', // 'CurlySingleQuotesReversed'
+    '\u201E': '\u201D', // 'LowCurlyDoubleQuotes'
+    '\u2E42': '\u201D', // 'LowCurlyDoubleQuotesReversed'
+    '\u201A': '\u2019', // 'LowCurlySingleQuotes'
+    '\u00AB': '\u00BB', // 'AngleDoubleQuotes' «, »
+    '\u2039': '\u203A', // 'AngleSingleQuotes'
+    // Prime 'non quotation'
+    '\u2035': '\u2032', // 'PrimeSingleQuotes'
+    '\u2036': '\u2033', // 'PrimeDoubleQuotes'
+    '\u2037': '\u2034', // 'PrimeTripleQuotes'
+    // Prime 'quotation' variation
+    '\u301D': '\u301E', // 'PrimeDoubleQuotes'
+    '\u0060': '\u00B4', // 'PrimeSingleQuotes'
+    '\u301F': '\u301E', // 'LowPrimeDoubleQuotesReversed'
+  };
+
+  const hasOpen = RegExp('[' + Object.keys(pairs).join('') + ']');
+  const hasClosed = RegExp('[' + Object.values(pairs).join('') + ']');
+
+  const findEnd = function (terms, i) {
+    const have = terms[i].pre.match(hasOpen)[0] || '';
+    if (!have || !pairs[have]) {
+      return null
+    }
+    const want = pairs[have];
+    for (; i < terms.length; i += 1) {
+      if (terms[i].post && terms[i].post.match(want)) {
+        return i
+      }
+    }
+    return null
+  };
+
+  const find = findPairs(hasOpen, findEnd);
+  const strip = stripPairs(hasOpen, hasClosed);
+
+  const api$6 = function (View) {
+
+    class Quotations extends View {
+      text(fmt) {
+        if (!fmt || fmt === 'text') {
+          return super.text({ keepEndPunct: true })
+        }
+        if (typeof fmt === 'object') {
+          return super.text({ keepEndPunct: true, ...fmt })
+        }
+        return super.text(fmt)
+      }
+      strip() {
+        strip(this);
+      }
+    }
+    Quotations.prototype.viewType = 'Quotations';
+
+    View.prototype.quotations = select(Quotations, find);
+  };
+
+  /** return anything tagged as a phone number */
+  const phoneNumbers = function (n) {
+    let m = this.splitAfter('@hasComma');
+    m = m.match('#PhoneNumber+');
+    m = m.getNth(n);
+    return m
+  };
+
+  /** return anything tagged as an address */
+  const addresses = function (n) {
+    let m = this.match('#Address+');
+    m = m.getNth(n);
+    return m
+  };
+
+  // setup easy helper methods
+  const selections = [
+    ['hyphenated', '@hasHyphen .'],
+    ['hashTags', '#HashTag'],
+    ['emails', '#Email'],
+    ['emoji', '#Emoji'],
+    ['emoticons', '#Emoticon'],
+    ['atMentions', '#AtMention'],
+    ['urls', '#Url'],
+    // ['pronouns', '#Pronoun'],
+    ['conjunctions', '#Conj'],
+    ['prepositions', '#Prep'],
+    ['abbreviations', '#Abbr'],
+    ['honorifics', '#Hon'],
+  ];
+
+  // aliases
+  const aliases = [
+    ['emojis', 'emoji'],
+    ['atmentions', 'atMentions'],
+  ];
+
+  const addMethods = function (View) {
+    // add a list of new helper methods
+    selections.forEach(a => {
+      View.prototype[a[0]] = function (n) {
+        const m = this.match(a[1]);
+        return typeof n === 'number' ? m.get(n) : m
+      };
+    });
+    View.prototype.phoneNumbers = phoneNumbers;
+    View.prototype.addresses = addresses;
+    // add aliases
+    aliases.forEach(a => {
+      View.prototype[a[0]] = View.prototype[a[1]];
+    });
+  };
+
+  const hasSlash = /\//;
+
+  const api$5 = function (View) {
+
+    class Slashes extends View {
+      split() {
+        return this.map((m) => {
+          const str = m.text();
+          const arr = str.split(hasSlash);
+          m = m.replaceWith(arr.join(' '));
+          return m.growRight('(' + arr.join('|') + ')+')
+        })
+      }
+    }
+    Slashes.prototype.viewType = 'Slashes';
+
+    View.prototype.slashes = select(Slashes, '#SlashedTerm');
+  };
+
+  var misc$1 = {
+    api: function (View) {
+      api$9(View);
+      api$8(View);
+      api$7(View);
+      api$6(View);
+      addMethods(View);
+      api$5(View);
+    }
+  };
+
+  // a comma, but not a clause break
+  const notClause = [
+    '@hasComma @hasComma', //fun, cool...
+    '(#City && @hasComma) #Country', //'toronto, canada'
+    '(#WeekDay && @hasComma) #Date', //'tuesday, march 2nd'
+    '(#Date+ && @hasComma) #Val', //'july 6, 1992'
+    '(#Adj && @hasComma) #Adj', //nice, pretty
+  ];
+
+  const byComma = function (doc, rules) {
+    const skip = notClause.concat(rules.notClause || []);
+    let commas = doc.match('@hasComma');
+    // remove any non-clause uses
+    commas = commas.filter(m => {
+      // don't split the first word
+      if (m.growLeft('.').wordCount() === 1) {
+        return false
+      }
+      // don't split the last word
+      if (m.growRight('. .').wordCount() === 1) {
+        return false
+      }
+      const more = m.grow('.'); // grow by 1 word in either direction
+      return !skip.some(str => more.has(str))
+    });
+    return doc.splitAfter(commas)
+  };
+
+  // should we split-out a clause (in brackets)?
+  const splitParentheses = function (doc) {
+    // from the misc plugin
+    if (!doc.parentheses) {
+      return doc
+    }
+    let matches = doc.parentheses();
+    matches = matches.filter(m => {
+      return m.wordCount() >= 3 && m.has('#Verb') && m.has('#NN')
+    });
+    return doc.splitOn(matches)
+  };
+
+  // split-out a long quotion, but not 'inline quotes'.
+  const splitQuotes = function (doc) {
+    // from the misc plugin
+    if (!doc.quotations) {
+      return doc
+    }
+    let matches = doc.quotations();
+    matches = matches.filter(m => {
+      return m.wordCount() >= 3 && m.has('#Verb') && m.has('#NN')
+    });
+    return doc.splitOn(matches)
+  };
+
+  const clauses$2 = function (n) {
+    let found = this;
+    // word-rules, like 'but' and 'until', are in the model
+    const rules = this.model.three?.clauses || {};
+
+    found = splitParentheses(found);
+    found = splitQuotes(found);
+
+    found = byComma(found, rules);
+
+    found = found.splitAfter('(@hasEllipses|@hasSemicolon|@hasDash|@hasColon)');
+
+    // each language's own rules
+    const { splitAfter = [], splitBefore = [], splitBeforeGroup = [] } = rules;
+    splitAfter.forEach(str => {
+      found = found.splitAfter(str);
+    });
+    splitBefore.forEach(str => {
+      found = found.splitBefore(str);
+    });
+    splitBeforeGroup.forEach(str => {
+      const m = found.match(str, 0);
+      if (m.found) {
+        found = found.splitBefore(m);
+      }
+    });
+
+    // // misc clause partitions
+    // found = found.splitBefore('as well as .')
+    // found = found.splitBefore('such as .')
+    // found = found.splitBefore('in addition to .')
+
+    // // semicolons, dashes
+    // found = found.splitAfter('@hasSemicolon')
+    // found = found.splitAfter('@hasDash')
+
+    // //
+    // found = found.splitBefore('which (were|are|will)')
+
+    // // he said [...]
+    // found = found.splitAfter('#Noun (said|say|says)')
+
+    // passive voice verb - '.. which was robbed is empty'
+    // let passive = found.match('#Noun (which|that) (was|is) #Adverb? #PastTense #Adverb?')
+    // if (passive.found) {
+    //   found = found.splitAfter(passive)
+    // }
+    // //which the boy robbed
+    // passive = found.match('#Noun (which|that) the? #Noun+ #Adverb? #PastTense #Adverb?')
+    // if (passive.found) {
+    //   found = found.splitAfter(passive)
+    // }
+    // does there appear to have relative/subordinate clause still?
+    // let tooLong = found.filter(d => d.wordCount() > 5 && d.match('#Verb+').length >= 2)
+    // if (tooLong.found) {
+    //   // and after the ..
+    //   found = found.splitBefore('#Conjunction #Preposition')
+
+    //   // let m = tooLong.splitAfter('#Noun .* #Verb .* #Noun+')
+    //   // found = found.splitOn(m.eq(0))
+    // }
+    if (typeof n === 'number') {
+      found = found.get(n);
+    }
+    return found
+  };
+
+  const api$4 = function (View) {
+    View.prototype.clauses = clauses$2;
+  };
+
+  // .clauses() with only its punctuation rules - a language adds its own model.three.clauses
+  var clauses$1 = { api: api$4 };
+
+  // a leading '-', or the real minus-sign, or one after a symbol - '$-5'
+  const minus = /^\s*[-−]|\P{L}[-−]$/u;
+  const signs = /[-−]/g;
+  // any currency symbol - '$', '€', '₽'
+  const currency = /\p{Sc}/u;
+
+  // a decimal-comma, unless the language's model says otherwise.
+  // `ordinal` is regex-source for the ending of a numeric ordinal - '[ºª°]'
+  // `loose` reads a lone decimal-mark before three digits as thousands - '7,938'
+  // `percent` and `currencies` are the words that follow a number - 'per cento', 'euro'
+  const defaults = { decimal: ',', group: '.', ordinal: '', loose: false, percent: [], currencies: [] };
+
+  // the mark that groups thousands can't also be the decimal
+  const groupMark = function (group, decimal) {
+    if (group !== decimal) {
+      return group
+    }
+    return decimal === '.' ? ',' : '.'
+  };
+
+  // '1234567' → '1.234.567'
+  const addGroups = function (int, mark) {
+    const out = [];
+    for (let end = int.length; end > 0; end -= 3) {
+      out.unshift(int.slice(Math.max(end - 3, 0), end));
+    }
+    return out.join(mark)
+  };
+
+  // floating-point noise - 0.1 + 0.2. a whole number is already exact,
+  // and rounding it to 15 digits would corrupt a 16-digit one
+  const tidy$2 = num => (Number.isInteger(num) ? num : Number(num.toPrecision(15)));
+
+  // compile each ordinal-ending once
+  const cache$1 = {};
+  const isOrdinal$1 = function (suffix, src) {
+    if (!src || !suffix) {
+      return false
+    }
+    cache$1[src] = cache$1[src] || new RegExp('^(?:' + src + ')$', 'iu');
+    return cache$1[src].test(suffix)
+  };
+
+  // digits, and any mark that sits between two of them - '1.234,56', '1 000', "1'000"
+  const body = /^[0-9](?:[0-9]|[.,'’\s](?=[0-9]))*/;
+  const count = (str, char) => str.split(char).length - 1;
+
+  // which mark is the decimal, and which one groups the thousands?
+  // two different marks, or a repeated one, say so themselves - '1.234,56', '1.234.567'
+  // a lone '.' or ',' is the only real guess, and the locale makes it
+  const findMarks = function (str, locale) {
+    const dots = count(str, '.');
+    const commas = count(str, ',');
+    // a space or an apostrophe is only ever a thousands-group
+    const soft = str.match(/[ ']/);
+    let decimal = null;
+    let group = soft ? soft[0] : null;
+    if (dots && commas) {
+      // the last one is the decimal
+      decimal = str.lastIndexOf(',') > str.lastIndexOf('.') ? ',' : '.';
+      group = decimal === ',' ? '.' : ',';
+      if (soft) {
+        return null
+      }
+    } else if (dots + commas > 1) {
+      group = dots ? '.' : ',';
+      if (soft) {
+        return null
+      }
+    } else if (dots + commas === 1) {
+      const mark = dots ? '.' : ',';
+      const isGroup = /^[1-9][0-9]{0,2}[.,][0-9]{3}$/.test(str);
+      const isDecimal = mark === locale.decimal && !(locale.loose && isGroup);
+      if (soft || isDecimal || !isGroup) {
+        decimal = mark; // '3,5', and '3.5' anywhere
+      } else {
+        group = mark; // '1.000' where the decimal is a comma
+      }
+    }
+    return { decimal, group }
+  };
+
+  // '1.234,56' → 1234.56, or null for something that isn't one number - '1.2.3'
+  const toNumber = function (str, marks) {
+    let int = str;
+    let fraction = '';
+    if (marks.decimal) {
+      const parts = str.split(marks.decimal);
+      if (parts.length !== 2) {
+        return null
+      }
+      int = parts[0];
+      fraction = parts[1];
+    }
+    // thousands come in threes
+    if (marks.group) {
+      const groups = int.split(marks.group);
+      if (groups[0].length > 3 || groups.slice(1).some(s => s.length !== 3)) {
+        return null
+      }
+      int = groups.join('');
+    }
+    if (!/^[0-9]+$/.test(int) || !/^[0-9]*$/.test(fraction)) {
+      return null
+    }
+    return Number(fraction ? int + '.' + fraction : int)
+  };
+
+  /**
+   * pull-apart a number written in digits - '-5', '1.234,56 €', '3,5%', '2ª'
+   * `pre` is any punctuation that the tokenizer left in front of it - '(-'
+   * `locale` is model.two.europeanNumbers
+   */
+  const read$1 = function (str, pre = '', locale = defaults) {
+    const res = {
+      num: null,
+      prefix: '',
+      suffix: '',
+      hasComma: false,
+      decimal: null,
+      group: null,
+      ordinal: null,
+      currency: null,
+      isPercent: false,
+      isFraction: false,
+    };
+    str = String(str).trim();
+    const begin = str.search(/[0-9]/);
+    if (begin === -1) {
+      return res
+    }
+    let prefix = str.slice(0, begin);
+    const raw = str.slice(begin).match(body)[0];
+    let suffix = str.slice(begin + raw.length);
+    // every kind of space, and both kinds of apostrophe
+    let digits = raw.replace(/\s/g, ' ').replace(/’/g, "'");
+    // a decimal with nothing in front of it - '.5', ',5'
+    const lead = prefix.slice(-1);
+    if ((lead === '.' || lead === ',') && /^[0-9]+$/.test(digits)) {
+      digits = '0' + lead + digits;
+      prefix = prefix.slice(0, -1);
+    }
+    const marks = findMarks(digits, locale);
+    let num = marks ? toNumber(digits, marks) : null;
+    if (num === null) {
+      return res
+    }
+    // a fraction - '1/2'
+    const frac = suffix.match(/^\/([0-9]+)$/);
+    if (frac && Number(frac[1]) !== 0) {
+      num /= Number(frac[1]);
+      suffix = '';
+      res.isFraction = true;
+    }
+    // the sign may be hiding in the punctuation - '(-5)'
+    // .. on either side of the currency - '-$5', '$-5' - but not 'covid-19'
+    if (minus.test(prefix) || /[-−]$/.test(pre)) {
+      num *= -1;
+    }
+    // a numeric ordinal - '2ª', '5-го', '3e'
+    if (isOrdinal$1(suffix, locale.ordinal)) {
+      res.ordinal = suffix;
+      suffix = '';
+    }
+    res.num = num;
+    res.prefix = prefix.replace(signs, '');
+    res.suffix = suffix;
+    res.decimal = marks.decimal;
+    res.group = marks.group;
+    res.hasComma = marks.group !== null;
+    // remember which space it was - a non-breaking one is put back as one
+    if (marks.group === ' ') {
+      res.group = raw.match(/\s/)[0];
+    }
+    const money = [res.prefix, suffix].find(s => currency.test(s));
+    res.currency = money ? money.trim() : null;
+    res.isPercent = /^\s*[%％]/.test(suffix);
+    return res
+  };
+
+  /**
+   * write a number in digits - 1234.5 → '1.234,5'
+   * `how` is the result of read(), so a number goes back the way it was found.
+   * thousands are only grouped when `how.hasComma` is set
+   */
+  const write$2 = function (num, how = {}, locale = defaults) {
+    if (typeof num !== 'number' || !isFinite(num)) {
+      return ''
+    }
+    num = tidy$2(num);
+    let str = String(Math.abs(num));
+    // leave '1e+21' alone
+    if (/^[0-9]+(?:\.[0-9]+)?$/.test(str)) {
+      let decimal = how.decimal || locale.decimal;
+      // '7,938' was grouped with a comma, so its decimal is a period
+      if (!how.decimal && how.group === decimal) {
+        decimal = groupMark(decimal, decimal);
+      }
+      const parts = str.split('.');
+      let int = parts[0];
+      const fraction = parts[1];
+      if (how.hasComma) {
+        int = addGroups(int, groupMark(how.group || locale.group, decimal));
+      }
+      str = fraction ? int + decimal + fraction : int;
+    }
+    // the sign goes ahead of any currency - '-$5'
+    const sign = num < 0 ? '-' : '';
+    return sign + (how.prefix || '') + str + (how.suffix || '')
+  };
+
+  const sign = '[-+−]?';
+  // '1.234.567,89', or '1234,5' - either mark, the reader sorts-out which is which
+  const digits = "(?:[0-9]{1,3}(?:[.,'’][0-9]{3})+(?:[.,][0-9]+)?|[0-9]+(?:[.,][0-9]+)?)";
+  // 'R$', 'US$', '€'
+  const symbol$1 = '(?:[a-z]{1,2})?\\p{Sc}';
+
+  const cardinal = ['Cardinal', 'NumericValue'];
+  const percent$2 = ['Percent', 'Cardinal', 'NumericValue'];
+  const money = ['Money', 'Value'];
+
+  // build them once per language
+  const cache = new WeakMap();
+
+  /**
+   * tagging rules for numbers written in digits, as [regex, tags, example].
+   * test them on the term's text, not its 'normal' - which has lost its commas
+   */
+  const regexes = function (locale = defaults) {
+    if (cache.has(locale)) {
+      return cache.get(locale)
+    }
+    const reg = str => new RegExp('^' + str + '$', 'iu');
+    const out = [
+      [reg(sign + symbol$1 + ' ?' + sign + digits + '(?:[kmb]|bn)?\\+?'), money, '€5,30'],
+      [reg(sign + digits + ' ?' + symbol$1 + '\\+?'), money, '5,30€'],
+      [reg(sign + digits + '\\+?'), cardinal, '1.234,56'],
+      [reg(sign + '[.,][0-9]+\\+?'), cardinal, ',5'],
+      [reg(sign + digits + ' ?[%％]\\+?'), percent$2, '3,5%'],
+      [reg(sign + '[.,][0-9]+[%％]'), percent$2, ',5%'],
+    ];
+    // '2ª', '5-го', '3e'
+    if (locale.ordinal) {
+      out.push([reg('[0-9]+(?:' + locale.ordinal + ')'), ['Ordinal', 'NumericValue'], 'ordinal']);
+    }
+    cache.set(locale, out);
+    return out
+  };
+
+  const reason$1 = 'european-number';
+  // '€', '₽', 'R$', 'US$'
+  const symbol = /^[a-z]{0,2}\p{Sc}$/iu;
+  // only in capitals - 'EUR 5', not 'eur'
+  const codes = /^(?:EUR|USD|GBP|CHF|JPY|CAD|AUD|BRL|MXN|RUB|CNY)$/;
+  const percent$1 = /^[%％]$/;
+
+  const isValue$1 = term => term.tags.has('Value');
+  // nothing but a space between this word and the next - not '5, euro'
+  const touches = term => /^\s*$/.test(term.post);
+
+  // do these words come next? - 'per cento'
+  const hasPhrase = function (terms, i, words) {
+    return words.every((w, o) => terms[i + o] && terms[i + o].normal === w && (o === words.length - 1 || touches(terms[i + o])))
+  };
+
+  /**
+   * a number takes its meaning from the word beside it - '5,30 €', '50 per cento', 'mille euro'.
+   * the number is tagged #Money or #Percent, and the word beside it #Currency or #Unit.
+   * the words come from the model - { percent: ['per cento'], currencies: ['euro'] }
+   */
+  const tagNeighbours = function (terms, view) {
+    const { world, model, methods } = view;
+    const { setTag, unTag } = methods.one;
+    const locale = model.two.europeanNumbers;
+    const phrases = (locale.percent || []).map(str => str.split(' '));
+    const words = new Set(locale.currencies || []);
+    const isCurrency = term => term.tags.has('Currency') || symbol.test(term.text) || words.has(term.normal);
+    const isCode = term => symbol.test(term.text) || codes.test(term.text);
+
+    for (let i = 0; i < terms.length; i += 1) {
+      if (!isValue$1(terms[i]) || terms[i].tags.has('Ordinal')) {
+        continue
+      }
+      // the whole number - '1 000', 'trois cent'
+      let end = i;
+      while (terms[end + 1] && isValue$1(terms[end + 1]) && touches(terms[end])) {
+        end += 1;
+      }
+      const run = terms.slice(i, end + 1);
+      const next = touches(terms[end]) ? terms[end + 1] : null;
+      const before = terms[i - 1];
+      const phrase = next ? phrases.find(a => hasPhrase(terms, end + 1, a)) : null;
+      if (phrase) {
+        // 'cento' is not a second number
+        const unit = terms.slice(end + 1, end + 1 + phrase.length);
+        unTag(unit, 'Value', model.one.tagSet);
+        setTag(unit, 'Unit', world, false, reason$1);
+        setTag(run, 'Percent', world, false, reason$1);
+        end += phrase.length;
+      } else if (next && percent$1.test(next.text)) {
+        setTag(run, 'Percent', world, false, reason$1);
+        setTag([next], 'Unit', world, false, reason$1);
+      } else if (next && (isCurrency(next) || codes.test(next.text))) {
+        setTag(run, 'Money', world, false, reason$1);
+        setTag([next], 'Currency', world, false, reason$1);
+      } else if (before && isCode(before) && touches(before)) {
+        // only a symbol goes in front - '€ 5,30', 'CHF 12'
+        setTag(run, 'Money', world, false, reason$1);
+        setTag([before], 'Currency', world, false, reason$1);
+      }
+      i = end;
+    }
+  };
+
+  const reason = 'european-number';
+  // leave these to the language's own tagger - '12.05.2020', '15.30', '555-1234'
+  // .. and a german ordinal keeps its period outside of the term - '3.'
+  const skip = ['Date', 'PhoneNumber', 'NumberRange', 'Ordinal'];
+
+  // tag numbers written in digits, from their raw text - '1.234,56', '3,5%', '5,30€'
+  const tagNumbers = function (view) {
+    const { world, model, methods } = view;
+    const regs = regexes(model.two.europeanNumbers);
+    const setTag = methods.one.setTag;
+    view.docs.forEach(terms => {
+      terms.forEach(term => {
+        if (!/[0-9]/.test(term.text) || skip.some(tag => term.tags.has(tag))) {
+          return
+        }
+        const found = regs.find(a => a[0].test(term.text));
+        if (found) {
+          setTag([term], found[1], world, false, reason);
+        }
+      });
+      // '5,30 €', '50 per cento'
+      tagNeighbours(terms, view);
+    });
+  };
+
+  /**
+   * numbers written in digits, with a decimal-comma - '1.234,56', '3,5%', '5,30 €'
+   * shared across many languages
+   * tags them, and adds a reader and writer:
+   *   const { read, write } = doc.methods.two.europeanNumbers
+   *   const locale = doc.model.two.europeanNumbers
+   *   read('1.234,56', term.pre, locale).num // 1234.56
+   *   write(1234.56, { hasComma: true }, locale) // '1.234,56'
+   * a language sets its own marks in model.two.europeanNumbers - { group: ' ', ordinal: 'er?' }
+   * and its own words - { percent: ['per cento'], currencies: ['euro'] } - for '50 per cento', 'mille euro'
+   */
+  var europeanNumbers = {
+    model: { two: { europeanNumbers: { ...defaults, percent: [], currencies: [] } } },
+    methods: { two: { europeanNumbers: { read: read$1, write: write$2, regexes } } },
+    compute: { europeanNumbers: tagNumbers },
+    hooks: ['europeanNumbers'],
+  };
+
+  // Generated by scripts/pack/index.js; see data/README.md for source files.
+  var properNouns = {
+    "ProperNoun": "true¦aIbDc8dalhousHe7f5gosford,h4kirby,landsdowne,m2nis,r1s0wembF;herwood,paldiB;iel,othwe1;cgi0ercedes,issy;ll;intBudsB;airview,lorence,ra0;mpt9nco;lmo,uro;a1h0;arlt6es5risti;rl0talina;et4i0;ng;arb3e0;et1nt0rke0;ley;on;ie;bid,jax",
+    "Organization": "true¦0:4Q;1:3Z;a3Vb3Dc2Md2Fe2Af25g1Yh1Ri1Nj1Lk1Jl1Gm13n0Ro0Op0Equ0Dr04sStIuDvAw4xiaomi,y2;amaha,mca,ou2wca;gov,tube;a5e3iki2orld trade organization;leaRpedia;lls fargo,st2;field,inghouse;l2rner bros;greens,l street journal,m1C;an halPerizon,isa,o2;dafone,l2;kswagNvo;b5kip,n3ps,s2;a today,ps;esco,i2;lever,ted nations;er,s; mobile,aco beTd bQe8gi fridays,he 4im hortons,mz,o2witter;shiba,y2;ota,s r us;b3carpen3Mdaily ma1holli0s2who;mashing pumpkins,uprem0;ea2lack eyed peas,yrds;ch boys,tl0;l3n3Us2xas instruments;co,la m1F;efonica,us;aCcBe8iemens,mirnoff,np,o6p5quare0Dt2ubaru;a2eer02;rbuc2to1;ks;eci2Cice gir5;ny,undgard2;en;a3x pisto2;ls;g1Wrs;hool1Sientology;feway,insburys,lesforce,msung;adiohead,b9e5o2yanair;man empire,yal 2;b2dutch she5;ank;a4d 2max,vlon;bu2c2Bhot chili peppers,lobster;ll;ders digest,l madrid;c,s;antas,iznos;a9bs,e6fizer,hilip5i4r2;emier 2udential;leagTo1;nk floyd,zza hut; morrCs;psi3tro2ugeot;bras,china,nas;!co;lantir,n2ypal; 3asonic,da2Q;ld navy,pec,range juli3xf2;am;us;aAb9e8fl,h7i6o2sa,vid5wa;k4minat3tre dame,vart2;is;ing1F;ia;ke,ntendo,ssan,vV;l,s;c,stle,tflix,wsweek;a,c;ndos,s3t2;o,west;a,car,daq;aDeAi7lb,o4tv,y2;spa2;ce;b1nsanto,ody blu0t2;ley cr2or0T;ue;c3t2;as,subisM;helin,rosoft;dica3rcedes benz,talli2;ca;id,re;cs milk,ttel,zda;a presse,e2g,ittle caesars; oreal,novo,x2;is,mark,us;atv,fc,kk,lm,m2odak;art;iffy lube,oy division,pmorgan2sa;! chase;bm,hop,k4n2tv;g,te2;l,rpol;ea;a7e6i4o2sbc,yundai;me dep2nda;ot;tac2zbollah;hi;althYwlett pack1V;lliburton,sbro;eneral 6hq,ithub,l5mb,o2reen day,ucci;ldman sachs,o2;dye2gle;ar;axo smith kline,encoZ;electric,m2;otors;a5bi,c barcelo4da,edex,i3leetwood mac,o2rito lay;rd,xcon;at,fa,restone;na;cebook,nnie mae;bay,sa,u5x2;ecutiveYxon2; m2m2;ob1;!rosceptics;aimler,e6isney,o5u2;nkin donu3pont,ran dur2;an;ts;j,w jon0;a,f lepp17ll,peche mode,r spiegel,stiny's chi2;ld;aObc,entrMhIiGloudflaFnn,o4r2;aigsli8eedence clearwater reviv2ossra1;al;cAinba9l7m3n2ors,stco;ferenceJgressionI;ca4merce3p2;aq; bo0Y;st;dplVg2;ate;se;a c2o chanT;ola;re;a,sco2tigroup;! systems;ev3i2;ck fil a,na daily;r2y;on;al2; committee;d3pital o2rls jr;ne;bury,ill2;ac;aFbc,eCfAl6mw,ni,o2p,rexiteeV;ei4mbardiJston 2;glo2pizza;be;ng;o3ue c2;roW;ckbuster video,omingda2;le; g2g2;oodriM;cht3e ge0rkshire hathaw2;ay;el;cardi,idu,nana republ4s2xt6y6;f,kin robbi2;ns;ic;bYcUdidTerosmith,iSlLmFnheuser busEol,ppleBr7s5u4v3y2;er;is,on;di,todesk;hland o1sociated F;il;b4g3m2;co;os;ys; compu2be0;te2;rs;ch;c,d,erican4t2;!r2;ak; ex2;pre2;ss; 6catel3ta2;ir;! lu2;ce2;nt;jazeera,qae2;da;g,rbnb;as;/dc,ademy of scienc0er,tivision2;! blizz2;ard;es;ba",
+    "City": "true¦0:75;1:62;2:6H;3:6K;4:5T;5:5M;a6Ab55c4Kd4Ae46f3Yg3Jh3Bi33j2Yk2Gl24m1Nn1Do1Ap0Xq0Vr0Ps06tSuRvMwExiCyAz6;a8h6ibo,urich;a6e6ongsh0;ng3J;greb,nzibar;ang2e6okohama,unfu;katerin3Jrev0;a6n0R;m5n;arsCeBi7roclCu6;h0xi,zhou;c8n6;d6nipeg,terth4;hoek,sor;hita,klow;l65xford;aw;a9e7i6ladivostok,olgograd;en3lnius;nice,r6;o3sailles;lencia,ncouver,r3ughn;lan bator,rumqi,trecht;aGbilisi,eFheEiCoAr8u6;lsa,nis,r6;in,ku;i6ondh64;este,poli;kyo,msk,ronto,ulo6;n,uT;an6jua3l2Vmisoara,ra3;jin,shui; hague,ssaloniki;gucigalpa,hr0l aviv;briz,i7llinn,mpere,ng6rtu,shk2T;ier,sh0;an,chu1n0pei,yu0;aFeEh9kopje,oweto,t8u6;ra6zhou;baya,t;aten is57ockholm,rasbourg,uttgart;an9e7i6;jiazhua1llo1mla,y0;f52n6;ya1zh5;ghai,tou;attle,oul,v46;cramento,int DlCn6o paulo,pporo,rajevo; 8aa,t6;a 6o domingo;a3fe,m1O;antonio,diego,francisco,j6pedro,salvador;o6u0;se;em,t lake city,z27;louis,peters26;aAe9i7o6;me,stov,t5B;ga,o6yadh;! de janeiro;cife,ims,nnes,ykjavik;bat,ip4leigh,nchi,walpindi;ingdao,u6;ez2ito;aGeFhEiDoAr8u7yong6;ya1;ebla,ya1;a6etoria;gue,to;rt6zn0; 6land,o;au prince,elizabeth,said;ls5raeus,tts28;iladelphia,nom penh,oenix;ki1tah tikva;dua,lerZnaji,ris,t6;na,ras;ak46dessa,msk,r7s6ttawa;aka,lo;an,dos;a8ew6ingbo,ovosibirsk,yc; 6castle;delhi,orleans,taipei;g9irobi,n6ples,shv35tchez,v0;ch7ji1t6;es,o1;a1o1;a7o6p4;ya;no,saki;aFeDiAo7u6;mbai,nich,scat;gadishu,nt7s6;cow,ul;evideo,pellier,real;ami,l7nsk,s6;kolc,sissauga;an,waukee;cca,d6lbourne,mphis,ndoza,ssi3;an,ellin,i3;cau,drBkassar,lAn9r6shhad;aca7ib6rakesh,se2N;or;ibo,y;aus,chGdalay,ila;mo;id;aEeBi9o7u6vUy2;anNcknow,dhia3;n6s angeles;d2g beach;brev2Dege,ma6nz,sb2verpool;!ssol; mans,i6;c6pzig;ester; p7g6hore,n0Es vegas,usanne;os;az,lata;aJharHiDlaipeCoArakow,u8y6;iv,o6;to;ala lump4n6;mi1sh0;hima,lkata,pavog4si6wlo2;ce;da;ev,n7r6;kuk,ov;gst2sha6;sa;k6toum;iv;bIdu3llakurichi,mpala,n7ohsiu1ra6unas,waguchi;chi,j;d6o,p4;ahar,y;a8e7i6ohannesW;lin,n0;ddah,rusalem;ip4k6;arta;bad0mphal,nBrkutVs8taYz6;mir,tapala6;pa;fah0l7tanb6;ul;am30i2I;che2d6;ianap2Nore;aBe8o6yder2X; chi mi6ms,nolulu;nh;f7lsin6rakli2;ki;ei;ifa,lifax,mDn6rbin,va3;g9nover,oi;aGdanFenEhDiQlasgCoAraz,u6;a6jrat;dal7ng6yaquil;zhou;ajara,upe;ld coast,then6;burg;ow;ent;eva,oa;sk;lw8n6za;dhi6gtok;nagar;ay;aisal2Aes,o9r7ukuya6;ma;ankfu6esno;rt;rt6sh0; wor7ale6;za;th;d6indhov5l paso,ss5;in6mont2;bur6;gh;aCe9haka,isp4o8resd5u6;b6esseldorf,nkirk,rb0shanbe;ai,lin;ha,nggu0rtmund;hradTl7nv6troit;er;hi;donghJe7kar,l6mascus,r es salaam,ugavpiZ;i0lV;gu,je2;aKebu,hBleve0Wo6raiova,uritiba;lo8n7penhag5r6;doba,k;akLst0W;gVm6;bo;aCen9i7ongqi1ristchur6;ch;ang m8ca6ttago1;go;g7n6;ai;du,zho1;ng6ttogram;ch9sha,zhou;gliari,iAlga9mayenKn7pe town,r6tanP;acDdiff;berra,c6;un;ry;ro;aXeOhLirmingham,oKrAu6;chareUdapeUenos air8r6s0tu0;g6sa;as;es;aAis7usse6;ls;ba7t6;ol;ne;sil9tisla8zzav6;il6;le;va;ia;gota,st2;op7ubaneshw6;ar;al;iDlAng9r6;g5l6n;in;en;aluru,hazi;fa7grade,o horizon6;te;st;ji1rut;ghdad,kGnAot9r8s7yan n4;ur;el,rah;celo3i,ranquilla;ou;du1g7ja lu6;ka;alo7k6;ok;re;ng;ers6u;field;a06b03ccra,ddis ababa,gartala,hmedYizawl,lTmQnIqaba,rFsCt8uck6;la6;nd;he8l6;an6;ta;ns;h6unci2;dod,gab6;at;li6;ngt2;on;a9c6kaPtwerp;hora7o3;na;ge;h8p6;ol6;is;eim;aravati,m0s6;terd6;am; 8buquerq7eppo,giers,ma6;ty;ue;basrah al qadim6mawsil al jadid6;ah;ab6;ad;la;ba;ra;idj0u dha6;bi;an;lbo7rh6;us;rg",
+    "Place": "true¦0:4Y;1:50;2:4A;3:4H;4:3O;5:30;6:4Q;a4Mb3Oc31d2Oe2Ef2Cg22h1Qi1Mjapa2Sk1Il19m0Xn0Po0Lp0Br07sVtPuNvLw9y7;a7ork,yz;kutsk,ngtze;aFeEhitDiBo7upatki,ycombe;king,o7;d7l1I;b3Xs7;i4tock;c0UllowbroEn7;c2Ygh2;by,church;ed0ntw3Os2A;ke8r40t7;erf1f1; is0If43;auxhall,irgin is0Lost7;ok;laanbaatar,pto7xb3M;n,wn;aBeotihuacan,h9ive4Go8ruro,sarskoe selo,u7;lum,zigoot;nto,rquay,tt2S;am3e 7orn3N;bronx,hamptons;hiti,j mahal,u1V;aHcotts bluff,eFfo,hEoCpringBt9u7yd2O;dbury,ez,n7;der05set3K;aff1ock2Vr7;atf1oud;hill,w5;ho,uth7; 1Qam27wold;erbroKopping1G;a7ine;f30t0;int lawrence riv6khalin;ayleigh,ed9i7oc26;chmond,o gran4ver7;bend,fr0Esi4; sea,cliffe,hill;aDeAhx,i7ompeii,utn2;c8ne7tcairn; 2Wc0M;kering,t0;k,lh2mbr8n7rth;n1Pzance;oke;cif3Gpahanaumokuakea,r7;k7then0;si4w5;ak9ld t2Jr8x7;f1ley;ange county,f1inoco;mZw5;eAile,o7;r7tt2V;th7wich; 10am1H;gev,uschwanstein,w7; eng8a7h2markKport;rk;land;aAco,e8i7uc;dt26ll17;adow7kong;lands;chu picchu,gadan,iBlAn9ple8r7;kh2; 1Kw5;hattan,sf2J;ibu,t0vern;dstone,n st7;!re7;et;aBeAgw,hr,i7owlSynd06;n7ttle italy;coln memori7dley;al;asi4w3;kefr9mbeth,n7;ca2Mg7sing;f1ley,t0;ont;azan kremlin,e9itchen6o8rasnoyar7ul;sk;re0Xsrae;ns0Ks1X;ax,lf1n8ps7;wiP;d7glew5verness;ian2Aochina;aFeDi8kg,nd,ov7unti2J;d,enweep;gh8llc7;reN;bury,l7;and7;!s;r7yw5;ef1tf1;libu26mp8r7stings;f1lem,row;stead,t0;aFodavari,r7uelph;avenCe7imsW;at Aen7; 8f1Iwi7;ch;acr3valley;britain,lak3;hur7;st;ng3y village;airhavKinancial7ra; district;aCgliBnf19ppiAu9ver8x7;et6f1;glad3t0;rope,st0;ng;nt0;rls1Ms7;t 7;e7si4;nd;aEeCfw,igBo9ryd8u7xb;mfri3nstable,rh2tt0;en;nca1ArcMv6w7;nt0C;by;nh2r7vonport;ry;nuAr7;l8t7;f1moor;ingt0;be;aNdg,eLgk,hElDo7royd0;l8m7rnwall;pt0;c9lingw5osse7;um;ood;he0U;earwat6t;aBel9i7uuk;chen itza,mney rock,n7ricahua;atT;m0Zt7;enh2;mor7rlottetQth2;ro;dar 7ntervilB;grove;ldBmAr7versh2;lis8rizo pla7;in;le;bNpbellf1;weT;a01eQingley,kk,lackOoNr7uckX;aIiCo7;ckt0ok7wns cany0;lyn,s7;i4to7;ne;de;dge8gh7;am,t0;n8t7;own;or7;th;ceb8m7;lPpt0;rid7;ge;ardwalk,lt0;bu7pool,waA;rn;aconsfFdf1lCrAverly9x7;hi7;ll; hills;wi7;ck; air,l7;ingh2;am;ie7;ld;ltimore,rnsl8tters7;ea;ey;bMct0driadic,frica,ginKlHmericas,nBrcAs9tl8ylePzor3;es;!antA;hcroft,ia; de triomphe,t8;adyr,caAdov6tarct7;ic7; oce7;an;st6;er;be8dersh7hambra,list0;ot;rt0;cou7;rt;bot9i7;ngd0;on;sf1;ord",
+    "Region": "true¦0:2J;1:2G;2:2P;3:2A;a2Nb2Ac1Wd1Res1Qf1Og1Jh1Fi1Aj16k11l0Ym0Nn07o05pYqUrRsJtEuBverAw6y4zacatecas;akut0ork3u4;cat1kon;a5est 4isconsin,yoming;bengal,virgin0;rwick3shington4;! dc;acruz,mont;dmurt0t4;ah,tar4; 2Ka0X;a6e5laxcala,ripura,u4;scaDva;langa2nnessee,xas;basco,m4smOtar24;aulipas,il nadu;a8elangor,i6o5taf11u4ylhet;ffXrrey,s19;me1Bnora,uth V;ber0c4kkim,naloa;hu1ily;n5rawak,skatchew1xo4;ny; luis potosi,ta catari2;a4hode i9;j4ngpur;asth1shahi;inghai,u4;e4intana roo;bec,en4retaro;sl0E;a8e4unjab;i,n5r4;ak,nambuco;ang,nsylv4;an0;hang,ra4;!na;axaca,disha,h4klahoma,ntar4reg7ss0Ax0F;io;aIeBo6u4;evo le4navut;on;r4tt15va scot0;f6mandy,th4; 4ampton3;caroli2dakota;olk;braska,vada,w4; 6foundland4;! and labrad4;or;brunswick,hamp3jers5mexiTyork4;! state;ey;galPyarit;aAeghalaya,i6o4;nta2r4;dov0elos;ch6dlanDn5ss4zoram;issippi,ouri;as geraPnesota;ig1oac1;dhy12harashtra,ine,lacca,ni5r4ssachusetts;anhao,i el,ylG;p4toba;ur;anca3e4incoln3ouisI;e4iR;ds;a6e5h4omi;aka06ul2;dah,lant1ntucky,rala;bardino,lmyk0nsas,r4;achay,el0nataka;alis6har4iangxi;kh4;and;co;daho,llino7n4owa;d5gush4;et0;ia2;is;a6ert5i4un1;dalFm0D;ford3;mp3rya2waii;ansu,eorg0lou7oa,u4;an4izhou,jarat;ajuato,gdo4;ng;cester3;lori4uji1;da;sex;ageUe7o5uran4;go;rs4;et;lawaMrby3;aFeaEh9o4rimea,umbr0;ahui7l6nnectic5rsi4ventry;ca;ut;ima,orado;la;e5hattisgarh,i4uvash0;apRhuahua;chn5rke4;ss0;ya;ra;lGm4;bridge3peche;a9ihar,r8u4;ck4ryat0;ingham3;shi4;re;emen,itish columb0;h0ja cal8lk7s4v7;hkorto4que;st1;an;ar0;iforn0;ia;dygHguascalientes,lBndhr9r5ss4;am;izo2kans5un4;achal 7;as;na;a 4;pradesh;a6ber5t4;ai;ta;ba5s4;ka;ma;ea",
+    "FemaleName": "true¦0:I4;1:I8;2:HG;3:HY;4:HH;5:HL;6:IL;7:IP;8:G8;9:IH;A:G1;B:GZ;C:HQ;D:IE;E:AF;F:HU;G:H1;aFSbEOcCVdC4eARfA9g9Kh92i8Sj7Pk6Rl5Cm3Sn39o36p2Uqu2Tr22s11t0Bu09vZwSxi30yOzH;aLeIineb,oHsof4;e3Df4la,ra;h2iKlIna,ynH;ab,ep;da,ma;da,h2iHra;nab;aJeIing,olACu0vH;et8onCT;le0sen4;el,gmur,n,s89;aMendD6hiCNiH;lJnH;if3TniHo0;e,f3S;helmi0lHma;a,ow;ka0nB;aNeKiHusa5;ck7JkIl8oleAviH;anEenI4;ky,toriAT;da,lma,rHs0;a,nHonica;a,ice;leHnesG9;nHLrH;i1y;g9rHs7;su5te;aXeThQiMoKrHu5y2;acI4iHudy;c4na,sH;hEta;nHr0F;iEya;aJffany,nHs7;a,gtiH;ng;!nEUra;aIeHomasi0;a,lma,o7Pres1;l4ndolwethu;gan,o7NrIssH;!a,ie;eHi,ri6;sa,za;bOlMmKnIrHs7tia0wa0;a7Gyn;iHya;a,ka,s7;arEe2iHm6Nra;!ka;a,iH;a,t7;at7it7;a0Bcarlett,e07hViSkye,neza0oQri,tNuIyH;bil,lvi1;ha,niAsIzH;an39et8ie,y;anHi6;!a,e,nH;aCe;aIeH;fan3l4Wphan5U;cH6r5;fi9KnHphi1;d2ia,ja,ya;er2lv4mon1nIobhan,tH;a,i;dy;aMeIirHo0y5;a,lCU;ba,e0i5lJrH;iHr60yl;!dan;ia,lD7;imaa,ki2nJrIu0w0yH;la,na;i,le9on,ron,yn;aIda,ia,nHon;a,on;!ya;lJrIvH;da,inj;e0ife;en1i0ma;anvi,bLd57har,iBkKlJmInd2rHs7vannaC;aCi0;ant7i2;lCYma,ome;ineh,u2;in1ri0;a03eYhWiToHuthCW;bRcQl7XnPsJwIxH;anAEie,y;an,e0;aIeHie,lD;ann6ll1marCQtA;!lHnn1;iHyn;e,nH;a,dE;da,i,na;hel5Rio;bin,erAyn;a,cIkHmas,nEta,ya;ki,o;h8Bki;ea,iannon,oH;da,n1F;an0bIemEgi0i0nHta,y0;a7Oee;a,eH;cHkaC;a,ca;chIe,i0mo0nHquel,y0;di,ia;ael,elHiB;!e,le;een3ia0;aOeNhKia,oIrH;iscil3Audence;lHrt4;i0ly;iloIoebe,ylH;is,lis;me0;ggy,nelope,r5t2;ige,m0Nn59o5rvati,tIulH;a,et8in1;ricHt4F;a,e,ia;ctav4deIfCCksa0lHphCCumou;a,ga,iv4;l4t8;aTeRiLoIurHy5;!ay,ul;a,eIor,rHur;aCeFma;ll1mi;aLcJharika,kIlaHna,s7ta;!y;a,iDBki;hoGk9HolH;a,e4G;!mh;hir,lHna,rissa;!a,lBD;dLima,nKomi6rges,tH;aHhal3;lHs7;i1ya;cy,et8;e9iECya;a08ckenz3e00iMoJuriel,yH;a,rH;a,iMna,tG;i2llB2nH;a,iH;ca,ka,que;a,cSdori,kaRlMmi,nKrHtzi;aIiH;am;!nB;dy,eHh,n3;nhGrva;aKdJe0ica,lH;iHy;cent,e;red;!gros;!e5;ae5hH;ae5el3T;agan,gNi,lKrH;edith,iIon,yH;em,l;em,ssa;an3iHlisa;nHsBY;a,da;!an,han;b07cADd05e,g03ha,i02ja,l00nZrLsoumeh,tKuIvis,xB0yHz3;bell,ra,soun;d6rH;a,eF;h82ild1t3;a,cTgPiKjor3l7Gn3s7tJwa,yH;!aHbeth,ja9lou;m,nB0;a,ha,in1;!aJbel,eIja,lDna,sHtza;!a,ol,sa;!l1A;!h,m,nH;!a,e,n1;arJeIie,oHr3Yueri8;!t;!ry;et3Wi36;el4Li6Zy;dy,on,ue5;ak,en,iHlory;a,ka,nB;a,re,s3te;daHg3;!len1;alDd3elHge,ison,on0;ei9in1yn;el,le;a0Me0BiWoQuLyH;d4la,nH;!a,dIe2KnHsey;!a,e2J;a,sey;ann,cJel0Ois1lIna,pHz;e,iA;a,u;iHy;a2Oe,ja,l2JnB;is,l1QrItt1HuH;el5is1;aJeIi6na,rH;a9Vi6;lei,n1tA;!in1;aTbb95dSepa,lNnKsJvIzH;!a,beth,et8z3;!ia;a,et8;!a,dH;a,sHy;ay,ey,i,y;a,iJja,lH;iHy;a9Qe;!aH;!nE;ia,ya;!nH;!a,ne;aPda,e0iNjYla,nMoKsJtHx8Ry5;iHt3;c4t4;edi,lC6;la,nHra;a,ie,o2;a,or1;a,gh,laH;!ni;!h,nH;a,d2e,n5K;cOdon0iNkes7mija,na,rMtJurIvHxmi,y5;ern1in4;a,e4Zie,yn;as7iIoH;nya,ya;fa,s7;a,is9R;a,la;ey,ie,y;a01eWhaViNlea,oMrJyH;lHra;a,ee,ie;istHy67;a,en,iHy1E;!e,n55;nul,ri,urtney;aNerMley,mJrHzzy;a,stH;en,in;!berlH;eHi,y;e,y;a,stF;!na,ra;dij1w5;el7LiKlJnIrH;a,i,ri;d2na,za;ey,i,lB6s3y;ra,s7;cey,diatou,ede,iSlQmPrNss6EtKviAyH;!e,lH;a,eH;e,igh;!a68eIhHi4LlDri0y;ar83er83ie,leFrAVy;!lyn89ri0;a,en,iHl5Poli0yn;!ma,nEssa;a5il1;eigh,i,lH;e,ie;a,tl6F;a0AeZiWoOuH;anMdLlHst7U;es,iH;a88eHssa;!n9tH;!a,te;ith,y;a,iA;!anNcelDdMelGhan7HleLni,sIva0yH;a,ce;eHie;fHlDph7K;a,in1;en,n1;i6y;!a,e,n3X;lHng;!ian,lH;!ian;anNle0nKrJsH;ica,sH;!e,ica;i,ri;!a,elGifer,nH;a,et8iHy;!e,fer;a,eJiInH;a,eIiH;e,n1;!t8;cMda,mi,nIque27sminEvie2y9zH;min6;a6eIiH;ce,e,n1s;!lHssa,t0A;e,le;inIk68lDquelH;in1yn;da,ta;da,lPmOnNo0rMsIvaHwo0;!na;aIiHla,obel;do2;belHdo2;!a,e,l34;ati,en1i0ma;di2es,grid;a9elBoge9;a,e9ia0o0se;aQeNiIoHyacinth;da,ll3rtense;lImaH;ri;aIdHlaI;a,egard;ry;ather,iIlHnrietArmi9ster;en2Rga,mi;di;biba,iley,lNnMrJsnItHwa,yley;ice,t3;aa;iHmony,ri4Z;etH;!te;aCnaC;a,ey,l3;a01eViQlOoNrKunJwH;enHyneth;!dolD;ay,el;acieIetHiselB;a,chF;!la;ld1Aogoosh;adys,enHor4ynis;a,da,na;aKgi,lIna,ov85selHta;a,e,le;da,liH;an;!n0;mLnJorgIrH;ald5Ki,m3Btrud6;et8i4U;a,eHna;sis,vieve;ma;bHle,rnet,yG;iIrielH;a,l1;!ja;aTeQiPlorOoz4rH;anJeIiH;da,eB;da,ja;!cH;esIiHoise;n1sca;!ca;a,enc4;en,o0;lIn0rnH;anB;ec4ic4;nArKtHy6;emIiHma,oumaA;ha,ma,n;eh;ah,iBrah,za0;crin,d0Qevi,ileFk0Ol07mXnid,rUsOtNuMvHwa;aKelIiH;!e,ta;inEyn;!a;!ngel4O;geni1nice;hel,ien9ta;mLperanKtH;eIhHrel5;er;l2Zr6;za;a,eralB;iHma,ne4Eyn;cHka,n;a,ka;aPeOiLmH;aIeHie,y;li9;!li9nuH;elG;lHn1;e6iHy;a,e,ja;ly,rald;!nue5;aWeUiNlMma,no2oKsJvH;a,iH;na,ra;a,ie;iHuiH;se;a,en,ie,y;a0c4da,e,f,nMsJzaH;!betHveA;e,h;aHe,ka;!beH;th;!a,or;anor,nH;!a,i;!in1na;ate1Pta;vi;eIiHna,wi0;e,th;l,n;aYeMiLjeneKoH;lores,minique,n39rHtt3;a,eFis,la,othHthy;ea,y;ba;an09naCon9ya;anQbPde,eOiMlJmetr4nHsiree;a,iH;ce,se;a,iIla,orHphi9;es,is;a,lah;dHrdH;re;!dee,na;!b2EoraCraC;a,d2nH;!a,e;hl4i0lal,mNnLphn1rIvi1VyH;le,na;a,by,cIia,lH;a,en1;ey,ie;a,et8iH;!ca,el19ka;arHia;is;a0Qe0Mh04i02lUoJristIynH;di,th4;al,i0;lPnMrIurH;tn1C;aJd2IiHn2Iri9;!nH;a,e,n1;!l3;cepcion,n3sH;tanHuelo;ce,za;eHleF;en,t8;aJeoIotH;ilde;!pat2;ir6rJudH;et8iH;a,ne;a,e,iH;ce,sY;a2er2ndH;i,y;aQeNloe,rH;isJyH;stH;al;sy,tH;a1Men,iHy;an1e,n1;lseIrH;!i6yl;a,y;nMrH;isKlImH;ai9;a,eHot8;n1t8;!sa;d2elGtH;al,elG;cIlH;es8i41;el4ilH;e,ia,y;itlYlXmilWndVrMsKtHy5;aIeIhHri0;er1DleFrDy;ri0;a32sH;a31ie;a,iOlLmeJolIrH;ie,ol;!e,in1yn;lHn;!a,la;a,eIie,otHy;a,ta;ne,y;na,ssa;ace,ice;a,e,l1;isAl3;in,yn;arb0Je02iZlXoUrH;andi6eRiJoIyH;an0nn;nwDoke;an3BdgMgiLtH;ney,tH;!aInH;ey,i,y;ny;d,t8;etH;!t6;an0e,nH;da,na;bbi6glarInH;iAn3;ka;ancHythe;a,he;anca,lja0nH;iAtH;ou;aVcUlinBniArPssOtJulaCvH;!erlH;ey,y;hJsy,tH;e,iHy6;e,na;!anH;ie,y;!ie;nItHyl;ha,ie;adIiH;ce;et8i9;ca,ky;!triH;ce,z;a2o2ra;a2Sb2Md23g1Zi1Qj5l16m0Xn09oi,r04sVtUuOvNwa,yHz2;aKes7gJlIn,seH;!l;in;un;!nH;a,na;a,i2J;drLguJrIsteH;ja;el4;stH;in1;a,ey,y;aahua,he0;hIiya,ja,miAtrH;id;aLlHton;eIi6yH;!n;e,iHy;gh;!nH;ti;iJleIo7piA;ta;en,n1t8;aHelG;!n1J;a01dje5eZgViTjRnKtoHya;inet8nH;el5ia;te;!aKeIiHmJ;e,ka;!mHtt6;ar3;!belIliHmU;sa;!l1;a,eliH;ca;ka,sHta;a,sa;elHie;a,iH;a,ca,n1qH;ue;!tH;a,te;!bImHstasiMya;ar4;el;aLberKeliJiHy;e,l4naH;!ta;a,ja;!ly;hGiIl4nB;da;a,ra;le;aWba,ePiMlKthJyH;a,c4sH;a,on,sa;ea;iHyson;e,son;a,cIn1sHza;a,e,ha,on,sa;e,ia,ja;c4is7jaKksaKna,sJxH;aHia;!nd2;ia,saH;nd2;ra;ia;i0nIyH;ah,na;a,is,naC;la;c7da,leFmNnLsH;haClH;inHyY;g,n;!h;a,o,slH;ey;ee;en;at7g3nIusH;ti0;es;ie;aWdiTelMrH;eJiH;anMenH;a,e,ne;an0;na;!aLeKiIyH;nn;a,n1;a,e;!ne;!iH;de;e,lDsH;on;yn;!lH;i9yn;ne;aKbIiHrL;!e,gaK;ey,i6y;!e;gaH;il;dKliyJradhIs7;ha;ya;ah;a,ya",
+    "FirstName": "true¦aTblair,cQdOfrancoZgabMhinaLilya,jHkClBm6ni4quinn,re3s0;h0umit,yd;ay,e0iloh;a,lby;g9ne;co,ko0;!s;a1el0ina,org6;!okuhF;ds,naia,r1tt0xiB;i,y;ion,lo;ashawn,eif,uca;a3e1ir0rM;an;lsFn0rry;dall,yat5;i,sD;a0essIie,ude;i1m0;ie,mG;me;ta;rie0y;le;arcy,ev0;an,on;as1h0;arl8eyenne;ey,sidy;drien,kira,l4nd1ubr0vi;ey;i,r0;a,e0;a,y;ex2f1o0;is;ie;ei,is",
+    "LastName": "true¦0:96;1:8Q;2:90;3:8Y;4:8R;5:8I;6:8G;7:8L;8:6N;9:6D;a8Sb7Oc6Nd62e5Wf5Jg4Xh4Fi4Cj45k3Ml37m2Cn23o1Vp1Hquispe,r0Ys0At02vWwMxLyDzA;hAimmerm4L;aAou,u;ng,o;aEeun71iBoAun;koyama,shida;!lA;diAmaz;rim,z;maAng;da,g3Omoto,sAza9;a9hita;iao,u;aFeDiBoAright,u;jcik,lff,ng;lAmm0nkl0sniews9;ki8Hliams25s3;bAiss,lt0;b,er,st0;age,gn0lBtA;anabe,s3;k0sh,tA;ers,on;aCesel6RiAogt;dal,llalAss0valdi;ba,obos;lBn dArgas;en b4Gijk,yk;enzuela,verde;aGeix18hDi1j7oCrBsui,urA;c1n0;an,emblay,ynis9;lstoy,m5rr2th;atch0ill,oA;mArlacius;ps3s3;kah7Anaka,te,var2;aSchNeMhKiImGoEtBuAvoboda,zabo;bot5lliv1zu9;aBeAoica;ele,in1Pphe8vens1H;l7rm0;sa,to,uA;ng,sa;itAyth;!h;lva,mmo8nArbu;at6clair,gh;aAehu,imizu;la,rma;gu6infeld,oh,pulveda,rrano;evi4iltz,miBneid0roed0uAwarz;bert,lz;dBtA;!t,z;!t;h7ito,ka3AlDnAr5sa9to,unders;dBtAz;ana,e,os;b3Kers;as,o;aPeMiJoDuByA;a4oo,u;bio,iz,sA;so,u;bEcha,drigu2gers,jas,mDosevelt,sCtBux,wA;e,li4;ari,h;enb3Bsi;ano,ero;erts0Ni6Z;beiro,cBes,vAzzo;as,e6;ci,hards0K;ag1es,iBut0yA;es,nolds;s,t0;dBmAv4K;os;ic,u;aLeIhGiDoCrAut7;asad,ifti,ochazA;ka;p23rti58well;cBero,nA;as,to;asso,hl0;aAillips;k,m,n4P;a6PeteWna,rAters04;eAic,ki8;i6ra,tz;h66k,rk0tA;el,te6L;bGconnor,g1RlDneill,rBsborne,we8zA;demir,turk;ellana,tAwell;ega,iz;iAs3;vAynyk;ei6;aIrien;aFeEiDoAun2ym1;rBvAwak;ak,otn4I;odahl,ris;cholsNemi,kol5x3;ils3mec;gy,kaAray1sh,varro;jiAmu6shiA;ma;aXcUePiOoFuByeA;rs;lCnBrAssolini;ati,pTray;oz,te3R;d0l0;h1lHnGore,rBsAzart;er,s;aDeCiBrisAt3;!on;!n0C;au,i6no,tti;!l2;roe,tgomery;ina,l0;crachi,ll0;hmeti,iDjia,lBnd2rci0ssiAyer1J;!er;nAo;yk;er,j0;cartBlA;aughl7e1;hy;drigal,eda,i0jerus,kela,mani,nFrCtByA;er,r;ei,ic,su11th5C;iAqu2roqu7ti8;ani,c,nA;!o;cini,n;aNeIiFoDuByA;!nch;k5nAo;d,gu;mbarAp2vr5we;di;!nAu,yanage;coln,dA;b11holm,strom;feChm0Fitn0kaBn7rAwis;oy;!j;bvAvA;re;ine,mmy,ng,u,voie,ws3;aNeMh1iKlIoFrDuBvar1woA;k,n;ce6marA;!a;aAem0ishna,yeziu;m0sniqi,us2F;bay3Rch,vaAwals9;cAl;!ic,s;e7uiveA;rt;eff0kAl5mu6;uchi;ll0nnedy;hn,llDmins9ne,pBstrati,to,ur,yA;a,s0;l1oA;or;oe;aEenDha4oBuA;ng,r5;hnsAn2u4;on,t3;ki8nings;cAnsse8;ks3obs;glesias,keda,l07noTonBshikAto,vanou;awa;escu;aJeIiHjaltal7oCuA;!aAb0gh2ynh;m1ng;a4dz5fCjgaard,k,lBpIrAwe,xha;ak,vat;m2t;er,fm2WmA;ann;ggi8tchcock;ikkila,mingway,nde3Rrre6ss;dz5gen,qGrFsDuCwByA;ashi,es;ki8;gen,ng;ani,hiA;moto;di4p0ris,t;ue;aNeorgMheorghe,iLjonKoFrDuAw3;errAo,zm1;a,eA;ro;ayli4eene,g5iffithAub0;!s;ldCm2nBodA;e,m1;calv2zal2;bAs02;erg;aj,i;bs3l,ordaH;ieva;gnGlDmaCndhi,o,rAshi,uthi0;cAdn0za;ia;ge;eaBlA;agh0i,o;no;e,on;aLerIiFjeldsted,lEoCrBuA;chs,ent2jita,ll0;eem1iedm1;ntaArt7urni0wl0;na;emi4or2;sBtzgeraA;ld;ch0h0;nand2rA;arAei6;a,i;b0rrell;dDinsCsAva8;cobar,pAtrada;inoza,osiJ;te7;er,is3warA;ds;aQeJiHjurhuGoEriscoll,uBvorA;ak;arte,boBmitru,nn,rAtta;and,ic;is;g1he0DtA;to;us;aAcki1Wssanayake,x3;s,z; CbnaBlAmir,rvishi,vi,w1;gado,ic;th;bo0groot,jo4lBsilAvri2;va;a cruz,e3uA;ca;hl,mcevs9nBtta,viA;ds3es,s;iels,kula;ki;a03eYhLiobKlarkJoCrAunningham;awford,ivAuz;elli;hen,lEntDoCrAsta,x;byn,reA;a,ia;ke,p0;i,reras;em1li8;ns;!e;anu;aGeEiu,oAu4we;i,ng,p6uBwAy;!dB;dAng;huD;!n,onAu4;!g;kDnCpm1ttBudhA;ry;erjee,o0O;!d,g;ma,raboA;rty;bDlZng5rA;eghetBnA;a,y;ti;an,otari;cer2lder3mpbeFrCstAvadiX;iAro;llo;doBr,t0uAvalho;so;so,zo;ll;a00eOhLiKlJoHrEuCyA;rFtyA;qi;chan1rA;ke;iem,oAyant;oks,wA;ne;nFruya,su,uchaAyko,z5;rd;anco,ondal;ancLdMshwas;aZoAuiy1;umAwmA;ik;ckJethovIgu,ktGnnOrA;gCisBnascoA;ni;ha;er,mA;anA;!n;asA;hi;en;er,hA;am;b5ch,hKiley,kk0ldw7nFrBshAt2u0;ir;bCnBtlAua;ett;es,i0;ieSosa;dAik;a6yoA;padhyA;ay;ra;k,ng;ic;bbYcosXdVgSkhtTlPnJrFsl1tDyA;aBd7;in;la;chis3kiA;ns3;aCmstro4sl1;an;ng;ujo,ya;dBsaA;ri;eBrA;ews;rs3;on;meiBv2;es;da;arwBuilA;ar;al;ams,l0;er;ta;as",
+    "MaleName": "true¦0:GJ;1:FD;2:DD;3:G3;4:D0;5:G9;6:CJ;7:F5;8:EB;9:BL;A:FZ;B:FR;aEQbDMcC9dB5eACf9Lg8Lh7Wi7Kj6Ik63l5Dm40n3Mo3Dp2Zqu2Xr22s1Bt0Pu0Mv0AwRxavi2yHzC;aCor0;cChid,karia,nAC;!hDkC;!ary;!ar72ery;aIevgenBBoEuC;en,rFBsCval;if,uf;nCsef,ussef;aCg;s,tC;an,h0;nCrosDNss08;is,nC;!ick;aPeNiDoCyatt;jciech,lfgang,odrFutR;lFnC;f8IsC;lCt1;ow;bGey,frEhelm,lC;ard,iCy;am,e,s;ed5iC;d,ed;e9ur;i,ndell,rn2sC;!l8t1;lDyC;l1ne;lDtC;!er;ace,y;aKernCXiFladDoC;jtech,lodymyr;!iC;mir,sCY;cFha0ktor,nceDrgil,vC;a0ek;!nC;t,zo;!e4Mtor;lCnce,sily;!entC;in94;lCm6Qri,sm0;riCysses;ch,k;aVeQhMiKoFrDurki,yC;!l2rone,s1;avis,eCist0oy,um0;ntCFvor,y;bFdAImCny;!asDmC;aso,ie,y;!z;ias,y;mCt6;!my,othy;adEeoDiago,omC;!as;!dor8N;!de6;dFrC;ence,rC;ance,eCy;ll,nce;!dy;dgh,ha,iCnn2req,tsuki;chi,ka;aXcotVeShOiLlobod0oKpenc2tEurDvenA0yCzym1;ed,lvest2;aj,esh;anFeDuC;!a9;fan15phE6vCwa9;e6Xie;!islaCl8;v,w;lom1rBuleymane;dDgmund,lCm1yabonga;as,vio;!dhartha,n8;aEeClomo;lCrm0;d1t1;hid,ne,qu1Hun,wn,yne;aDbastiDUkou,lim,pp,rgCth,ymour;e1Bio;m6n;!tC;!ie,y;eed,lFmEnCqib,toshi,ul;dCjay,tino;eep,ro;!iAHkelo,mBQu4;!vatore;aZeUhett,iRoGuDyC;an,ou;b8WdDf6pe9ssC;!elDX;ol00y;an,bLcco,dJel,geIh0lHmGnEry,sDyC;!ce;ario,coe,s;!aCnBG;ld,n;an,eo;a72f;lio,r;e38g2n8olfo,riC;go;bB9eCZ;cCl8;ardo,c7Th4WkCo;!ey,ie,y;cFece,gDid,ubByCza;ansh,n05;gie,iC;nald,s;ep;chid,fa4hHin2jesh,lGmFndEoHpha4sDul,wiri,yC;an,mond;had,m6;alD9olph;iro,on;f,ph;ul;e90inC;cy,t1;aNeKhilIiErCyoF;akash,eC;m,st1;eDoC;tr;rre,tC;er,ro;!ipClip;!p6I;dro,rcy,tC;ar,e98rC;!o7;blo,draig,olo,scal,tri5RulCv86;!ie,o;ctavio,i2lHmGndrej,rFsDtCumAwB;is,to;ama,cAkAm0vCwald;aldo;i,vR;ar,er;aDeksandr,ivC;er,i2;f,v;atNeLguyBiFoC;aDel,l0rC;be9m0;h,m;cFels,g4ilo,kDlC;es,s;!hil,las,olaC;!i,y;hCkColas;olas;al,d,il,ls1vC;ille;e,hanC;!a4i4;aXeUiLoGuDyC;les,r1;hamDrad,staC;fa,pha;ed,mG;dibo,e,hamEises,ntDritz,sCussa;es,he;e,y;ad,ed,mC;ad,ed;cFgu4hai,kElDnato,tchC;!ell;house,o7t1;aere,eBPhail,olaj;ah,hDkC;!ey,y;aDeC;al,l;el,l;hDlv3rC;le,rill,v4M;di,met;ay0c00gn6hWjd,ksim,lTmadZnSrKsXtDuric7OxC;imilB6well;eHhEias,tCus,yas;!eo,hCia7;ew,ias;eDiC;as,eu,s;us,w;j,o;cHiGkFlEquis,shall,tCv3;iCy;!m,n;in,on;el,o7us;ano,o7us;!elCin,o7us;!l5o;fred,ish,ny,u4;acDcoCik;lm;hy;amDdi,esh,mC;oud;adCmad;ou;aulCiej;ay;aXePiNloyd,oJuDyC;le,nd1;cFdEiDkCth2uk;a7e;gi,s,z;ovic,vig,wig;!as,iC;ano,en;g0nnie,renEuCvro,well;!iC;e,s;!zo;am,n6oC;n4r;a9Kevi,land,nHoFst2thaEvC;eCi;nte;bo;nCpold;!a7Sel,id;!nC;a9y;mEnd1rDszlo,urenCwr6C;ce,t;ry,s;ar,be9ont;aMeHhalGiEla6onrad,rCu5Jyle;istCzysztof;i0oph2;er0ngsl8p,rC;il9Vk;ed,id;en0iFnCrmit,v4R;!dDnCt1;eth,y;rick;r,th;cp2mErDspAuC;ri;im,l;al,il;a03eXiVoFuC;an,lCst3;en,iC;an,en,o,us;aQeOhKnIrGsDzC;ef;eDhCiah,ue;!ua;!f,ph;dCge;i,on;!aCny;h,s,th6E;anDnC;!ath6Cie,n6U;!nC;!es;!l,sCy;ph;o,qu3;an,mC;!i,m6N;d,ffFns,rCs6;ald,emDmaine,oCry;me,nimo;iah,y;!ery,rC;ey,y;cKdBkImHrEsDvi2yC;dBs1;on,p2;ed,oDrCvis;ett,od;d,s5W;al,es5Ris1;a,e,oCub;b,v;ob,ques;aRbLgKke4Xlija,onut,rIsEtCv0;ai,suC;ki;aDha0iah,maCsac;el,il;ac,iaC;h,s;a,vinCw3;!g;nacio,or;ai,rahC;im;aReLoIuC;be9gGmFsC;eyDsC;a3e3;in,n;berto;h,o;m2raDsse3wC;ard,ie;c45tio;ath,ctor,iGnDrC;be9man07;drik,rC;iCy2I;!k,que;n0Ptor;bJlImza,nHo,rEsDyC;ato,dB;an,s0;lDold,r2DuCv8;hito,ki,to;an,ey;k,s;!im;ib;a07eZiUlenToQrMuCyorgy;iHnFsC;!taC;f,vC;!e,o;nAtC;er,h2;do,lC;herDlC;auCerP;me;aEegCov2;!g,orC;!io,y;dy,ham;dfr8nzalo,rDttfC;ried;an,d45;!n;acoFlDno,oCuseppe;rgi5vanni;be6Aes,lC;es;mo;oFrC;aDhard,rCt;it,y;ld,rd5;ffErgC;!e7iCy;!os;!r8;bElBrCv3;eCland,r4Dth,y;th;e,ri4;aXeSiQlOorrest,rCyodor;aHedFiC;edDtC;s,z;rich;!d40eri10riC;ck,k;nCs2;cEkC;ie,lC;in,yn;esLisC;!co,zek;etch2oC;ri0yd;d4lConn;ip;deriFliEng,rC;dinaCg6nando;nd5;pe,x;co;bCdi,hd;iEriC;ce,zC;io;an,en,o;benez2dYfrXit0lSmLnIo3rEsteb0th0ugenDvCzra;an,erett,geny;!e;iDnCrol,v3w3;est5ie,st;cCk;!h,k;och,riCzo;co,qC;ue;aHerGiDmC;aGett;lCrh0;!iC;ano,o,s;s1y;nu4;be9d1iEliDm2t1viCwood;n,s;ot2As;!as,jah,ot,sC;ha;a3en;!dGgAmFoDua2PwC;a2Oin;arC;do;oZuZ;ie;a04eTiOmitrNoFrag0uEwDylC;an,l0;ayne,ight;ane,dl8nc0st3;minFnDri0ugCvydGyle;!lF;!ald,nCov0;ell,ie,y;go,iDykC;as;cCk;!k;i,y;armuFetDll1mitri7neCon,rk;sh;er,mAriC;ch;id;andLepak,j0lbe9metri6nIon,rGsEvDwCxt2;ayne,ey;en,in;hawn,moC;nd;ek,riC;ck;is,nC;is,y;rt;re;an,le,mKnIrEvC;e,iC;!d;en,iEnell,rCyl;eCin,yl;l3Zn;n,o,us;!iCny;el,lo;iCon;an,en,on;a0He0Eh04iar0lSoKrFuDyrC;il,us;rtC;!is;aFistC;iaDobC;al;no;ig;dy,lInErC;ey,neliCy;s,us;nEor,rDstaC;nt3;ad;or;by,e,in,l3t1;aHeEiCyde;fCnt,ve;ford,t1;menDt6;us;s,t;rFuDyC;!t1;dCs;e,io;enC;ce;aHeGrisC;!toC;phCs;!eC;!r;st2t;d,rCs;b4leC;s,y;el;cDdrCsA;ic;il;lHmFrC;ey,lDroCy;ll;!o7t1;er1iC;lo;!eb,v3;a06eWilVjorn,laUoSrEuCyr1;ddy,rtKst2;er;aKeFiEuDyC;an,ce,on;ce,no;an,ce;nDtC;!t;dDtC;!on;an,on;dFnC;dDisC;lav;en,on;!foLl8y;bby,gd0rCyd;is;ine,ke;al,lK;nIrC;at,nEtC;!raC;m,nd;aDhaCie;rd;rd5;!iDjam3nCs1;ie,y;to;kaMlazs,nHrC;n8rDtC;!holomew;eCy;tt;ey;dCeD;ar,iC;le;ar1Hb18d11fonso,gust3hm0Xi0Ul07m05nRrGsaFugustEveDyCziz;a0kh0;ry;o,us;hi;ata,chiKiJjun,mHnEon,tCy0;em,hCie,ur5;ur;aDoC;!ld;ud,v;aCin;an,nd5;!el,ki;baCe;ld;aMdHgel5tCwA;hoFoC;iDnC;!i5y;ne;ny;er7rCy;eDzC;ej;!as,i,j,s,w;!s;s,tolC;iCy;!y;ar,iCmAos;ne,r,t;aVbSdBeJfHiGl00onFphonsEt1vC;aPin;on;e,o;so,zo;!sR;!onYrC;ed;c,jaHksFssaHxC;!andC;er,rC;e,os,u;andCei;ar,er,r;ndC;ro;en;eDrecC;ht;rt5;dd3in,n,sC;taC;ir;dDmA;ar;an,en;ad,eC;d,t;in;so;aGi,olErDvC;ik;ian5;f5ph;!o;mCn;!a;dGeFraDuC;!bakr;hCm;am;!l;allEel,oulaye,ulC;!lDrahm0;an;ah;av,on",
+    "Person": "true¦0:1Q;a21b1Tc1Hd1Ae14f11g0Zh0Ni0Mj0Jk0Gl0Dm07n04o03pYrOsItCusain bolt,v9w4xzibit,y1;anni,oko on2uji,v1;an,es;en,o;a3ednesday adams,i2o1;lfram,ode;ll ferrell,z khalifa;lt disney,r1;hol,ren;a2i1oltaire;n diesel,rginia wo12;lentino rossi,n gogh;a4h3i2ripp,u1yra banks;lXpac shakur;mba03pper gore;eresa may,or;kashi,t1ylor;um,yana;a4carlett johanss0h3i2lobodan milosevic,noop dogg,ocrates,pider1uperman,wami; man,man;egfried,nbad;akespeare,erlock holmes,ia labeouf;ddam hussain,nt1;a claus,ig8;a9e5i4o2u1za;mi,paul;bin hood,d stew12nald1thko;inho,o;hanna,ngo starr,valdo;ese witherspo0i1mbrandt;ll2nh1;old;ey,y;chmaninoff,ffi,iIshid,y romano;a4e3i2lato,o1uff daddy;cahontas,e;lar,per;le,rX;lmer,ris hilt0;leg,prah winfrey,ra;a2e1iles crane,ostradamus; yo,l5ttie,wmL;pole0s;a5e4i2o1ubarek;by,liere,net,rrissey;randa ju1tt romney;ly;rlin,ssia9;cklemore,rkov,s0ta hari,ya angelou;ady gaga,e1iberace,u;bron james,ch wale1e;sa;anye west,e2iefer suther1obe bryant;land;ats,sha;a2effers0fk,k rowling,rr tolki1;en;ck the ripper,waharlal nehru,y z;liSnez;a7e6i4u1;lk hog2mphrey1saZ;! bog03;an;l1tler;de;dwig,nry 3;ile selassFlle ber4m3rrison1;! 1;ford;id,mond;ry;ast0iannis,o1;odwNtye;ergus0lorence nightingale,r1;an1ederic chopL;s,z;ff5m2nya,ustaTzeki1;el;eril lagasse,i1;le zatop1nem;ek;ie;a5e3i1rake;ck w1ego maradoB;olf;g1mi lovaLnzel washingt0;as;l1nGrth vadO;ai lKt0;a7h4lint0o1thulhu;n1olio;an,fuci1;us;aucIop2ristian baKy1;na;in;millo,ptain beefhe4r1;dinal wols2s0;on;ey;art;a6e3hatt,ing crosby,oFro1;ck,n1;te;ck,nazir bhut2rtil,yon1;ce;to;nksy,rack ob1;ama;l 6r3shton kutch2vril lavig9yn ra1;nd;er;chimed2istot1;le;es;capo3go2paci1;no;re;ne"
+  };
 
   // russian numerals decline for case - 'пять', 'пяти', 'пятью'
   // and 'один' + 'два' agree in gender, too - 'одна', 'две'
@@ -10678,8 +12406,8 @@ designate
   });
 
   // hand-curated entries win over generated ones
-  Object.keys(misc$1).forEach(w => {
-    lexicon$1[w] = misc$1[w];
+  Object.keys(misc$3).forEach(w => {
+    lexicon$1[w] = misc$3[w];
   });
 
   // russian text often spells 'ё' as 'е' - add spelling-variants (идёшь → идешь)
@@ -10696,7 +12424,7 @@ designate
   // these endings are shared with nouns ('книгой', 'друзей', 'домом'), so there is no suffix-rule for them.
   // they are looked-up after the lexicon and the titlecase-rule, so that a name stays a name - 'Максим Горький'
   const adjectiveForms = {};
-  adjectives$1 = adjectives$1.concat(Object.keys(misc$1).filter(w => misc$1[w] === 'Adjective'));
+  adjectives$1 = adjectives$1.concat(Object.keys(misc$3).filter(w => misc$3[w] === 'Adjective'));
   adjectives$1.forEach(w => {
     methods$1.adjective.all(w).forEach(form => {
       const plain = form.replace(/ё/g, 'е');
@@ -10706,6 +12434,14 @@ designate
           adjectiveForms[plain] = true;
         }
       }
+    });
+  });
+
+  // console.log(lexicon['бежать'])
+  // latin-script names of people and places, shared by every language - our own words win
+  Object.keys(properNouns).forEach(tag => {
+    Object.keys(unpack(properNouns[tag])).forEach(w => {
+      lexicon$1[w] = lexicon$1[w] || tag;
     });
   });
 
@@ -10770,6 +12506,19 @@ designate
 
   ];
 
+  // words that end in a period, but don't end a sentence - 'Dr.'
+  // (these replace the english abbreviations, which collide with real words here)
+  const toObj = str => Object.fromEntries(str.trim().split(/\s+/).map(w => [w, true]));
+
+  var abbreviations = toObj(`
+  г гг в вв ул д кв корп с см ср проф акад доц тов гр дж
+  напр пр просп пл пос обл ст оз о зам зав гос сев юж зап вост
+  т е п н э т.е т.д т.п н.э др проч
+  стр рис табл гл изд испр доп тел
+  руб коп тыс млн млрд трлн ч мин сек чел кг км см мм мл шт
+  янв февр фев апр авг сент окт нояб дек
+`);
+
   const killUnicode = function (str) {
     // а́ е́ и́ о́ у́ ы́ э́ ю́ я́ - strip stress-marks (combining acute/grave accents)
     str = str.replace(/[\u0300\u0301]/g, '');
@@ -10780,8 +12529,6 @@ designate
     return str
   };
 
-  const numberAbbreviations = ['тыс', 'млн', 'млрд', 'трлн'];
-
   var tokenizer = {
     mutate: (world) => {
       world.model.one.unicode = {};
@@ -10789,10 +12536,8 @@ designate
 
       world.model.one.contractions = contractions;
 
-      // these periods don't end a sentence - '5 тыс. рублей'
-      numberAbbreviations.forEach(str => {
-        world.model.one.abbreviations[str] = true;
-      });
+      // our own abbreviations, for the sentence-parser
+      world.model.one.abbreviations = { ...abbreviations };
 
       // 'que' -> 'quebec'
       delete world.model.one.lexicon.que;
@@ -11201,7 +12946,7 @@ designate
   // }
 
 
-  const tagger = function (view) {
+  const tagger$1 = function (view) {
     const world = view.world;
     view.docs.forEach(terms => {
       firstPass(terms, world);
@@ -11298,8 +13043,6 @@ designate
     [/^[-+]?[$£]?[0-9]([0-9,.])+(usd|eur|jpy|gbp|cad|aud|chf|cny|hkd|nzd|kr|rub)$/i, ['Money', 'Value'], '$400usd'],
 
     //numbers
-    // thousands grouped with periods - 1.234.567
-    [/^[-+]?[0-9]{1,3}(\.[0-9]{3}){2,}$/, ['Cardinal', 'NumericValue'], '1.234.567'],
     // 50 | -50 | 3.23  | 5,999.0  | 10+
     [/^[-+]?[0-9]+(,[0-9]{3})*(\.[0-9]+)?\+?$/, ['Cardinal', 'NumericValue'], '5,999'],
     [/^[-+]?[0-9]+(,[0-9]{3})*(\.[0-9]+)?(st|nd|rd|r?th|°)$/, ['Ordinal', 'NumericValue'], '53rd'],
@@ -11564,7 +13307,7 @@ designate
 
   var preTagger = {
     compute: {
-      preTagger: tagger
+      preTagger: tagger$1
     },
     model: {
       two: model
@@ -11619,288 +13362,218 @@ designate
     return view
   };
 
+  // the whole tagging process, for re-tagging text after a change
+  const tagger = view => view.compute(['freeze', 'lexicon', 'preTagger', 'europeanNumbers', 'postTagger', 'unfreeze']);
+
   var postTagger = {
     compute: {
-      postTagger: postTagger$1
+      postTagger: postTagger$1,
+      tagger
     },
     hooks: ['postTagger']
   };
 
-  const entity = ['Person', 'Place', 'Organization'];
-
+  // only our own tags, and what differs from the shared tagset - see ../plugin.js
   var nouns$1 = {
     Noun: {
       aliases: [null, 'Существительное'],
-      not: ['Verb', 'Adjective', 'Adverb', 'Value', 'Determiner'],
     },
     Singular: {
       aliases: [null, 'ЕдинственноеЧисло'],
-      is: 'Noun',
       not: ['Plural'],
     },
     ProperNoun: {
       aliases: [null, 'ИмяСобственное'],
-      is: 'Noun',
     },
     Person: {
       aliases: [null, 'Персона'],
-      is: 'Singular',
-      also: ['ProperNoun'],
-      not: ['Place', 'Organization', 'Date'],
     },
     FirstName: {
       aliases: [null, 'Имя'],
-      is: 'Person',
     },
     MaleName: {
       aliases: [null, 'МужскоеИмя'],
-      is: 'FirstName',
-      not: ['FemaleName', 'LastName'],
     },
     FemaleName: {
       aliases: [null, 'ЖенскоеИмя'],
-      is: 'FirstName',
-      not: ['MaleName', 'LastName'],
     },
     LastName: {
       aliases: [null, 'Фамилия'],
-      is: 'Person',
-      not: ['FirstName'],
     },
     Honorific: {
       aliases: [null, 'Титул'],
       is: 'Noun',
-      not: ['FirstName', 'LastName', 'Value'],
     },
     Place: {
       aliases: [null, 'Место'],
-      is: 'Singular',
-      not: ['Person', 'Organization'],
     },
     Country: {
       aliases: [null, 'Страна'],
-      is: 'Place',
-      also: ['ProperNoun'],
-      not: ['City'],
     },
     City: {
       aliases: [null, 'Город'],
-      is: 'Place',
-      also: ['ProperNoun'],
-      not: ['Country'],
     },
     Region: {
       aliases: [null, 'Регион'],
-      is: 'Place',
-      also: ['ProperNoun'],
     },
     Address: {
       aliases: [null, 'Адрес'],
-      // is: 'Place',
     },
     Organization: {
       aliases: [null, 'Организация'],
-      is: 'ProperNoun',
-      not: ['Person', 'Place'],
     },
     SportsTeam: {
       aliases: [null, 'Команда'],
-      is: 'Organization',
     },
     School: {
       aliases: [null, 'Школа'],
-      is: 'Organization',
     },
     Company: {
       aliases: [null, 'Компания'],
-      is: 'Organization',
     },
     Plural: {
       aliases: [null, 'МножественноеЧисло'],
-      is: 'Noun',
       not: ['Singular'],
     },
     Uncountable: {
       aliases: [null, 'Неисчисляемое'],
-      is: 'Noun',
     },
     Pronoun: {
       aliases: [null, 'Местоимение'],
-      is: 'Noun',
-      not: entity,
     },
     Actor: {
-      is: 'Noun',
-      not: entity,
+      not: ['Person', 'Place', 'Organization'],
     },
     Activity: {
       aliases: [null, 'Деятельность'],
-      is: 'Noun',
-      not: ['Person', 'Place'],
     },
     Unit: {
       aliases: [null, 'Единица'],
-      is: 'Noun',
-      not: entity,
     },
     Demonym: {
-      is: 'Noun',
-      also: ['ProperNoun'],
-      not: entity,
     },
     Possessive: {
       aliases: [null, 'Притяжательное'],
-      is: 'Noun',
     },
-
     FemaleNoun: {
       aliases: [null, 'ЖенскийРод'],
       is: 'Noun',
-      not: ['MaleNoun', 'NeuterNoun']
+      not: ['MaleNoun', 'NeuterNoun'],
     },
     MaleNoun: {
       aliases: [null, 'МужскойРод'],
       is: 'Noun',
-      not: ['FemaleNoun', 'NeuterNoun']
+      not: ['FemaleNoun', 'NeuterNoun'],
     },
     NeuterNoun: {
       aliases: [null, 'СреднийРод'],
       is: 'Noun',
-      not: ['MaleNoun', 'FemaleNoun']
+      not: ['MaleNoun', 'FemaleNoun'],
     },
-    // grammatically-animate (people + animals) - accusative takes genitive form
     AnimateNoun: {
       aliases: [null, 'Одушевлённое', 'Одушевленное'],
       is: 'Noun',
     },
-
   };
 
+  // only our own tags, and what differs from the shared tagset - see ../plugin.js
   var verbs$1 = {
     Verb: {
       aliases: [null, 'Глагол'],
-      not: ['Noun', 'Adjective', 'Adverb', 'Value', 'Expression'],
     },
     PresentTense: {
       aliases: [null, 'НастоящееВремя'],
-      is: 'Verb',
-      not: ['PastTense', 'FutureTense'],
     },
-    // russian infinitives (читать) are their own form - not a present-tense
     Infinitive: {
       aliases: [null, 'Инфинитив'],
       is: 'Verb',
-      not: ['Gerund'],
     },
-    // деепричастие (читая, прочитав)
     Gerund: {
       aliases: [null, 'Деепричастие'],
       is: 'Verb',
-      not: ['Copula'],
     },
     PastTense: {
       aliases: [null, 'ПрошедшееВремя'],
-      is: 'Verb',
-      not: ['PresentTense', 'Gerund', 'FutureTense'],
     },
     FutureTense: {
       aliases: [null, 'БудущееВремя'],
-      is: 'Verb',
       not: ['PresentTense', 'Gerund', 'PastTense'],
     },
     Copula: {
       aliases: [null, 'Связка'],
-      is: 'Verb',
     },
     Modal: {
       aliases: [null, 'Модальный'],
-      is: 'Verb',
-      not: ['Infinitive'],
     },
     PerfectTense: {
       is: 'Verb',
       not: ['Gerund'],
     },
-    // причастие (читающий, прочитанный) - declines like an adjective
     Participle: {
       aliases: [null, 'Причастие'],
       is: 'Adjective',
     },
     Auxiliary: {
       aliases: [null, 'Вспомогательный'],
-      is: 'Verb',
-      not: ['PastTense', 'PresentTense', 'Gerund', 'Conjunction'],
     },
-    // 'я бы хотел'
     Conditional: {
       aliases: [null, 'СослагательноеНаклонение'],
       is: 'Verb',
       not: ['Infinitive', 'Imperative'],
     },
-    // verbs ending in -ся/-сь
     Reflexive: {
       aliases: [null, 'Возвратный'],
       is: 'Verb',
     },
-    // moods
     Imperative: {
       aliases: [null, 'ПовелительноеНаклонение'],
-      is: 'Verb',
       not: ['PresentTense', 'PastTense', 'FutureTense'],
     },
-
-    //
     FirstPerson: {
       aliases: [null, 'ПервоеЛицо'],
       is: 'Verb',
-      not: ['SecondPerson', 'ThirdPerson', 'FirstPersonPlural', 'SecondPersonPlural', 'ThirdPersonPlural']
+      not: ['SecondPerson', 'ThirdPerson', 'FirstPersonPlural', 'SecondPersonPlural', 'ThirdPersonPlural'],
     },
     SecondPerson: {
       aliases: [null, 'ВтороеЛицо'],
       is: 'Verb',
-      not: ['FirstPerson', 'ThirdPerson', 'FirstPersonPlural', 'SecondPersonPlural', 'ThirdPersonPlural']
+      not: ['FirstPerson', 'ThirdPerson', 'FirstPersonPlural', 'SecondPersonPlural', 'ThirdPersonPlural'],
     },
     ThirdPerson: {
       aliases: [null, 'ТретьеЛицо'],
       is: 'Verb',
-      not: ['FirstPerson', 'SecondPerson', 'FirstPersonPlural', 'SecondPersonPlural', 'ThirdPersonPlural']
+      not: ['FirstPerson', 'SecondPerson', 'FirstPersonPlural', 'SecondPersonPlural', 'ThirdPersonPlural'],
     },
     FirstPersonPlural: {
       aliases: [null, 'ПервоеЛицоМножественное'],
       is: 'Verb',
-      not: ['FirstPerson', 'SecondPerson', 'ThirdPerson', 'SecondPersonPlural', 'ThirdPersonPlural']
+      not: ['FirstPerson', 'SecondPerson', 'ThirdPerson', 'SecondPersonPlural', 'ThirdPersonPlural'],
     },
     SecondPersonPlural: {
       aliases: [null, 'ВтороеЛицоМножественное'],
       is: 'Verb',
-      not: ['FirstPerson', 'SecondPerson', 'ThirdPerson', 'FirstPersonPlural', 'ThirdPersonPlural']
+      not: ['FirstPerson', 'SecondPerson', 'ThirdPerson', 'FirstPersonPlural', 'ThirdPersonPlural'],
     },
     ThirdPersonPlural: {
       aliases: [null, 'ТретьеЛицоМножественное'],
       is: 'Verb',
-      not: ['FirstPerson', 'SecondPerson', 'ThirdPerson', 'FirstPersonPlural', 'SecondPersonPlural']
+      not: ['FirstPerson', 'SecondPerson', 'ThirdPerson', 'FirstPersonPlural', 'SecondPersonPlural'],
     },
   };
 
+  // only our own tags, and what differs from the shared tagset - see ../plugin.js
   var values = {
     Value: {
       aliases: [null, 'Число'],
-      not: ['Verb', 'Adjective', 'Adverb'],
     },
     Ordinal: {
       aliases: [null, 'Порядковое'],
-      is: 'Value',
-      not: ['Cardinal'],
     },
     Cardinal: {
       aliases: [null, 'Количественное'],
-      is: 'Value',
-      not: ['Ordinal'],
     },
     Fraction: {
       aliases: [null, 'Дробь'],
-      is: 'Value',
-      not: ['Noun'],
     },
     Multiple: {
       aliases: [null, 'Кратное'],
@@ -11908,33 +13581,28 @@ designate
     },
     RomanNumeral: {
       aliases: [null, 'РимскоеЧисло'],
-      is: 'Cardinal',
       not: ['TextValue'],
     },
     TextValue: {
       aliases: [null, 'Числительное'],
-      is: 'Value',
       not: ['NumericValue'],
     },
     NumericValue: {
       aliases: [null, 'Числовое'],
-      is: 'Value',
       not: ['TextValue'],
     },
     Money: {
       aliases: [null, 'Деньги'],
-      is: 'Cardinal',
     },
     Percent: {
       aliases: [null, 'Процент'],
-      is: 'Value',
     },
   };
 
+  // only our own tags, and what differs from the shared tagset - see ../plugin.js
   var dates = {
     Date: {
       aliases: [null, 'Дата'],
-      not: ['Verb', 'Adverb', 'Adjective'],
     },
     Month: {
       aliases: [null, 'Месяц'],
@@ -11946,40 +13614,32 @@ designate
       aliases: [null, 'ДеньНедели'],
       is: 'Noun',
       also: ['Date'],
+      not: undefined,
     },
     Year: {
       aliases: [null, 'Год'],
-      is: 'Date',
       not: ['RomanNumeral'],
     },
     FinancialQuarter: {
       aliases: [null, 'Квартал'],
-      is: 'Date',
       not: 'Fraction',
     },
-    // 'easter'
     Holiday: {
       aliases: [null, 'Праздник'],
-      is: 'Date',
-      also: ['Noun'],
     },
-    // 'summer'
     Season: {
       aliases: [null, 'ВремяГода'],
-      is: 'Date',
+      not: undefined,
     },
     Timezone: {
       aliases: [null, 'ЧасовойПояс'],
       is: 'Noun',
       also: ['Date'],
-      not: ['ProperNoun'],
     },
     Time: {
       aliases: [null, 'Время'],
-      is: 'Date',
       not: ['AtMention'],
     },
-    // 'months'
     Duration: {
       aliases: [null, 'Длительность'],
       is: 'Noun',
@@ -11987,12 +13647,10 @@ designate
     },
   };
 
-  const anything = ['Noun', 'Verb', 'Adjective', 'Adverb', 'Value', 'QuestionWord'];
-
+  // only our own tags, and what differs from the shared tagset - see ../plugin.js
   var misc = {
     Adjective: {
       aliases: [null, 'Прилагательное'],
-      not: ['Noun', 'Verb', 'Adverb', 'Value'],
     },
     FemaleAdjective: {
       aliases: [null, 'ПрилагательноеЖенскогоРода'],
@@ -12015,58 +13673,49 @@ designate
       not: ['PluralAdjective'],
     },
     Comparable: {
-      is: 'Adjective',
     },
     Comparative: {
       aliases: [null, 'СравнительнаяСтепень'],
-      is: 'Adjective',
     },
     Superlative: {
       aliases: [null, 'ПревосходнаяСтепень'],
-      is: 'Adjective',
-      not: ['Comparative'],
     },
     NumberRange: {
       aliases: [null, 'ЧисловойДиапазон'],
     },
     Adverb: {
       aliases: [null, 'Наречие'],
-      not: ['Noun', 'Verb', 'Adjective', 'Value'],
     },
-
     Determiner: {
       aliases: [null, 'Определитель'],
-      not: ['Noun', 'Verb', 'Adjective', 'Adverb', 'QuestionWord', 'Conjunction'], //allow 'a' to be a Determiner/Value
     },
-    // же, ли, бы, ведь..
     Particle: {
       aliases: [null, 'Частица'],
+      is: undefined,
       not: ['Noun', 'Verb', 'Adjective', 'Adverb'],
     },
-    // не, ни, нет
     Negative: {
       aliases: [null, 'Отрицание'],
       not: ['Noun', 'Adjective', 'Value'],
     },
     Conjunction: {
       aliases: [null, 'Союз'],
-      not: anything,
+      is: undefined,
+      not: ['Noun', 'Verb', 'Adjective', 'Adverb', 'Value', 'QuestionWord'],
     },
     Preposition: {
       aliases: [null, 'Предлог'],
+      is: undefined,
       not: ['Noun', 'Verb', 'Adjective', 'Adverb', 'QuestionWord'],
     },
     QuestionWord: {
       aliases: [null, 'ВопросительноеСлово'],
-      not: ['Determiner'],
     },
     Currency: {
       aliases: [null, 'Валюта'],
-      is: 'Noun',
     },
     Expression: {
       aliases: [null, 'Междометие'],
-      not: ['Noun', 'Adjective', 'Verb', 'Adverb'],
     },
     Abbreviation: {
       aliases: [null, 'Сокращение'],
@@ -12084,7 +13733,6 @@ designate
     },
     AtMention: {
       aliases: [null, 'Упоминание'],
-      is: 'Noun',
       not: ['HashTag', 'Email'],
     },
     Emoji: {
@@ -12105,11 +13753,25 @@ designate
     },
     Condition: {
       aliases: [null, 'Условие'],
-      not: ['Verb', 'Adjective', 'Noun', 'Value'],
+      is: undefined,
     },
   };
 
-  const tags = Object.assign({}, nouns$1, verbs$1, values, dates, misc);
+  const ours = Object.assign({}, nouns$1, verbs$1, values, dates, misc);
+
+  // start from the shared tagset, then apply our own tags and changes
+  const tags = { ...allTags };
+
+  Object.keys(ours).forEach(tag => {
+    const en = tags[tag];
+    if (!en) {
+      tags[tag] = ours[tag];
+      return
+    }
+    // our aliases lead, so the first one stays the preferred name - then the english ones, like #NN
+    const aliases = (ours[tag].aliases || [null]).concat((en.aliases || []).filter(str => str));
+    tags[tag] = { ...en, ...ours[tag], aliases };
+  });
 
   var tagset = {
     tags
@@ -12278,73 +13940,34 @@ designate
     return view.update(ptrs)
   };
 
-  const signs = /[-−]/;
-  const count = (str, char) => str.split(char).length - 1;
-
-  // which marks the decimal, and which groups the thousands?
-  // russian uses '3,5' and '1 234', but '3.5' and '1,234,567.5' show up, too
-  const readDigits = function (digits) {
-    let decimal = null;
-    let group = /\s/.test(digits) ? ' ' : null;
-    digits = digits.replace(/\s/g, '');
-    const commas = count(digits, ',');
-    const dots = count(digits, '.');
-    if (commas && dots) {
-      // the last one is the decimal - '1.234,5'
-      decimal = digits.lastIndexOf(',') > digits.lastIndexOf('.') ? ',' : '.';
-      group = decimal === ',' ? '.' : ',';
-    } else if (commas > 1 || dots > 1) {
-      group = commas ? ',' : '.'; // '1.234.567'
-    } else if (commas || dots) {
-      decimal = commas ? ',' : '.'; // '3,5'
-    }
-    let [int, fraction] = decimal ? digits.split(decimal) : [digits];
-    int = int.replace(/[.,]/g, '');
-    const num = Number(fraction ? int + '.' + fraction : int);
-    return { num, decimal, group }
+  // how russian writes its digits, for the shared european-numbers plugin
+  // '3,5', '1 234', and a numeric ordinal - '5-й', '2-го', '1990-х'
+  // .. and the words beside a number - '50 процентов', '100 р.'
+  var locale = {
+    decimal: ',',
+    group: ' ',
+    ordinal: '-[а-яё]{1,3}',
+    percent: ['процент', 'процента', 'проценту', 'процентом', 'проценте', 'проценты', 'процентов', 'процентам', 'процентами', 'процентах'],
+    currencies: ['р', 'руб'],
   };
 
+  const { read } = europeanNumbers.methods.two.europeanNumbers;
+
   // pull-apart a number written in digits - '-5', '1 234,5', '50%', '5-го'
+  // the shared plugin does the reading - '3,5' and '1 234', but '3.5' and '1,234,567.5' show up, too
   const fromNumber = function (str, pre = '') {
-    const res = { num: null, prefix: '', suffix: '', hasComma: false, decimal: ',', separator: ' ', ending: null };
-    // split-up the '$', the digits, and the '%'
-    const begin = str.search(/[0-9]/);
-    if (begin === -1) {
-      return res
+    const res = read(str, pre, locale);
+    return {
+      num: res.num,
+      prefix: res.prefix,
+      suffix: res.suffix,
+      hasComma: res.hasComma,
+      // the marks to write it back with - '1,234,567' would have a decimal-point
+      decimal: res.decimal || (res.group === ',' ? '.' : ','),
+      separator: res.group || ' ',
+      // a numeric ordinal - '5-й' has 'й'
+      ending: res.ordinal ? res.ordinal.replace(/^-/, '') : null,
     }
-    let prefix = str.slice(0, begin);
-    let digits = str.slice(begin).match(/^[0-9][0-9.,\s]*/)[0].replace(/[.,\s]+$/, '');
-    let suffix = str.slice(begin + digits.length);
-    // '.5' is a half
-    if (/^[.,]$/.test(prefix.slice(-1)) && !/[.,\s]/.test(digits)) {
-      digits = '0' + prefix.slice(-1) + digits;
-      prefix = prefix.slice(0, -1);
-    }
-    let { num, decimal, group } = readDigits(digits);
-    if (isNaN(num)) {
-      return res
-    }
-    // a fraction - '1/2'
-    const fraction = suffix.match(/^\/([0-9]+)$/);
-    if (fraction && Number(fraction[1]) !== 0) {
-      num /= Number(fraction[1]);
-      suffix = '';
-    }
-    // the sign may sit in the punctuation before the term - '(-5)'
-    const isNegative = signs.test(prefix) || /[-−]$/.test(pre);
-    res.num = isNegative ? num * -1 : num;
-    res.prefix = prefix.replace(/[-−]/g, '');
-    res.decimal = decimal || ',';
-    res.hasComma = group !== null;
-    res.separator = group || ' ';
-    // a numeric ordinal - '5-й', '2-го', '1990-х'
-    const ord = suffix.match(/^-([а-яё]{1,3})$/);
-    if (ord) {
-      res.ending = ord[1];
-      suffix = '';
-    }
-    res.suffix = suffix;
-    return res
   };
 
   const longCase = {
@@ -12376,7 +13999,7 @@ designate
   };
 
   // floating-point noise - 0.1 + 0.2
-  const tidy = num => Number(num.toPrecision(15));
+  const tidy$1 = num => (Number.isInteger(num) ? num : Number(num.toPrecision(15)));
 
   // which case, and gender, was this number written in?
   const getForm = function (items) {
@@ -12456,7 +14079,7 @@ designate
     }
     let num = null;
     if (found) {
-      num = tidy(sum + carry);
+      num = tidy$1(sum + carry);
       // 'минус пять'
       if (hasSign && num > 0) {
         num *= -1;
@@ -12623,6 +14246,8 @@ designate
     return words
   };
 
+  const { write: write$1 } = europeanNumbers.methods.two.europeanNumbers;
+
   const vowels = /[аеёиоуыэюя]/;
 
   // 'процент' is counted like anything else - 'один процент', 'два процента', 'пять процентов'
@@ -12646,17 +14271,8 @@ designate
 
   // write the digits the way we found them - '3,5' or '1 234'
   const toDigits = function (parsed) {
-    const num = Math.abs(parsed.num);
-    let str = String(num);
-    // leave '1e+21' alone
-    if (/^[0-9]+(\.[0-9]+)?$/.test(str)) {
-      let [int, fraction] = str.split('.');
-      if (parsed.hasComma) {
-        int = int.replace(/\B(?=([0-9]{3})+$)/g, parsed.separator || ' ');
-      }
-      str = fraction ? int + (parsed.decimal || ',') + fraction : int;
-    }
-    return (parsed.num < 0 ? '-' : '') + (parsed.prefix || '') + str
+    const how = { hasComma: parsed.hasComma, decimal: parsed.decimal, group: parsed.separator, prefix: parsed.prefix };
+    return write$1(parsed.num, how, locale)
   };
 
   // write this number in one of our four formats
@@ -12694,6 +14310,9 @@ designate
     }
     return toDigits(parsed) + suffix
   };
+
+  // floating-point noise - 0.1 + 0.2 - but a whole number is already exact
+  const tidy = num => (Number.isInteger(num) ? num : Number(num.toPrecision(15)));
 
   // return the nth elem of a doc
   const getNth$1 = (doc, n) => (typeof n === 'number' ? doc.eq(n) : doc);
@@ -12978,7 +14597,7 @@ designate
           return this // don't bother
         }
         const res = mutate(this, (val, parsed) => {
-          parsed.num = Number((parsed.num + n).toPrecision(15));
+          parsed.num = tidy(parsed.num + n);
           write(val, parsed, getFormat(parsed.isText, parsed.isOrdinal));
         });
         return new Numbers(res.document, res.pointer)
@@ -13023,6 +14642,8 @@ designate
 
   var numbers = {
     api: api$3,
+    // our marks, for the shared european-numbers plugin
+    model: { two: { europeanNumbers: locale } },
   };
 
   const getNth = (doc, n) => (typeof n === 'number' ? doc.eq(n) : doc);
@@ -13519,15 +15140,61 @@ designate
 
   var version = '0.0.5';
 
+  // russian word-rules for .clauses() - the method itself comes from compromise/shared
+  const clauses = {
+    // a comma, but not a clause break
+    notClause: [
+      '@hasComma (и|или) .', // большой, и сильный
+    ],
+    // split a clause after these
+    splitAfter: [
+      '^#Pron (сказал|сказала|говорит)', // он сказал
+    ],
+    // split a clause before these
+    splitBefore: [
+      '(сказал|сказала|говорит) #Prop$',
+      '. . если .{4}', // ... если бы это было так
+      'и пока',
+      'теперь когда',
+      'с тех пор как',
+      'хотя',
+      'даже если',
+      'тогда как', // whereas
+      'как будто',
+      'пока не',
+      '(чей|чья|чьё|чьи)', // whose
+    ],
+    // split a clause before the [captured] word
+    splitBeforeGroup: [
+      '#Verb .* [но] .* #Verb', // это хорошо но это ..
+      'если .{2,9} [то] .', // если это так то иначе
+      'если .{2,9} [тогда] .',
+    ],
+  };
+
+  var clauseRules = {
+    model: { three: { clauses } },
+  };
+
   nlp.plugin(tokenizer);
   nlp.plugin(tagset);
   nlp.plugin(lexicon);
   nlp.plugin(preTagger);
+  // tags '1 234,56' and '5,30€' from their raw text
+  nlp.plugin(europeanNumbers);
   nlp.plugin(postTagger);
   nlp.plugin(nouns);
   nlp.plugin(adjectives);
   nlp.plugin(verbs);
   nlp.plugin(numbers);
+
+  // language-neutral plugins, shared with compromise
+  nlp.plugin(lazy$1); // nlp.lazy() - only tags the sentences that may match
+  nlp.plugin(misc$1); // .parentheses(), .quotations(), .acronyms(), .emails() ...
+  nlp.plugin(clauses$1); // .clauses() - split on punctuation, and our rules below
+  nlp.plugin(clauseRules);
+  nlp.plugin(topics); // .people(), .places(), .organizations(), .topics()
+  nlp.plugin(plugin); // .redact()
 
 
   const es = function (txt, lex) {

@@ -5,6 +5,9 @@ import fromNumber from './parse/fromNumber.js'
 import format from './format/index.js'
 import { cases } from './data.js'
 
+// floating-point noise - 0.1 + 0.2 - but a whole number is already exact
+const tidy = num => (Number.isInteger(num) ? num : Number(num.toPrecision(15)))
+
 // return the nth elem of a doc
 export const getNth = (doc, n) => (typeof n === 'number' ? doc.eq(n) : doc)
 
@@ -288,7 +291,7 @@ const api = function (View) {
         return this // don't bother
       }
       const res = mutate(this, (val, parsed) => {
-        parsed.num = Number((parsed.num + n).toPrecision(15))
+        parsed.num = tidy(parsed.num + n)
         write(val, parsed, getFormat(parsed.isText, parsed.isOrdinal))
       })
       return new Numbers(res.document, res.pointer)

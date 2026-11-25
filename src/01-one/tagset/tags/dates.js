@@ -1,7 +1,7 @@
+// only our own tags, and what differs from the shared tagset - see ../plugin.js
 export default {
   Date: {
     aliases: [null, 'Дата'],
-    not: ['Verb', 'Adverb', 'Adjective'],
   },
   Month: {
     aliases: [null, 'Месяц'],
@@ -13,40 +13,32 @@ export default {
     aliases: [null, 'ДеньНедели'],
     is: 'Noun',
     also: ['Date'],
+    not: undefined,
   },
   Year: {
     aliases: [null, 'Год'],
-    is: 'Date',
     not: ['RomanNumeral'],
   },
   FinancialQuarter: {
     aliases: [null, 'Квартал'],
-    is: 'Date',
     not: 'Fraction',
   },
-  // 'easter'
   Holiday: {
     aliases: [null, 'Праздник'],
-    is: 'Date',
-    also: ['Noun'],
   },
-  // 'summer'
   Season: {
     aliases: [null, 'ВремяГода'],
-    is: 'Date',
+    not: undefined,
   },
   Timezone: {
     aliases: [null, 'ЧасовойПояс'],
     is: 'Noun',
     also: ['Date'],
-    not: ['ProperNoun'],
   },
   Time: {
     aliases: [null, 'Время'],
-    is: 'Date',
     not: ['AtMention'],
   },
-  // 'months'
   Duration: {
     aliases: [null, 'Длительность'],
     is: 'Noun',

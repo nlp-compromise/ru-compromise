@@ -30,7 +30,7 @@ const fromEnding = function (str) {
 }
 
 // floating-point noise - 0.1 + 0.2
-const tidy = num => Number(num.toPrecision(15))
+const tidy = num => (Number.isInteger(num) ? num : Number(num.toPrecision(15)))
 
 // which case, and gender, was this number written in?
 const getForm = function (items) {
